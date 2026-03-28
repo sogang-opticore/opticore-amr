@@ -49,3 +49,51 @@ qtcreator-*
 
 # Catkin custom files
 CATKIN_IGNORE
+
+
+# ========================================
+# Opticore AMR Project Custom Rules
+# ========================================
+
+# ROS2 colcon build outputs
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.egg-info/
+.venv/
+venv/
+*.egg
+
+# YOLOv8 model files (large binaries)
+*.pt
+*.onnx
+*.engine
+*.trt
+
+# Datasets (do not commit large datasets)
+datasets/
+*.zip
+*.tar.gz
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Gazebo
+*.world.bak
