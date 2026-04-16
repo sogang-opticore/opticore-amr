@@ -1,0 +1,35 @@
+slam_toolbox:
+  ros__parameters:
+    solver_plugin: solver_plugins::CeresSolver
+    ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
+    ceres_preconditioner: SCHUR_JACOBI
+    mode: mapping
+
+    # 프레임 설정 — URDF의 프레임 이름과 반드시 일치해야 함
+    odom_frame: odom
+    map_frame: map
+    base_frame: base_footprint
+    scan_topic: /lidar
+
+    use_sim_time: true
+
+    # 맵 해상도 — 40x30m 월드에서 0.05m면 800x600px 맵 생성
+    resolution: 0.05
+
+    # 스캔 매칭 설정
+    use_scan_matching: true
+    max_laser_range: 12.0              # LiDAR 최대 범위 (스펙과 일치)
+    minimum_travel_distance: 0.3       # 0.3m 이동 후 스캔 등록
+    minimum_travel_heading: 0.3        # 0.3rad 회전 후 스캔 등록
+
+    # 스캔 버퍼
+    scan_buffer_size: 10
+    scan_buffer_maximum_scan_distance: 10.0
+
+    # TF 퍼블리시 주기
+    transform_publish_period: 0.02
+
+    # 루프 클로저 — 창고를 한 바퀴 돌 때 맵이 겹치지 않게 보정
+    do_loop_closing: true
+    loop_match_minimum_chain_size: 3
+    loop_match_maximum_variance_coarse: 3.0
