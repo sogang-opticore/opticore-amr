@@ -12,4 +12,10 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/
 )
 
+install(
+  PROGRAMS
+    src/dynamic_obstacle_mover.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 ament_package()
