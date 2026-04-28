@@ -120,6 +120,15 @@ def generate_launch_description():
         ],
     )
 
+    lidar_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='lidar_tf_fix',
+        arguments=['0', '0', '0', '0', '0', '0',
+                'lidar_link',
+                'opticore_amr/base_footprint/lidar_sensor'],
+    )
+
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         ign_gazebo,
@@ -128,4 +137,5 @@ def generate_launch_description():
         bridge,          # +5s
         ekf_node,        # +7s
         dynamic_obstacle_mover,  # +8s
+        lidar_tf,
     ])
