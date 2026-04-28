@@ -1,0 +1,614 @@
+[0.000000] (-) TimerEvent: {}
+[0.000613] (amr_bringup) JobQueued: {'identifier': 'amr_bringup', 'dependencies': OrderedDict()}
+[0.000850] (amr_fleet) JobQueued: {'identifier': 'amr_fleet', 'dependencies': OrderedDict()}
+[0.001345] (amr_navigation) JobQueued: {'identifier': 'amr_navigation', 'dependencies': OrderedDict()}
+[0.001576] (amr_perception) JobQueued: {'identifier': 'amr_perception', 'dependencies': OrderedDict()}
+[0.001882] (amr_slam) JobQueued: {'identifier': 'amr_slam', 'dependencies': OrderedDict()}
+[0.002062] (amr_bringup) JobStarted: {'identifier': 'amr_bringup'}
+[0.097268] (-) TimerEvent: {}
+[0.110266] (amr_fleet) JobStarted: {'identifier': 'amr_fleet'}
+[0.197401] (-) TimerEvent: {}
+[0.238576] (amr_navigation) JobStarted: {'identifier': 'amr_navigation'}
+[0.297538] (-) TimerEvent: {}
+[0.361154] (amr_perception) JobStarted: {'identifier': 'amr_perception'}
+[0.397672] (-) TimerEvent: {}
+[0.498243] (-) TimerEvent: {}
+[0.594605] (amr_slam) JobStarted: {'identifier': 'amr_slam'}
+[0.598376] (-) TimerEvent: {}
+[0.698906] (-) TimerEvent: {}
+[0.750581] (amr_bringup) JobProgress: {'identifier': 'amr_bringup', 'progress': 'cmake'}
+[0.778010] (amr_bringup) Command: {'cmd': ['/usr/bin/cmake', '/workspace/github/opticore-amr/ros2_ws/src/amr_bringup', '-DCMAKE_INSTALL_PREFIX=/workspace/github/opticore-amr/ros2_ws/install/amr_bringup'], 'cwd': '/workspace/github/opticore-amr/ros2_ws/build/amr_bringup', 'env': OrderedDict([('RUNPOD_PUBLIC_IP', '213.173.107.26'), ('RUNPOD_POD_HOSTNAME', '9oqg1l1xgz1auy-64411fda'), ('LIBRARY_PATH', '/usr/local/cuda/lib64/stubs'), ('NV_LIBCUBLAS_VERSION', '12.4.5.8-1'), ('NV_NVPROF_DEV_PACKAGE', 'cuda-nvprof-12-4=12.4.127-1'), ('NV_CUDA_COMPAT_PACKAGE', 'cuda-compat-12-4'), ('RUNPOD_POD_ID', '9oqg1l1xgz1auy'), ('NV_CUDA_NSIGHT_COMPUTE_VERSION', '12.4.1-1'), ('RUNPOD_GPU_NAME', 'NVIDIA+RTX+PRO+4500+Blackwell'), ('HOSTNAME', '786fdbe8cba3'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64'), ('NV_LIBNCCL_PACKAGE_VERSION', '2.21.5-1'), ('HOME', '/root'), ('OLDPWD', '/workspace/github/opticore-amr'), ('NV_LIBCUBLAS_DEV_VERSION', '12.4.5.8-1'), ('RUNPOD_API_KEY', 'rpa_OAM0NBEL93EG7ZBHMAJ49TYJ0LU9HKXVTEI0YAE0hbmerj'), ('ROS_PYTHON_VERSION', '3'), ('LC_CTYPE', 'C.UTF-8'), ('NV_LIBNCCL_DEV_PACKAGE_VERSION', '2.21.5-1'), ('NV_LIBNPP_PACKAGE', 'libnpp-12-4=12.2.5.30-1'), ('CUDA_VERSION', '12.4.1'), ('RUNPOD_VOLUME_ID', 'ti82fhq17n'), ('COLCON_PREFIX_PATH', '/workspace/ros2_ws/install'), ('NV_NVPROF_VERSION', '12.4.127-1'), ('ROS_DISTRO', 'humble'), ('NV_LIBCUBLAS_PACKAGE_NAME', 'libcublas-12-4'), ('NVIDIA_REQUIRE_CUDA', 'cuda>=12.4 brand=tesla,driver>=470,driver<471 brand=unknown,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=geforce,driver>=470,driver<471 brand=geforcertx,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=titan,driver>=470,driver<471 brand=titanrtx,driver>=470,driver<471 brand=tesla,driver>=525,driver<526 brand=unknown,driver>=525,driver<526 brand=nvidia,driver>=525,driver<526 brand=nvidiartx,driver>=525,driver<526 brand=geforce,driver>=525,driver<526 brand=geforcertx,driver>=525,driver<526 brand=quadro,driver>=525,driver<526 brand=quadrortx,driver>=525,driver<526 brand=titan,driver>=525,driver<526 brand=titanrtx,driver>=525,driver<526 brand=tesla,driver>=535,driver<536 brand=unknown,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=geforce,driver>=535,driver<536 brand=geforcertx,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=titan,driver>=535,driver<536 brand=titanrtx,driver>=535,driver<536'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('NV_LIBCUSPARSE_VERSION', '12.3.1.170-1'), ('NVIDIA_DRIVER_CAPABILITIES', 'compute,utility'), ('NV_CUDA_LIB_VERSION', '12.4.1-1'), ('NV_LIBNCCL_PACKAGE_NAME', 'libnccl2'), ('NV_NVML_DEV_VERSION', '12.4.127-1'), ('NV_LIBNPP_DEV_PACKAGE', 'libnpp-dev-12-4=12.2.5.30-1'), ('TERM', 'xterm'), ('NV_CUDA_CUDART_VERSION', '12.4.127-1'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/opt/ros/humble/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'), ('NV_LIBCUBLAS_DEV_PACKAGE_NAME', 'libcublas-dev-12-4'), ('NV_LIBCUBLAS_PACKAGE', 'libcublas-12-4=12.4.5.8-1'), ('NVARCH', 'x86_64'), ('NV_LIBNCCL_DEV_PACKAGE_NAME', 'libnccl-dev'), ('NV_LIBCUSPARSE_DEV_VERSION', '12.3.1.170-1'), ('NV_LIBNCCL_PACKAGE', 'libnccl2=2.21.5-1+cuda12.4'), ('NVIDIA_PRODUCT_NAME', 'CUDA'), ('NV_CUDA_CUDART_DEV_VERSION', '12.4.127-1'), ('RUNPOD_CPU_COUNT', '32'), ('AMENT_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_perception:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/opt/ros/humble'), ('DEBIAN_FRONTEND', 'noninteractive'), ('SHELL', '/bin/bash'), ('NV_LIBCUBLAS_DEV_PACKAGE', 'libcublas-dev-12-4=12.4.5.8-1'), ('RUNPOD_DC_ID', 'EU-RO-1'), ('PUBLIC_KEY', 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEjNRjXuPVBfXPSQHXnXQ0CJzMtJCUm12E6rH0LA2rAB Opticore-pcy\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILRJkinIEurocrZI8ja5gXMi61683caxj4eMxOyL9+N+ Opticore-<JW>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHl6hDWD9+4+Zndnl6kzWmzDrT2YRuhfVUg03rQVbo7P Opticore-<us>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEFqIyz9ZcUfXoND9oRrMlOQQB9KSBgAyUFY0grr+ozf Opticore-jsw\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOse8jd1peft/WWDca6gK4x400a6rL+6lssMEbLRoBgB ukkhnn_macbook'), ('NV_CUDA_NSIGHT_COMPUTE_DEV_PACKAGE', 'cuda-nsight-compute-12-4=12.4.1-1'), ('NV_LIBNCCL_DEV_PACKAGE', 'libnccl-dev=2.21.5-1+cuda12.4'), ('RUNPOD_GPU_COUNT', '1'), ('NV_NVTX_VERSION', '12.4.127-1'), ('NV_LIBNPP_VERSION', '12.2.5.30-1'), ('PWD', '/workspace/github/opticore-amr/ros2_ws/build/amr_bringup'), ('RUNPOD_MEM_GB', '62'), ('RUNPOD_TCP_PORT_22', '17600'), ('PYTHONPATH', '/workspace/ros2_ws/install/amr_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('NVIDIA_VISIBLE_DEVICES', 'all'), ('NCCL_VERSION', '2.21.5-1'), ('COLCON', '1'), ('NV_LIBNPP_DEV_VERSION', '12.2.5.30-1'), ('CMAKE_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble')]), 'shell': False}
+[0.798991] (-) TimerEvent: {}
+[0.800600] (amr_fleet) JobProgress: {'identifier': 'amr_fleet', 'progress': 'cmake'}
+[0.849435] (amr_fleet) Command: {'cmd': ['/usr/bin/cmake', '/workspace/github/opticore-amr/ros2_ws/src/amr_fleet', '-DCMAKE_INSTALL_PREFIX=/workspace/github/opticore-amr/ros2_ws/install/amr_fleet'], 'cwd': '/workspace/github/opticore-amr/ros2_ws/build/amr_fleet', 'env': OrderedDict([('RUNPOD_PUBLIC_IP', '213.173.107.26'), ('RUNPOD_POD_HOSTNAME', '9oqg1l1xgz1auy-64411fda'), ('LIBRARY_PATH', '/usr/local/cuda/lib64/stubs'), ('NV_LIBCUBLAS_VERSION', '12.4.5.8-1'), ('NV_NVPROF_DEV_PACKAGE', 'cuda-nvprof-12-4=12.4.127-1'), ('NV_CUDA_COMPAT_PACKAGE', 'cuda-compat-12-4'), ('RUNPOD_POD_ID', '9oqg1l1xgz1auy'), ('NV_CUDA_NSIGHT_COMPUTE_VERSION', '12.4.1-1'), ('RUNPOD_GPU_NAME', 'NVIDIA+RTX+PRO+4500+Blackwell'), ('HOSTNAME', '786fdbe8cba3'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64'), ('NV_LIBNCCL_PACKAGE_VERSION', '2.21.5-1'), ('HOME', '/root'), ('OLDPWD', '/workspace/github/opticore-amr'), ('NV_LIBCUBLAS_DEV_VERSION', '12.4.5.8-1'), ('RUNPOD_API_KEY', 'rpa_OAM0NBEL93EG7ZBHMAJ49TYJ0LU9HKXVTEI0YAE0hbmerj'), ('ROS_PYTHON_VERSION', '3'), ('LC_CTYPE', 'C.UTF-8'), ('NV_LIBNCCL_DEV_PACKAGE_VERSION', '2.21.5-1'), ('NV_LIBNPP_PACKAGE', 'libnpp-12-4=12.2.5.30-1'), ('CUDA_VERSION', '12.4.1'), ('RUNPOD_VOLUME_ID', 'ti82fhq17n'), ('COLCON_PREFIX_PATH', '/workspace/ros2_ws/install'), ('NV_NVPROF_VERSION', '12.4.127-1'), ('ROS_DISTRO', 'humble'), ('NV_LIBCUBLAS_PACKAGE_NAME', 'libcublas-12-4'), ('NVIDIA_REQUIRE_CUDA', 'cuda>=12.4 brand=tesla,driver>=470,driver<471 brand=unknown,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=geforce,driver>=470,driver<471 brand=geforcertx,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=titan,driver>=470,driver<471 brand=titanrtx,driver>=470,driver<471 brand=tesla,driver>=525,driver<526 brand=unknown,driver>=525,driver<526 brand=nvidia,driver>=525,driver<526 brand=nvidiartx,driver>=525,driver<526 brand=geforce,driver>=525,driver<526 brand=geforcertx,driver>=525,driver<526 brand=quadro,driver>=525,driver<526 brand=quadrortx,driver>=525,driver<526 brand=titan,driver>=525,driver<526 brand=titanrtx,driver>=525,driver<526 brand=tesla,driver>=535,driver<536 brand=unknown,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=geforce,driver>=535,driver<536 brand=geforcertx,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=titan,driver>=535,driver<536 brand=titanrtx,driver>=535,driver<536'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('NV_LIBCUSPARSE_VERSION', '12.3.1.170-1'), ('NVIDIA_DRIVER_CAPABILITIES', 'compute,utility'), ('NV_CUDA_LIB_VERSION', '12.4.1-1'), ('NV_LIBNCCL_PACKAGE_NAME', 'libnccl2'), ('NV_NVML_DEV_VERSION', '12.4.127-1'), ('NV_LIBNPP_DEV_PACKAGE', 'libnpp-dev-12-4=12.2.5.30-1'), ('TERM', 'xterm'), ('NV_CUDA_CUDART_VERSION', '12.4.127-1'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/opt/ros/humble/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'), ('NV_LIBCUBLAS_DEV_PACKAGE_NAME', 'libcublas-dev-12-4'), ('NV_LIBCUBLAS_PACKAGE', 'libcublas-12-4=12.4.5.8-1'), ('NVARCH', 'x86_64'), ('NV_LIBNCCL_DEV_PACKAGE_NAME', 'libnccl-dev'), ('NV_LIBCUSPARSE_DEV_VERSION', '12.3.1.170-1'), ('NV_LIBNCCL_PACKAGE', 'libnccl2=2.21.5-1+cuda12.4'), ('NVIDIA_PRODUCT_NAME', 'CUDA'), ('NV_CUDA_CUDART_DEV_VERSION', '12.4.127-1'), ('RUNPOD_CPU_COUNT', '32'), ('AMENT_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_perception:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/opt/ros/humble'), ('DEBIAN_FRONTEND', 'noninteractive'), ('SHELL', '/bin/bash'), ('NV_LIBCUBLAS_DEV_PACKAGE', 'libcublas-dev-12-4=12.4.5.8-1'), ('RUNPOD_DC_ID', 'EU-RO-1'), ('PUBLIC_KEY', 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEjNRjXuPVBfXPSQHXnXQ0CJzMtJCUm12E6rH0LA2rAB Opticore-pcy\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILRJkinIEurocrZI8ja5gXMi61683caxj4eMxOyL9+N+ Opticore-<JW>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHl6hDWD9+4+Zndnl6kzWmzDrT2YRuhfVUg03rQVbo7P Opticore-<us>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEFqIyz9ZcUfXoND9oRrMlOQQB9KSBgAyUFY0grr+ozf Opticore-jsw\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOse8jd1peft/WWDca6gK4x400a6rL+6lssMEbLRoBgB ukkhnn_macbook'), ('NV_CUDA_NSIGHT_COMPUTE_DEV_PACKAGE', 'cuda-nsight-compute-12-4=12.4.1-1'), ('NV_LIBNCCL_DEV_PACKAGE', 'libnccl-dev=2.21.5-1+cuda12.4'), ('RUNPOD_GPU_COUNT', '1'), ('NV_NVTX_VERSION', '12.4.127-1'), ('NV_LIBNPP_VERSION', '12.2.5.30-1'), ('PWD', '/workspace/github/opticore-amr/ros2_ws/build/amr_fleet'), ('RUNPOD_MEM_GB', '62'), ('RUNPOD_TCP_PORT_22', '17600'), ('PYTHONPATH', '/workspace/ros2_ws/install/amr_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('NVIDIA_VISIBLE_DEVICES', 'all'), ('NCCL_VERSION', '2.21.5-1'), ('COLCON', '1'), ('NV_LIBNPP_DEV_VERSION', '12.2.5.30-1'), ('CMAKE_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble')]), 'shell': False}
+[0.865475] (amr_navigation) JobProgress: {'identifier': 'amr_navigation', 'progress': 'cmake'}
+[0.895480] (amr_navigation) Command: {'cmd': ['/usr/bin/cmake', '/workspace/github/opticore-amr/ros2_ws/src/amr_navigation', '-DCMAKE_INSTALL_PREFIX=/workspace/github/opticore-amr/ros2_ws/install/amr_navigation'], 'cwd': '/workspace/github/opticore-amr/ros2_ws/build/amr_navigation', 'env': OrderedDict([('RUNPOD_PUBLIC_IP', '213.173.107.26'), ('RUNPOD_POD_HOSTNAME', '9oqg1l1xgz1auy-64411fda'), ('LIBRARY_PATH', '/usr/local/cuda/lib64/stubs'), ('NV_LIBCUBLAS_VERSION', '12.4.5.8-1'), ('NV_NVPROF_DEV_PACKAGE', 'cuda-nvprof-12-4=12.4.127-1'), ('NV_CUDA_COMPAT_PACKAGE', 'cuda-compat-12-4'), ('RUNPOD_POD_ID', '9oqg1l1xgz1auy'), ('NV_CUDA_NSIGHT_COMPUTE_VERSION', '12.4.1-1'), ('RUNPOD_GPU_NAME', 'NVIDIA+RTX+PRO+4500+Blackwell'), ('HOSTNAME', '786fdbe8cba3'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64'), ('NV_LIBNCCL_PACKAGE_VERSION', '2.21.5-1'), ('HOME', '/root'), ('OLDPWD', '/workspace/github/opticore-amr'), ('NV_LIBCUBLAS_DEV_VERSION', '12.4.5.8-1'), ('RUNPOD_API_KEY', 'rpa_OAM0NBEL93EG7ZBHMAJ49TYJ0LU9HKXVTEI0YAE0hbmerj'), ('ROS_PYTHON_VERSION', '3'), ('LC_CTYPE', 'C.UTF-8'), ('NV_LIBNCCL_DEV_PACKAGE_VERSION', '2.21.5-1'), ('NV_LIBNPP_PACKAGE', 'libnpp-12-4=12.2.5.30-1'), ('CUDA_VERSION', '12.4.1'), ('RUNPOD_VOLUME_ID', 'ti82fhq17n'), ('COLCON_PREFIX_PATH', '/workspace/ros2_ws/install'), ('NV_NVPROF_VERSION', '12.4.127-1'), ('ROS_DISTRO', 'humble'), ('NV_LIBCUBLAS_PACKAGE_NAME', 'libcublas-12-4'), ('NVIDIA_REQUIRE_CUDA', 'cuda>=12.4 brand=tesla,driver>=470,driver<471 brand=unknown,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=geforce,driver>=470,driver<471 brand=geforcertx,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=titan,driver>=470,driver<471 brand=titanrtx,driver>=470,driver<471 brand=tesla,driver>=525,driver<526 brand=unknown,driver>=525,driver<526 brand=nvidia,driver>=525,driver<526 brand=nvidiartx,driver>=525,driver<526 brand=geforce,driver>=525,driver<526 brand=geforcertx,driver>=525,driver<526 brand=quadro,driver>=525,driver<526 brand=quadrortx,driver>=525,driver<526 brand=titan,driver>=525,driver<526 brand=titanrtx,driver>=525,driver<526 brand=tesla,driver>=535,driver<536 brand=unknown,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=geforce,driver>=535,driver<536 brand=geforcertx,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=titan,driver>=535,driver<536 brand=titanrtx,driver>=535,driver<536'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('NV_LIBCUSPARSE_VERSION', '12.3.1.170-1'), ('NVIDIA_DRIVER_CAPABILITIES', 'compute,utility'), ('NV_CUDA_LIB_VERSION', '12.4.1-1'), ('NV_LIBNCCL_PACKAGE_NAME', 'libnccl2'), ('NV_NVML_DEV_VERSION', '12.4.127-1'), ('NV_LIBNPP_DEV_PACKAGE', 'libnpp-dev-12-4=12.2.5.30-1'), ('TERM', 'xterm'), ('NV_CUDA_CUDART_VERSION', '12.4.127-1'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/opt/ros/humble/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'), ('NV_LIBCUBLAS_DEV_PACKAGE_NAME', 'libcublas-dev-12-4'), ('NV_LIBCUBLAS_PACKAGE', 'libcublas-12-4=12.4.5.8-1'), ('NVARCH', 'x86_64'), ('NV_LIBNCCL_DEV_PACKAGE_NAME', 'libnccl-dev'), ('NV_LIBCUSPARSE_DEV_VERSION', '12.3.1.170-1'), ('NV_LIBNCCL_PACKAGE', 'libnccl2=2.21.5-1+cuda12.4'), ('NVIDIA_PRODUCT_NAME', 'CUDA'), ('NV_CUDA_CUDART_DEV_VERSION', '12.4.127-1'), ('RUNPOD_CPU_COUNT', '32'), ('AMENT_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_perception:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/opt/ros/humble'), ('DEBIAN_FRONTEND', 'noninteractive'), ('SHELL', '/bin/bash'), ('NV_LIBCUBLAS_DEV_PACKAGE', 'libcublas-dev-12-4=12.4.5.8-1'), ('RUNPOD_DC_ID', 'EU-RO-1'), ('PUBLIC_KEY', 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEjNRjXuPVBfXPSQHXnXQ0CJzMtJCUm12E6rH0LA2rAB Opticore-pcy\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILRJkinIEurocrZI8ja5gXMi61683caxj4eMxOyL9+N+ Opticore-<JW>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHl6hDWD9+4+Zndnl6kzWmzDrT2YRuhfVUg03rQVbo7P Opticore-<us>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEFqIyz9ZcUfXoND9oRrMlOQQB9KSBgAyUFY0grr+ozf Opticore-jsw\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOse8jd1peft/WWDca6gK4x400a6rL+6lssMEbLRoBgB ukkhnn_macbook'), ('NV_CUDA_NSIGHT_COMPUTE_DEV_PACKAGE', 'cuda-nsight-compute-12-4=12.4.1-1'), ('NV_LIBNCCL_DEV_PACKAGE', 'libnccl-dev=2.21.5-1+cuda12.4'), ('RUNPOD_GPU_COUNT', '1'), ('NV_NVTX_VERSION', '12.4.127-1'), ('NV_LIBNPP_VERSION', '12.2.5.30-1'), ('PWD', '/workspace/github/opticore-amr/ros2_ws/build/amr_navigation'), ('RUNPOD_MEM_GB', '62'), ('RUNPOD_TCP_PORT_22', '17600'), ('PYTHONPATH', '/workspace/ros2_ws/install/amr_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('NVIDIA_VISIBLE_DEVICES', 'all'), ('NCCL_VERSION', '2.21.5-1'), ('COLCON', '1'), ('NV_LIBNPP_DEV_VERSION', '12.2.5.30-1'), ('CMAKE_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble')]), 'shell': False}
+[0.908126] (-) TimerEvent: {}
+[1.008518] (-) TimerEvent: {}
+[1.108930] (-) TimerEvent: {}
+[1.209363] (-) TimerEvent: {}
+[1.309768] (-) TimerEvent: {}
+[1.410148] (-) TimerEvent: {}
+[1.510575] (-) TimerEvent: {}
+[1.611010] (-) TimerEvent: {}
+[1.712601] (amr_bringup) StdoutLine: {'line': b'-- The C compiler identification is GNU 11.4.0\n'}
+[1.714100] (-) TimerEvent: {}
+[1.714624] (amr_fleet) StdoutLine: {'line': b'-- The C compiler identification is GNU 11.4.0\n'}
+[1.715744] (amr_navigation) StdoutLine: {'line': b'-- The C compiler identification is GNU 11.4.0\n'}
+[1.749025] (amr_slam) JobProgress: {'identifier': 'amr_slam', 'progress': 'cmake'}
+[1.759371] (amr_bringup) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 11.4.0\n'}
+[1.776209] (amr_slam) Command: {'cmd': ['/usr/bin/cmake', '/workspace/github/opticore-amr/ros2_ws/src/amr_slam', '-DCMAKE_INSTALL_PREFIX=/workspace/github/opticore-amr/ros2_ws/install/amr_slam'], 'cwd': '/workspace/github/opticore-amr/ros2_ws/build/amr_slam', 'env': OrderedDict([('RUNPOD_PUBLIC_IP', '213.173.107.26'), ('RUNPOD_POD_HOSTNAME', '9oqg1l1xgz1auy-64411fda'), ('LIBRARY_PATH', '/usr/local/cuda/lib64/stubs'), ('NV_LIBCUBLAS_VERSION', '12.4.5.8-1'), ('NV_NVPROF_DEV_PACKAGE', 'cuda-nvprof-12-4=12.4.127-1'), ('NV_CUDA_COMPAT_PACKAGE', 'cuda-compat-12-4'), ('RUNPOD_POD_ID', '9oqg1l1xgz1auy'), ('NV_CUDA_NSIGHT_COMPUTE_VERSION', '12.4.1-1'), ('RUNPOD_GPU_NAME', 'NVIDIA+RTX+PRO+4500+Blackwell'), ('HOSTNAME', '786fdbe8cba3'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64'), ('NV_LIBNCCL_PACKAGE_VERSION', '2.21.5-1'), ('HOME', '/root'), ('OLDPWD', '/workspace/github/opticore-amr'), ('NV_LIBCUBLAS_DEV_VERSION', '12.4.5.8-1'), ('RUNPOD_API_KEY', 'rpa_OAM0NBEL93EG7ZBHMAJ49TYJ0LU9HKXVTEI0YAE0hbmerj'), ('ROS_PYTHON_VERSION', '3'), ('LC_CTYPE', 'C.UTF-8'), ('NV_LIBNCCL_DEV_PACKAGE_VERSION', '2.21.5-1'), ('NV_LIBNPP_PACKAGE', 'libnpp-12-4=12.2.5.30-1'), ('CUDA_VERSION', '12.4.1'), ('RUNPOD_VOLUME_ID', 'ti82fhq17n'), ('COLCON_PREFIX_PATH', '/workspace/ros2_ws/install'), ('NV_NVPROF_VERSION', '12.4.127-1'), ('ROS_DISTRO', 'humble'), ('NV_LIBCUBLAS_PACKAGE_NAME', 'libcublas-12-4'), ('NVIDIA_REQUIRE_CUDA', 'cuda>=12.4 brand=tesla,driver>=470,driver<471 brand=unknown,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=geforce,driver>=470,driver<471 brand=geforcertx,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=titan,driver>=470,driver<471 brand=titanrtx,driver>=470,driver<471 brand=tesla,driver>=525,driver<526 brand=unknown,driver>=525,driver<526 brand=nvidia,driver>=525,driver<526 brand=nvidiartx,driver>=525,driver<526 brand=geforce,driver>=525,driver<526 brand=geforcertx,driver>=525,driver<526 brand=quadro,driver>=525,driver<526 brand=quadrortx,driver>=525,driver<526 brand=titan,driver>=525,driver<526 brand=titanrtx,driver>=525,driver<526 brand=tesla,driver>=535,driver<536 brand=unknown,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=geforce,driver>=535,driver<536 brand=geforcertx,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=titan,driver>=535,driver<536 brand=titanrtx,driver>=535,driver<536'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('NV_LIBCUSPARSE_VERSION', '12.3.1.170-1'), ('NVIDIA_DRIVER_CAPABILITIES', 'compute,utility'), ('NV_CUDA_LIB_VERSION', '12.4.1-1'), ('NV_LIBNCCL_PACKAGE_NAME', 'libnccl2'), ('NV_NVML_DEV_VERSION', '12.4.127-1'), ('NV_LIBNPP_DEV_PACKAGE', 'libnpp-dev-12-4=12.2.5.30-1'), ('TERM', 'xterm'), ('NV_CUDA_CUDART_VERSION', '12.4.127-1'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/opt/ros/humble/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'), ('NV_LIBCUBLAS_DEV_PACKAGE_NAME', 'libcublas-dev-12-4'), ('NV_LIBCUBLAS_PACKAGE', 'libcublas-12-4=12.4.5.8-1'), ('NVARCH', 'x86_64'), ('NV_LIBNCCL_DEV_PACKAGE_NAME', 'libnccl-dev'), ('NV_LIBCUSPARSE_DEV_VERSION', '12.3.1.170-1'), ('NV_LIBNCCL_PACKAGE', 'libnccl2=2.21.5-1+cuda12.4'), ('NVIDIA_PRODUCT_NAME', 'CUDA'), ('NV_CUDA_CUDART_DEV_VERSION', '12.4.127-1'), ('RUNPOD_CPU_COUNT', '32'), ('AMENT_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_perception:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/opt/ros/humble'), ('DEBIAN_FRONTEND', 'noninteractive'), ('SHELL', '/bin/bash'), ('NV_LIBCUBLAS_DEV_PACKAGE', 'libcublas-dev-12-4=12.4.5.8-1'), ('RUNPOD_DC_ID', 'EU-RO-1'), ('PUBLIC_KEY', 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEjNRjXuPVBfXPSQHXnXQ0CJzMtJCUm12E6rH0LA2rAB Opticore-pcy\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILRJkinIEurocrZI8ja5gXMi61683caxj4eMxOyL9+N+ Opticore-<JW>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHl6hDWD9+4+Zndnl6kzWmzDrT2YRuhfVUg03rQVbo7P Opticore-<us>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEFqIyz9ZcUfXoND9oRrMlOQQB9KSBgAyUFY0grr+ozf Opticore-jsw\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOse8jd1peft/WWDca6gK4x400a6rL+6lssMEbLRoBgB ukkhnn_macbook'), ('NV_CUDA_NSIGHT_COMPUTE_DEV_PACKAGE', 'cuda-nsight-compute-12-4=12.4.1-1'), ('NV_LIBNCCL_DEV_PACKAGE', 'libnccl-dev=2.21.5-1+cuda12.4'), ('RUNPOD_GPU_COUNT', '1'), ('NV_NVTX_VERSION', '12.4.127-1'), ('NV_LIBNPP_VERSION', '12.2.5.30-1'), ('PWD', '/workspace/github/opticore-amr/ros2_ws/build/amr_slam'), ('RUNPOD_MEM_GB', '62'), ('RUNPOD_TCP_PORT_22', '17600'), ('PYTHONPATH', '/workspace/ros2_ws/install/amr_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('NVIDIA_VISIBLE_DEVICES', 'all'), ('NCCL_VERSION', '2.21.5-1'), ('COLCON', '1'), ('NV_LIBNPP_DEV_VERSION', '12.2.5.30-1'), ('CMAKE_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble')]), 'shell': False}
+[1.807016] (amr_fleet) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 11.4.0\n'}
+[1.814194] (-) TimerEvent: {}
+[1.852736] (amr_bringup) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[1.869065] (amr_fleet) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[1.870722] (amr_navigation) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 11.4.0\n'}
+[1.914291] (-) TimerEvent: {}
+[1.970009] (amr_navigation) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[2.014392] (-) TimerEvent: {}
+[2.114798] (-) TimerEvent: {}
+[2.215174] (-) TimerEvent: {}
+[2.315644] (-) TimerEvent: {}
+[2.371116] (amr_slam) StdoutLine: {'line': b'-- The C compiler identification is GNU 11.4.0\n'}
+[2.415761] (-) TimerEvent: {}
+[2.516154] (-) TimerEvent: {}
+[2.616637] (-) TimerEvent: {}
+[2.717062] (-) TimerEvent: {}
+[2.766251] (amr_slam) StdoutLine: {'line': b'-- The CXX compiler identification is GNU 11.4.0\n'}
+[2.817191] (-) TimerEvent: {}
+[2.842097] (amr_fleet) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[2.843788] (amr_bringup) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[2.862679] (amr_slam) StdoutLine: {'line': b'-- Detecting C compiler ABI info\n'}
+[2.881540] (amr_fleet) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[2.882219] (amr_fleet) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[2.883138] (amr_fleet) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[2.908852] (amr_bringup) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[2.909387] (amr_bringup) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[2.909889] (amr_bringup) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[2.917293] (-) TimerEvent: {}
+[2.962790] (amr_navigation) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[2.969795] (amr_fleet) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[2.980758] (amr_bringup) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[3.004575] (amr_navigation) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[3.005148] (amr_navigation) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[3.005579] (amr_navigation) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[3.017375] (-) TimerEvent: {}
+[3.086585] (amr_navigation) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[3.117509] (-) TimerEvent: {}
+[3.161093] (amr_perception) Command: {'cmd': ['/usr/bin/python3', '-W', 'ignore:setup.py install is deprecated', '-W', 'ignore:easy_install command is deprecated', 'setup.py', 'egg_info', '--egg-base', '../../build/amr_perception', 'build', '--build-base', '/workspace/github/opticore-amr/ros2_ws/build/amr_perception/build', 'install', '--record', '/workspace/github/opticore-amr/ros2_ws/build/amr_perception/install.log', '--single-version-externally-managed', 'install_data'], 'cwd': '/workspace/github/opticore-amr/ros2_ws/src/amr_perception', 'env': {'RUNPOD_PUBLIC_IP': '213.173.107.26', 'RUNPOD_POD_HOSTNAME': '9oqg1l1xgz1auy-64411fda', 'LIBRARY_PATH': '/usr/local/cuda/lib64/stubs', 'NV_LIBCUBLAS_VERSION': '12.4.5.8-1', 'NV_NVPROF_DEV_PACKAGE': 'cuda-nvprof-12-4=12.4.127-1', 'NV_CUDA_COMPAT_PACKAGE': 'cuda-compat-12-4', 'RUNPOD_POD_ID': '9oqg1l1xgz1auy', 'NV_CUDA_NSIGHT_COMPUTE_VERSION': '12.4.1-1', 'RUNPOD_GPU_NAME': 'NVIDIA+RTX+PRO+4500+Blackwell', 'HOSTNAME': '786fdbe8cba3', 'SHLVL': '1', 'LD_LIBRARY_PATH': '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64', 'NV_LIBNCCL_PACKAGE_VERSION': '2.21.5-1', 'HOME': '/root', 'OLDPWD': '/workspace/github/opticore-amr', 'NV_LIBCUBLAS_DEV_VERSION': '12.4.5.8-1', 'RUNPOD_API_KEY': 'rpa_OAM0NBEL93EG7ZBHMAJ49TYJ0LU9HKXVTEI0YAE0hbmerj', 'ROS_PYTHON_VERSION': '3', 'LC_CTYPE': 'C.UTF-8', 'NV_LIBNCCL_DEV_PACKAGE_VERSION': '2.21.5-1', 'NV_LIBNPP_PACKAGE': 'libnpp-12-4=12.2.5.30-1', 'CUDA_VERSION': '12.4.1', 'RUNPOD_VOLUME_ID': 'ti82fhq17n', 'COLCON_PREFIX_PATH': '/workspace/ros2_ws/install', 'NV_NVPROF_VERSION': '12.4.127-1', 'ROS_DISTRO': 'humble', 'NV_LIBCUBLAS_PACKAGE_NAME': 'libcublas-12-4', 'NVIDIA_REQUIRE_CUDA': 'cuda>=12.4 brand=tesla,driver>=470,driver<471 brand=unknown,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=geforce,driver>=470,driver<471 brand=geforcertx,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=titan,driver>=470,driver<471 brand=titanrtx,driver>=470,driver<471 brand=tesla,driver>=525,driver<526 brand=unknown,driver>=525,driver<526 brand=nvidia,driver>=525,driver<526 brand=nvidiartx,driver>=525,driver<526 brand=geforce,driver>=525,driver<526 brand=geforcertx,driver>=525,driver<526 brand=quadro,driver>=525,driver<526 brand=quadrortx,driver>=525,driver<526 brand=titan,driver>=525,driver<526 brand=titanrtx,driver>=525,driver<526 brand=tesla,driver>=535,driver<536 brand=unknown,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=geforce,driver>=535,driver<536 brand=geforcertx,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=titan,driver>=535,driver<536 brand=titanrtx,driver>=535,driver<536', '_': '/usr/bin/colcon', 'ROS_VERSION': '2', 'NV_LIBCUSPARSE_VERSION': '12.3.1.170-1', 'NVIDIA_DRIVER_CAPABILITIES': 'compute,utility', 'NV_CUDA_LIB_VERSION': '12.4.1-1', 'NV_LIBNCCL_PACKAGE_NAME': 'libnccl2', 'NV_NVML_DEV_VERSION': '12.4.127-1', 'NV_LIBNPP_DEV_PACKAGE': 'libnpp-dev-12-4=12.2.5.30-1', 'TERM': 'xterm', 'NV_CUDA_CUDART_VERSION': '12.4.127-1', 'ROS_LOCALHOST_ONLY': '0', 'PATH': '/opt/ros/humble/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', 'NV_LIBCUBLAS_DEV_PACKAGE_NAME': 'libcublas-dev-12-4', 'NV_LIBCUBLAS_PACKAGE': 'libcublas-12-4=12.4.5.8-1', 'NVARCH': 'x86_64', 'NV_LIBNCCL_DEV_PACKAGE_NAME': 'libnccl-dev', 'NV_LIBCUSPARSE_DEV_VERSION': '12.3.1.170-1', 'NV_LIBNCCL_PACKAGE': 'libnccl2=2.21.5-1+cuda12.4', 'NVIDIA_PRODUCT_NAME': 'CUDA', 'NV_CUDA_CUDART_DEV_VERSION': '12.4.127-1', 'RUNPOD_CPU_COUNT': '32', 'AMENT_PREFIX_PATH': '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_perception:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/opt/ros/humble', 'DEBIAN_FRONTEND': 'noninteractive', 'SHELL': '/bin/bash', 'NV_LIBCUBLAS_DEV_PACKAGE': 'libcublas-dev-12-4=12.4.5.8-1', 'RUNPOD_DC_ID': 'EU-RO-1', 'PUBLIC_KEY': 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEjNRjXuPVBfXPSQHXnXQ0CJzMtJCUm12E6rH0LA2rAB Opticore-pcy\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILRJkinIEurocrZI8ja5gXMi61683caxj4eMxOyL9+N+ Opticore-<JW>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHl6hDWD9+4+Zndnl6kzWmzDrT2YRuhfVUg03rQVbo7P Opticore-<us>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEFqIyz9ZcUfXoND9oRrMlOQQB9KSBgAyUFY0grr+ozf Opticore-jsw\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOse8jd1peft/WWDca6gK4x400a6rL+6lssMEbLRoBgB ukkhnn_macbook', 'NV_CUDA_NSIGHT_COMPUTE_DEV_PACKAGE': 'cuda-nsight-compute-12-4=12.4.1-1', 'NV_LIBNCCL_DEV_PACKAGE': 'libnccl-dev=2.21.5-1+cuda12.4', 'RUNPOD_GPU_COUNT': '1', 'NV_NVTX_VERSION': '12.4.127-1', 'NV_LIBNPP_VERSION': '12.2.5.30-1', 'PWD': '/workspace/github/opticore-amr/ros2_ws/build/amr_perception', 'RUNPOD_MEM_GB': '62', 'RUNPOD_TCP_PORT_22': '17600', 'PYTHONPATH': '/workspace/github/opticore-amr/ros2_ws/build/amr_perception/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/github/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages:/workspace/ros2_ws/install/amr_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages', 'NVIDIA_VISIBLE_DEVICES': 'all', 'NCCL_VERSION': '2.21.5-1', 'COLCON': '1', 'NV_LIBNPP_DEV_VERSION': '12.2.5.30-1', 'CMAKE_PREFIX_PATH': '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup'}, 'shell': False}
+[3.217650] (-) TimerEvent: {}
+[3.318111] (-) TimerEvent: {}
+[3.418562] (-) TimerEvent: {}
+[3.518971] (-) TimerEvent: {}
+[3.619393] (-) TimerEvent: {}
+[3.719795] (-) TimerEvent: {}
+[3.820203] (-) TimerEvent: {}
+[3.920739] (-) TimerEvent: {}
+[3.982240] (amr_slam) StdoutLine: {'line': b'-- Detecting C compiler ABI info - done\n'}
+[4.020865] (-) TimerEvent: {}
+[4.036666] (amr_slam) StdoutLine: {'line': b'-- Check for working C compiler: /usr/bin/cc - skipped\n'}
+[4.037291] (amr_slam) StdoutLine: {'line': b'-- Detecting C compile features\n'}
+[4.038146] (amr_slam) StdoutLine: {'line': b'-- Detecting C compile features - done\n'}
+[4.103410] (amr_slam) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info\n'}
+[4.104209] (amr_bringup) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[4.120988] (-) TimerEvent: {}
+[4.138521] (amr_fleet) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[4.171059] (amr_perception) StdoutLine: {'line': b'running egg_info\n'}
+[4.171756] (amr_navigation) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[4.174830] (amr_bringup) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[4.175559] (amr_bringup) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[4.176614] (amr_bringup) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[4.189976] (amr_fleet) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[4.190499] (amr_perception) StdoutLine: {'line': b'creating ../../build/amr_perception/amr_perception.egg-info\n'}
+[4.190953] (amr_fleet) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[4.191714] (amr_fleet) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[4.192807] (amr_perception) StdoutLine: {'line': b'writing ../../build/amr_perception/amr_perception.egg-info/PKG-INFO\n'}
+[4.221114] (-) TimerEvent: {}
+[4.225979] (amr_navigation) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[4.226658] (amr_navigation) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[4.227763] (amr_navigation) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[4.256475] (amr_perception) StdoutLine: {'line': b'writing dependency_links to ../../build/amr_perception/amr_perception.egg-info/dependency_links.txt\n'}
+[4.278179] (amr_perception) StdoutLine: {'line': b'writing requirements to ../../build/amr_perception/amr_perception.egg-info/requires.txt\n'}
+[4.293271] (amr_perception) StdoutLine: {'line': b'writing top-level names to ../../build/amr_perception/amr_perception.egg-info/top_level.txt\n'}
+[4.308432] (amr_perception) StdoutLine: {'line': b"writing manifest file '../../build/amr_perception/amr_perception.egg-info/SOURCES.txt'\n"}
+[4.321191] (-) TimerEvent: {}
+[4.421611] (-) TimerEvent: {}
+[4.446483] (amr_perception) StdoutLine: {'line': b"reading manifest file '../../build/amr_perception/amr_perception.egg-info/SOURCES.txt'\n"}
+[4.455408] (amr_bringup) StdoutLine: {'line': b'-- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)\n'}
+[4.472794] (amr_perception) StdoutLine: {'line': b"writing manifest file '../../build/amr_perception/amr_perception.egg-info/SOURCES.txt'\n"}
+[4.483452] (amr_perception) StdoutLine: {'line': b'running build\n'}
+[4.483923] (amr_perception) StdoutLine: {'line': b'running build_py\n'}
+[4.486280] (amr_perception) StdoutLine: {'line': b'creating /workspace/github/opticore-amr/ros2_ws/build/amr_perception/build/lib/amr_perception\n'}
+[4.493187] (amr_perception) StdoutLine: {'line': b'copying amr_perception/yolo_detector.py -> /workspace/github/opticore-amr/ros2_ws/build/amr_perception/build/lib/amr_perception\n'}
+[4.503186] (amr_fleet) StdoutLine: {'line': b'-- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)\n'}
+[4.512599] (amr_perception) StdoutLine: {'line': b'copying amr_perception/object_tracker.py -> /workspace/github/opticore-amr/ros2_ws/build/amr_perception/build/lib/amr_perception\n'}
+[4.521688] (-) TimerEvent: {}
+[4.550617] (amr_navigation) StdoutLine: {'line': b'-- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)\n'}
+[4.551991] (amr_perception) StdoutLine: {'line': b'copying amr_perception/__init__.py -> /workspace/github/opticore-amr/ros2_ws/build/amr_perception/build/lib/amr_perception\n'}
+[4.563095] (amr_perception) StdoutLine: {'line': b'running install\n'}
+[4.571970] (amr_perception) StdoutLine: {'line': b'running install_lib\n'}
+[4.621815] (-) TimerEvent: {}
+[4.639137] (amr_perception) StdoutLine: {'line': b'creating /workspace/github/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages/amr_perception\n'}
+[4.643911] (amr_perception) StdoutLine: {'line': b'copying /workspace/github/opticore-amr/ros2_ws/build/amr_perception/build/lib/amr_perception/__init__.py -> /workspace/github/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages/amr_perception\n'}
+[4.654018] (amr_perception) StdoutLine: {'line': b'copying /workspace/github/opticore-amr/ros2_ws/build/amr_perception/build/lib/amr_perception/object_tracker.py -> /workspace/github/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages/amr_perception\n'}
+[4.678432] (amr_perception) StdoutLine: {'line': b'copying /workspace/github/opticore-amr/ros2_ws/build/amr_perception/build/lib/amr_perception/yolo_detector.py -> /workspace/github/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages/amr_perception\n'}
+[4.701460] (amr_perception) StdoutLine: {'line': b'byte-compiling /workspace/github/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages/amr_perception/__init__.py to __init__.cpython-310.pyc\n'}
+[4.721904] (-) TimerEvent: {}
+[4.740140] (amr_perception) StdoutLine: {'line': b'byte-compiling /workspace/github/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages/amr_perception/object_tracker.py to object_tracker.cpython-310.pyc\n'}
+[4.763561] (amr_perception) StdoutLine: {'line': b'byte-compiling /workspace/github/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages/amr_perception/yolo_detector.py to yolo_detector.cpython-310.pyc\n'}
+[4.796822] (amr_perception) StdoutLine: {'line': b'running install_data\n'}
+[4.798748] (amr_perception) StdoutLine: {'line': b'creating /workspace/github/opticore-amr/ros2_ws/install/amr_perception/share/ament_index/resource_index/packages\n'}
+[4.807702] (amr_perception) StdoutLine: {'line': b'copying resource/amr_perception -> /workspace/github/opticore-amr/ros2_ws/install/amr_perception/share/ament_index/resource_index/packages\n'}
+[4.821995] (-) TimerEvent: {}
+[4.835559] (amr_perception) StdoutLine: {'line': b'copying package.xml -> /workspace/github/opticore-amr/ros2_ws/install/amr_perception/share/amr_perception\n'}
+[4.856578] (amr_perception) StdoutLine: {'line': b'running install_egg_info\n'}
+[4.905005] (amr_perception) StdoutLine: {'line': b'Copying ../../build/amr_perception/amr_perception.egg-info to /workspace/github/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages/amr_perception-0.0.0-py3.10.egg-info\n'}
+[4.922091] (-) TimerEvent: {}
+[5.022531] (-) TimerEvent: {}
+[5.087585] (amr_perception) StdoutLine: {'line': b'running install_scripts\n'}
+[5.122655] (-) TimerEvent: {}
+[5.134720] (amr_slam) StdoutLine: {'line': b'-- Detecting CXX compiler ABI info - done\n'}
+[5.185669] (amr_slam) StdoutLine: {'line': b'-- Check for working CXX compiler: /usr/bin/c++ - skipped\n'}
+[5.186405] (amr_slam) StdoutLine: {'line': b'-- Detecting CXX compile features\n'}
+[5.187487] (amr_slam) StdoutLine: {'line': b'-- Detecting CXX compile features - done\n'}
+[5.190421] (amr_perception) StdoutLine: {'line': b"writing list of installed files to '/workspace/github/opticore-amr/ros2_ws/build/amr_perception/install.log'\n"}
+[5.222779] (-) TimerEvent: {}
+[5.241541] (amr_perception) CommandEnded: {'returncode': 0}
+[5.322914] (-) TimerEvent: {}
+[5.423370] (-) TimerEvent: {}
+[5.439223] (amr_slam) StdoutLine: {'line': b'-- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)\n'}
+[5.523494] (-) TimerEvent: {}
+[5.550696] (amr_perception) JobEnded: {'identifier': 'amr_perception', 'rc': 0}
+[5.623613] (-) TimerEvent: {}
+[5.724013] (-) TimerEvent: {}
+[5.824551] (-) TimerEvent: {}
+[5.924967] (-) TimerEvent: {}
+[6.025499] (-) TimerEvent: {}
+[6.073012] (amr_bringup) StdoutLine: {'line': b'-- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter \n'}
+[6.125622] (-) TimerEvent: {}
+[6.212693] (amr_fleet) StdoutLine: {'line': b'-- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter \n'}
+[6.213902] (amr_navigation) StdoutLine: {'line': b'-- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter \n'}
+[6.225710] (-) TimerEvent: {}
+[6.326103] (-) TimerEvent: {}
+[6.426549] (-) TimerEvent: {}
+[6.527017] (-) TimerEvent: {}
+[6.627544] (-) TimerEvent: {}
+[6.727954] (-) TimerEvent: {}
+[6.828364] (-) TimerEvent: {}
+[6.928802] (-) TimerEvent: {}
+[7.029268] (-) TimerEvent: {}
+[7.081010] (amr_slam) StdoutLine: {'line': b'-- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter \n'}
+[7.129397] (-) TimerEvent: {}
+[7.229824] (-) TimerEvent: {}
+[7.330257] (-) TimerEvent: {}
+[7.430767] (-) TimerEvent: {}
+[7.531161] (-) TimerEvent: {}
+[7.631624] (-) TimerEvent: {}
+[7.732045] (-) TimerEvent: {}
+[7.832545] (-) TimerEvent: {}
+[7.932970] (-) TimerEvent: {}
+[8.033406] (-) TimerEvent: {}
+[8.133816] (-) TimerEvent: {}
+[8.234222] (-) TimerEvent: {}
+[8.334628] (-) TimerEvent: {}
+[8.435058] (-) TimerEvent: {}
+[8.535569] (-) TimerEvent: {}
+[8.636070] (-) TimerEvent: {}
+[8.736551] (-) TimerEvent: {}
+[8.837058] (-) TimerEvent: {}
+[8.937548] (-) TimerEvent: {}
+[9.038127] (-) TimerEvent: {}
+[9.117434] (amr_fleet) StdoutLine: {'line': b'-- Found rclcpp: 16.0.19 (/opt/ros/humble/share/rclcpp/cmake)\n'}
+[9.138250] (-) TimerEvent: {}
+[9.184429] (amr_navigation) StdoutLine: {'line': b'-- Found rclcpp: 16.0.19 (/opt/ros/humble/share/rclcpp/cmake)\n'}
+[9.238384] (-) TimerEvent: {}
+[9.338810] (-) TimerEvent: {}
+[9.439219] (-) TimerEvent: {}
+[9.489911] (amr_bringup) StdoutLine: {'line': b'-- Configuring done\n'}
+[9.539378] (-) TimerEvent: {}
+[9.639796] (-) TimerEvent: {}
+[9.740218] (-) TimerEvent: {}
+[9.840648] (-) TimerEvent: {}
+[9.864571] (amr_slam) StdoutLine: {'line': b'-- Found rclcpp: 16.0.19 (/opt/ros/humble/share/rclcpp/cmake)\n'}
+[9.940769] (-) TimerEvent: {}
+[10.035071] (amr_bringup) StdoutLine: {'line': b'-- Generating done\n'}
+[10.040854] (-) TimerEvent: {}
+[10.141267] (-) TimerEvent: {}
+[10.241667] (-) TimerEvent: {}
+[10.337421] (amr_bringup) StdoutLine: {'line': b'-- Build files have been written to: /workspace/github/opticore-amr/ros2_ws/build/amr_bringup\n'}
+[10.341753] (-) TimerEvent: {}
+[10.346682] (amr_bringup) CommandEnded: {'returncode': 0}
+[10.352091] (amr_bringup) JobProgress: {'identifier': 'amr_bringup', 'progress': 'build'}
+[10.357392] (amr_bringup) Command: {'cmd': ['/usr/bin/cmake', '--build', '/workspace/github/opticore-amr/ros2_ws/build/amr_bringup', '--', '-j128', '-l128'], 'cwd': '/workspace/github/opticore-amr/ros2_ws/build/amr_bringup', 'env': OrderedDict([('RUNPOD_PUBLIC_IP', '213.173.107.26'), ('RUNPOD_POD_HOSTNAME', '9oqg1l1xgz1auy-64411fda'), ('LIBRARY_PATH', '/usr/local/cuda/lib64/stubs'), ('NV_LIBCUBLAS_VERSION', '12.4.5.8-1'), ('NV_NVPROF_DEV_PACKAGE', 'cuda-nvprof-12-4=12.4.127-1'), ('NV_CUDA_COMPAT_PACKAGE', 'cuda-compat-12-4'), ('RUNPOD_POD_ID', '9oqg1l1xgz1auy'), ('NV_CUDA_NSIGHT_COMPUTE_VERSION', '12.4.1-1'), ('RUNPOD_GPU_NAME', 'NVIDIA+RTX+PRO+4500+Blackwell'), ('HOSTNAME', '786fdbe8cba3'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64'), ('NV_LIBNCCL_PACKAGE_VERSION', '2.21.5-1'), ('HOME', '/root'), ('OLDPWD', '/workspace/github/opticore-amr'), ('NV_LIBCUBLAS_DEV_VERSION', '12.4.5.8-1'), ('RUNPOD_API_KEY', 'rpa_OAM0NBEL93EG7ZBHMAJ49TYJ0LU9HKXVTEI0YAE0hbmerj'), ('ROS_PYTHON_VERSION', '3'), ('LC_CTYPE', 'C.UTF-8'), ('NV_LIBNCCL_DEV_PACKAGE_VERSION', '2.21.5-1'), ('NV_LIBNPP_PACKAGE', 'libnpp-12-4=12.2.5.30-1'), ('CUDA_VERSION', '12.4.1'), ('RUNPOD_VOLUME_ID', 'ti82fhq17n'), ('COLCON_PREFIX_PATH', '/workspace/ros2_ws/install'), ('NV_NVPROF_VERSION', '12.4.127-1'), ('ROS_DISTRO', 'humble'), ('NV_LIBCUBLAS_PACKAGE_NAME', 'libcublas-12-4'), ('NVIDIA_REQUIRE_CUDA', 'cuda>=12.4 brand=tesla,driver>=470,driver<471 brand=unknown,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=geforce,driver>=470,driver<471 brand=geforcertx,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=titan,driver>=470,driver<471 brand=titanrtx,driver>=470,driver<471 brand=tesla,driver>=525,driver<526 brand=unknown,driver>=525,driver<526 brand=nvidia,driver>=525,driver<526 brand=nvidiartx,driver>=525,driver<526 brand=geforce,driver>=525,driver<526 brand=geforcertx,driver>=525,driver<526 brand=quadro,driver>=525,driver<526 brand=quadrortx,driver>=525,driver<526 brand=titan,driver>=525,driver<526 brand=titanrtx,driver>=525,driver<526 brand=tesla,driver>=535,driver<536 brand=unknown,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=geforce,driver>=535,driver<536 brand=geforcertx,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=titan,driver>=535,driver<536 brand=titanrtx,driver>=535,driver<536'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('NV_LIBCUSPARSE_VERSION', '12.3.1.170-1'), ('NVIDIA_DRIVER_CAPABILITIES', 'compute,utility'), ('NV_CUDA_LIB_VERSION', '12.4.1-1'), ('NV_LIBNCCL_PACKAGE_NAME', 'libnccl2'), ('NV_NVML_DEV_VERSION', '12.4.127-1'), ('NV_LIBNPP_DEV_PACKAGE', 'libnpp-dev-12-4=12.2.5.30-1'), ('TERM', 'xterm'), ('NV_CUDA_CUDART_VERSION', '12.4.127-1'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/opt/ros/humble/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'), ('NV_LIBCUBLAS_DEV_PACKAGE_NAME', 'libcublas-dev-12-4'), ('NV_LIBCUBLAS_PACKAGE', 'libcublas-12-4=12.4.5.8-1'), ('NVARCH', 'x86_64'), ('NV_LIBNCCL_DEV_PACKAGE_NAME', 'libnccl-dev'), ('NV_LIBCUSPARSE_DEV_VERSION', '12.3.1.170-1'), ('NV_LIBNCCL_PACKAGE', 'libnccl2=2.21.5-1+cuda12.4'), ('NVIDIA_PRODUCT_NAME', 'CUDA'), ('NV_CUDA_CUDART_DEV_VERSION', '12.4.127-1'), ('RUNPOD_CPU_COUNT', '32'), ('AMENT_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_perception:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/opt/ros/humble'), ('DEBIAN_FRONTEND', 'noninteractive'), ('SHELL', '/bin/bash'), ('NV_LIBCUBLAS_DEV_PACKAGE', 'libcublas-dev-12-4=12.4.5.8-1'), ('RUNPOD_DC_ID', 'EU-RO-1'), ('PUBLIC_KEY', 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEjNRjXuPVBfXPSQHXnXQ0CJzMtJCUm12E6rH0LA2rAB Opticore-pcy\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILRJkinIEurocrZI8ja5gXMi61683caxj4eMxOyL9+N+ Opticore-<JW>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHl6hDWD9+4+Zndnl6kzWmzDrT2YRuhfVUg03rQVbo7P Opticore-<us>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEFqIyz9ZcUfXoND9oRrMlOQQB9KSBgAyUFY0grr+ozf Opticore-jsw\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOse8jd1peft/WWDca6gK4x400a6rL+6lssMEbLRoBgB ukkhnn_macbook'), ('NV_CUDA_NSIGHT_COMPUTE_DEV_PACKAGE', 'cuda-nsight-compute-12-4=12.4.1-1'), ('NV_LIBNCCL_DEV_PACKAGE', 'libnccl-dev=2.21.5-1+cuda12.4'), ('RUNPOD_GPU_COUNT', '1'), ('NV_NVTX_VERSION', '12.4.127-1'), ('NV_LIBNPP_VERSION', '12.2.5.30-1'), ('PWD', '/workspace/github/opticore-amr/ros2_ws/build/amr_bringup'), ('RUNPOD_MEM_GB', '62'), ('RUNPOD_TCP_PORT_22', '17600'), ('PYTHONPATH', '/workspace/ros2_ws/install/amr_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('NVIDIA_VISIBLE_DEVICES', 'all'), ('NCCL_VERSION', '2.21.5-1'), ('COLCON', '1'), ('NV_LIBNPP_DEV_VERSION', '12.2.5.30-1'), ('CMAKE_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble')]), 'shell': False}
+[10.441897] (-) TimerEvent: {}
+[10.542378] (-) TimerEvent: {}
+[10.546407] (amr_bringup) CommandEnded: {'returncode': 0}
+[10.559051] (amr_bringup) JobProgress: {'identifier': 'amr_bringup', 'progress': 'install'}
+[10.600388] (amr_bringup) Command: {'cmd': ['/usr/bin/cmake', '--install', '/workspace/github/opticore-amr/ros2_ws/build/amr_bringup'], 'cwd': '/workspace/github/opticore-amr/ros2_ws/build/amr_bringup', 'env': OrderedDict([('RUNPOD_PUBLIC_IP', '213.173.107.26'), ('RUNPOD_POD_HOSTNAME', '9oqg1l1xgz1auy-64411fda'), ('LIBRARY_PATH', '/usr/local/cuda/lib64/stubs'), ('NV_LIBCUBLAS_VERSION', '12.4.5.8-1'), ('NV_NVPROF_DEV_PACKAGE', 'cuda-nvprof-12-4=12.4.127-1'), ('NV_CUDA_COMPAT_PACKAGE', 'cuda-compat-12-4'), ('RUNPOD_POD_ID', '9oqg1l1xgz1auy'), ('NV_CUDA_NSIGHT_COMPUTE_VERSION', '12.4.1-1'), ('RUNPOD_GPU_NAME', 'NVIDIA+RTX+PRO+4500+Blackwell'), ('HOSTNAME', '786fdbe8cba3'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64'), ('NV_LIBNCCL_PACKAGE_VERSION', '2.21.5-1'), ('HOME', '/root'), ('OLDPWD', '/workspace/github/opticore-amr'), ('NV_LIBCUBLAS_DEV_VERSION', '12.4.5.8-1'), ('RUNPOD_API_KEY', 'rpa_OAM0NBEL93EG7ZBHMAJ49TYJ0LU9HKXVTEI0YAE0hbmerj'), ('ROS_PYTHON_VERSION', '3'), ('LC_CTYPE', 'C.UTF-8'), ('NV_LIBNCCL_DEV_PACKAGE_VERSION', '2.21.5-1'), ('NV_LIBNPP_PACKAGE', 'libnpp-12-4=12.2.5.30-1'), ('CUDA_VERSION', '12.4.1'), ('RUNPOD_VOLUME_ID', 'ti82fhq17n'), ('COLCON_PREFIX_PATH', '/workspace/ros2_ws/install'), ('NV_NVPROF_VERSION', '12.4.127-1'), ('ROS_DISTRO', 'humble'), ('NV_LIBCUBLAS_PACKAGE_NAME', 'libcublas-12-4'), ('NVIDIA_REQUIRE_CUDA', 'cuda>=12.4 brand=tesla,driver>=470,driver<471 brand=unknown,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=geforce,driver>=470,driver<471 brand=geforcertx,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=titan,driver>=470,driver<471 brand=titanrtx,driver>=470,driver<471 brand=tesla,driver>=525,driver<526 brand=unknown,driver>=525,driver<526 brand=nvidia,driver>=525,driver<526 brand=nvidiartx,driver>=525,driver<526 brand=geforce,driver>=525,driver<526 brand=geforcertx,driver>=525,driver<526 brand=quadro,driver>=525,driver<526 brand=quadrortx,driver>=525,driver<526 brand=titan,driver>=525,driver<526 brand=titanrtx,driver>=525,driver<526 brand=tesla,driver>=535,driver<536 brand=unknown,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=geforce,driver>=535,driver<536 brand=geforcertx,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=titan,driver>=535,driver<536 brand=titanrtx,driver>=535,driver<536'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('NV_LIBCUSPARSE_VERSION', '12.3.1.170-1'), ('NVIDIA_DRIVER_CAPABILITIES', 'compute,utility'), ('NV_CUDA_LIB_VERSION', '12.4.1-1'), ('NV_LIBNCCL_PACKAGE_NAME', 'libnccl2'), ('NV_NVML_DEV_VERSION', '12.4.127-1'), ('NV_LIBNPP_DEV_PACKAGE', 'libnpp-dev-12-4=12.2.5.30-1'), ('TERM', 'xterm'), ('NV_CUDA_CUDART_VERSION', '12.4.127-1'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/opt/ros/humble/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'), ('NV_LIBCUBLAS_DEV_PACKAGE_NAME', 'libcublas-dev-12-4'), ('NV_LIBCUBLAS_PACKAGE', 'libcublas-12-4=12.4.5.8-1'), ('NVARCH', 'x86_64'), ('NV_LIBNCCL_DEV_PACKAGE_NAME', 'libnccl-dev'), ('NV_LIBCUSPARSE_DEV_VERSION', '12.3.1.170-1'), ('NV_LIBNCCL_PACKAGE', 'libnccl2=2.21.5-1+cuda12.4'), ('NVIDIA_PRODUCT_NAME', 'CUDA'), ('NV_CUDA_CUDART_DEV_VERSION', '12.4.127-1'), ('RUNPOD_CPU_COUNT', '32'), ('AMENT_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_perception:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/opt/ros/humble'), ('DEBIAN_FRONTEND', 'noninteractive'), ('SHELL', '/bin/bash'), ('NV_LIBCUBLAS_DEV_PACKAGE', 'libcublas-dev-12-4=12.4.5.8-1'), ('RUNPOD_DC_ID', 'EU-RO-1'), ('PUBLIC_KEY', 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEjNRjXuPVBfXPSQHXnXQ0CJzMtJCUm12E6rH0LA2rAB Opticore-pcy\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILRJkinIEurocrZI8ja5gXMi61683caxj4eMxOyL9+N+ Opticore-<JW>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHl6hDWD9+4+Zndnl6kzWmzDrT2YRuhfVUg03rQVbo7P Opticore-<us>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEFqIyz9ZcUfXoND9oRrMlOQQB9KSBgAyUFY0grr+ozf Opticore-jsw\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOse8jd1peft/WWDca6gK4x400a6rL+6lssMEbLRoBgB ukkhnn_macbook'), ('NV_CUDA_NSIGHT_COMPUTE_DEV_PACKAGE', 'cuda-nsight-compute-12-4=12.4.1-1'), ('NV_LIBNCCL_DEV_PACKAGE', 'libnccl-dev=2.21.5-1+cuda12.4'), ('RUNPOD_GPU_COUNT', '1'), ('NV_NVTX_VERSION', '12.4.127-1'), ('NV_LIBNPP_VERSION', '12.2.5.30-1'), ('PWD', '/workspace/github/opticore-amr/ros2_ws/build/amr_bringup'), ('RUNPOD_MEM_GB', '62'), ('RUNPOD_TCP_PORT_22', '17600'), ('PYTHONPATH', '/workspace/ros2_ws/install/amr_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('NVIDIA_VISIBLE_DEVICES', 'all'), ('NCCL_VERSION', '2.21.5-1'), ('COLCON', '1'), ('NV_LIBNPP_DEV_VERSION', '12.2.5.30-1'), ('CMAKE_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble')]), 'shell': False}
+[10.641685] (amr_bringup) StdoutLine: {'line': b'-- Install configuration: ""\n'}
+[10.642457] (-) TimerEvent: {}
+[10.643574] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//urdf\n'}
+[10.661261] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//urdf/amr_robot.urdf.xacro\n'}
+[10.692877] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//worlds\n'}
+[10.707524] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//worlds/warehouse.world\n'}
+[10.742587] (-) TimerEvent: {}
+[10.762978] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//launch\n'}
+[10.781332] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//launch/slam.launch.py\n'}
+[10.838080] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//launch/warehouse.launch.py\n'}
+[10.842712] (-) TimerEvent: {}
+[10.874811] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//config\n'}
+[10.889229] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//config/slam_params.yaml\n'}
+[10.942834] (-) TimerEvent: {}
+[10.945455] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//config/ekf.yaml\n'}
+[10.996295] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/ament_index/resource_index/package_run_dependencies/amr_bringup\n'}
+[11.042961] (-) TimerEvent: {}
+[11.060114] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/ament_index/resource_index/parent_prefix_path/amr_bringup\n'}
+[11.102592] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/environment/ament_prefix_path.sh\n'}
+[11.143086] (-) TimerEvent: {}
+[11.161865] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/environment/ament_prefix_path.dsv\n'}
+[11.203819] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/environment/path.sh\n'}
+[11.208250] (amr_navigation) StdoutLine: {'line': b'-- Found rosidl_generator_c: 3.1.8 (/opt/ros/humble/share/rosidl_generator_c/cmake)\n'}
+[11.243207] (-) TimerEvent: {}
+[11.251931] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/environment/path.dsv\n'}
+[11.286137] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/local_setup.bash\n'}
+[11.342180] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/local_setup.sh\n'}
+[11.343288] (-) TimerEvent: {}
+[11.357439] (amr_fleet) StdoutLine: {'line': b'-- Found rosidl_generator_c: 3.1.8 (/opt/ros/humble/share/rosidl_generator_c/cmake)\n'}
+[11.381482] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/local_setup.zsh\n'}
+[11.432181] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/local_setup.dsv\n'}
+[11.443378] (-) TimerEvent: {}
+[11.477615] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/package.dsv\n'}
+[11.543510] (-) TimerEvent: {}
+[11.550264] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/ament_index/resource_index/packages/amr_bringup\n'}
+[11.591678] (amr_navigation) StdoutLine: {'line': b'-- Found rosidl_adapter: 3.1.8 (/opt/ros/humble/share/rosidl_adapter/cmake)\n'}
+[11.597098] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/cmake/amr_bringupConfig.cmake\n'}
+[11.643632] (-) TimerEvent: {}
+[11.647047] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/cmake/amr_bringupConfig-version.cmake\n'}
+[11.692039] (amr_bringup) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/package.xml\n'}
+[11.743755] (-) TimerEvent: {}
+[11.770519] (amr_bringup) CommandEnded: {'returncode': 0}
+[11.775985] (amr_fleet) StdoutLine: {'line': b'-- Found rosidl_adapter: 3.1.8 (/opt/ros/humble/share/rosidl_adapter/cmake)\n'}
+[11.843879] (-) TimerEvent: {}
+[11.944343] (-) TimerEvent: {}
+[12.044802] (-) TimerEvent: {}
+[12.071032] (amr_navigation) StdoutLine: {'line': b'-- Found rosidl_generator_cpp: 3.1.8 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)\n'}
+[12.144927] (-) TimerEvent: {}
+[12.171851] (amr_fleet) StdoutLine: {'line': b'-- Found rosidl_generator_cpp: 3.1.8 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)\n'}
+[12.245054] (-) TimerEvent: {}
+[12.345503] (-) TimerEvent: {}
+[12.377923] (amr_slam) StdoutLine: {'line': b'-- Found rosidl_generator_c: 3.1.8 (/opt/ros/humble/share/rosidl_generator_c/cmake)\n'}
+[12.445627] (-) TimerEvent: {}
+[12.503996] (amr_bringup) JobEnded: {'identifier': 'amr_bringup', 'rc': 0}
+[12.537809] (amr_navigation) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[12.545707] (-) TimerEvent: {}
+[12.601541] (amr_fleet) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[12.645849] (-) TimerEvent: {}
+[12.746278] (-) TimerEvent: {}
+[12.814924] (amr_slam) StdoutLine: {'line': b'-- Found rosidl_adapter: 3.1.8 (/opt/ros/humble/share/rosidl_adapter/cmake)\n'}
+[12.846403] (-) TimerEvent: {}
+[12.946826] (-) TimerEvent: {}
+[13.047229] (-) TimerEvent: {}
+[13.063033] (amr_fleet) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[13.147377] (-) TimerEvent: {}
+[13.187845] (amr_navigation) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[13.213619] (amr_slam) StdoutLine: {'line': b'-- Found rosidl_generator_cpp: 3.1.8 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)\n'}
+[13.247499] (-) TimerEvent: {}
+[13.347977] (-) TimerEvent: {}
+[13.448402] (-) TimerEvent: {}
+[13.548784] (-) TimerEvent: {}
+[13.649186] (-) TimerEvent: {}
+[13.666459] (amr_slam) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c\n'}
+[13.749320] (-) TimerEvent: {}
+[13.849731] (-) TimerEvent: {}
+[13.950173] (-) TimerEvent: {}
+[14.050618] (-) TimerEvent: {}
+[14.151029] (-) TimerEvent: {}
+[14.239024] (amr_slam) StdoutLine: {'line': b'-- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp\n'}
+[14.251158] (-) TimerEvent: {}
+[14.351587] (-) TimerEvent: {}
+[14.452068] (-) TimerEvent: {}
+[14.552530] (-) TimerEvent: {}
+[14.652971] (-) TimerEvent: {}
+[14.753417] (-) TimerEvent: {}
+[14.853845] (-) TimerEvent: {}
+[14.954261] (-) TimerEvent: {}
+[14.971064] (amr_fleet) StdoutLine: {'line': b'-- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)\n'}
+[15.045193] (amr_navigation) StdoutLine: {'line': b'-- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)\n'}
+[15.054358] (-) TimerEvent: {}
+[15.154760] (-) TimerEvent: {}
+[15.185000] (amr_fleet) StdoutLine: {'line': b'-- Found rmw_fastrtps_cpp: 6.2.10 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)\n'}
+[15.214699] (amr_navigation) StdoutLine: {'line': b'-- Found rmw_fastrtps_cpp: 6.2.10 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)\n'}
+[15.254885] (-) TimerEvent: {}
+[15.355373] (-) TimerEvent: {}
+[15.455793] (-) TimerEvent: {}
+[15.556214] (-) TimerEvent: {}
+[15.656628] (-) TimerEvent: {}
+[15.757040] (-) TimerEvent: {}
+[15.857479] (-) TimerEvent: {}
+[15.957913] (-) TimerEvent: {}
+[16.050457] (amr_slam) StdoutLine: {'line': b'-- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)\n'}
+[16.058062] (-) TimerEvent: {}
+[16.158479] (-) TimerEvent: {}
+[16.258882] (-) TimerEvent: {}
+[16.266739] (amr_slam) StdoutLine: {'line': b'-- Found rmw_fastrtps_cpp: 6.2.10 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)\n'}
+[16.359004] (-) TimerEvent: {}
+[16.459476] (-) TimerEvent: {}
+[16.559928] (-) TimerEvent: {}
+[16.611591] (amr_navigation) StdoutLine: {'line': b'-- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.2")  \n'}
+[16.660053] (-) TimerEvent: {}
+[16.760552] (-) TimerEvent: {}
+[16.789591] (amr_fleet) StdoutLine: {'line': b'-- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.2")  \n'}
+[16.860680] (-) TimerEvent: {}
+[16.937073] (amr_navigation) StdoutLine: {'line': b'-- Found FastRTPS: /opt/ros/humble/include  \n'}
+[16.960808] (-) TimerEvent: {}
+[17.061225] (-) TimerEvent: {}
+[17.154668] (amr_fleet) StdoutLine: {'line': b'-- Found FastRTPS: /opt/ros/humble/include  \n'}
+[17.161381] (-) TimerEvent: {}
+[17.261780] (-) TimerEvent: {}
+[17.362182] (-) TimerEvent: {}
+[17.453276] (amr_navigation) StdoutLine: {'line': b"-- Using RMW implementation 'rmw_fastrtps_cpp' as default\n"}
+[17.462274] (-) TimerEvent: {}
+[17.562694] (-) TimerEvent: {}
+[17.663100] (-) TimerEvent: {}
+[17.704371] (amr_fleet) StdoutLine: {'line': b"-- Using RMW implementation 'rmw_fastrtps_cpp' as default\n"}
+[17.763222] (-) TimerEvent: {}
+[17.863631] (-) TimerEvent: {}
+[17.909305] (amr_slam) StdoutLine: {'line': b'-- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.2")  \n'}
+[17.963753] (-) TimerEvent: {}
+[18.064150] (-) TimerEvent: {}
+[18.095109] (amr_navigation) StdoutLine: {'line': b'-- Looking for pthread.h\n'}
+[18.164274] (-) TimerEvent: {}
+[18.264686] (-) TimerEvent: {}
+[18.268885] (amr_slam) StdoutLine: {'line': b'-- Found FastRTPS: /opt/ros/humble/include  \n'}
+[18.269564] (amr_fleet) StdoutLine: {'line': b'-- Looking for pthread.h\n'}
+[18.364805] (-) TimerEvent: {}
+[18.465228] (-) TimerEvent: {}
+[18.565714] (-) TimerEvent: {}
+[18.666161] (-) TimerEvent: {}
+[18.767085] (-) TimerEvent: {}
+[18.864366] (amr_slam) StdoutLine: {'line': b"-- Using RMW implementation 'rmw_fastrtps_cpp' as default\n"}
+[18.867164] (-) TimerEvent: {}
+[18.967660] (-) TimerEvent: {}
+[19.068062] (-) TimerEvent: {}
+[19.102723] (amr_navigation) StdoutLine: {'line': b'-- Looking for pthread.h - found\n'}
+[19.144477] (amr_navigation) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n'}
+[19.168191] (-) TimerEvent: {}
+[19.268621] (-) TimerEvent: {}
+[19.277389] (amr_fleet) StdoutLine: {'line': b'-- Looking for pthread.h - found\n'}
+[19.298477] (amr_fleet) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n'}
+[19.368745] (-) TimerEvent: {}
+[19.442237] (amr_slam) StdoutLine: {'line': b'-- Looking for pthread.h\n'}
+[19.468871] (-) TimerEvent: {}
+[19.569292] (-) TimerEvent: {}
+[19.669782] (-) TimerEvent: {}
+[19.770187] (-) TimerEvent: {}
+[19.870729] (-) TimerEvent: {}
+[19.971191] (-) TimerEvent: {}
+[20.071669] (-) TimerEvent: {}
+[20.172148] (-) TimerEvent: {}
+[20.272592] (-) TimerEvent: {}
+[20.309099] (amr_navigation) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n'}
+[20.335051] (amr_navigation) StdoutLine: {'line': b'-- Found Threads: TRUE  \n'}
+[20.372721] (-) TimerEvent: {}
+[20.473139] (-) TimerEvent: {}
+[20.473831] (amr_fleet) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n'}
+[20.484037] (amr_fleet) StdoutLine: {'line': b'-- Found Threads: TRUE  \n'}
+[20.514603] (amr_slam) StdoutLine: {'line': b'-- Looking for pthread.h - found\n'}
+[20.573262] (-) TimerEvent: {}
+[20.575199] (amr_slam) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD\n'}
+[20.673382] (-) TimerEvent: {}
+[20.773765] (-) TimerEvent: {}
+[20.874162] (-) TimerEvent: {}
+[20.974598] (-) TimerEvent: {}
+[21.075007] (-) TimerEvent: {}
+[21.156912] (amr_navigation) StdoutLine: {'line': b'-- Found nav_msgs: 4.9.1 (/opt/ros/humble/share/nav_msgs/cmake)\n'}
+[21.175134] (-) TimerEvent: {}
+[21.275539] (-) TimerEvent: {}
+[21.375934] (-) TimerEvent: {}
+[21.476368] (-) TimerEvent: {}
+[21.493855] (amr_navigation) StdoutLine: {'line': b'-- Found sensor_msgs: 4.9.1 (/opt/ros/humble/share/sensor_msgs/cmake)\n'}
+[21.564473] (amr_slam) StdoutLine: {'line': b'-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success\n'}
+[21.574097] (amr_slam) StdoutLine: {'line': b'-- Found Threads: TRUE  \n'}
+[21.576447] (-) TimerEvent: {}
+[21.606246] (amr_fleet) StdoutLine: {'line': b'-- Found geometry_msgs: 4.9.1 (/opt/ros/humble/share/geometry_msgs/cmake)\n'}
+[21.658851] (amr_navigation) StdoutLine: {'line': b'-- Found tf2_ros: 0.25.20 (/opt/ros/humble/share/tf2_ros/cmake)\n'}
+[21.676535] (-) TimerEvent: {}
+[21.776905] (-) TimerEvent: {}
+[21.849861] (amr_fleet) StdoutLine: {'line': b'-- Found nav_msgs: 4.9.1 (/opt/ros/humble/share/nav_msgs/cmake)\n'}
+[21.877026] (-) TimerEvent: {}
+[21.977482] (-) TimerEvent: {}
+[22.077890] (-) TimerEvent: {}
+[22.139633] (amr_fleet) StdoutLine: {'line': b'-- Found ament_lint_auto: 0.12.15 (/opt/ros/humble/share/ament_lint_auto/cmake)\n'}
+[22.177983] (-) TimerEvent: {}
+[22.278384] (-) TimerEvent: {}
+[22.378806] (-) TimerEvent: {}
+[22.479280] (-) TimerEvent: {}
+[22.579711] (-) TimerEvent: {}
+[22.665966] (amr_slam) StdoutLine: {'line': b'-- Found sensor_msgs: 4.9.1 (/opt/ros/humble/share/sensor_msgs/cmake)\n'}
+[22.679797] (-) TimerEvent: {}
+[22.780178] (-) TimerEvent: {}
+[22.880626] (-) TimerEvent: {}
+[22.981078] (-) TimerEvent: {}
+[23.058159] (amr_slam) StdoutLine: {'line': b'-- Found nav_msgs: 4.9.1 (/opt/ros/humble/share/nav_msgs/cmake)\n'}
+[23.081216] (-) TimerEvent: {}
+[23.181623] (-) TimerEvent: {}
+[23.282027] (-) TimerEvent: {}
+[23.286508] (amr_slam) StdoutLine: {'line': b'-- Found tf2_ros: 0.25.20 (/opt/ros/humble/share/tf2_ros/cmake)\n'}
+[23.382119] (-) TimerEvent: {}
+[23.482557] (-) TimerEvent: {}
+[23.582953] (-) TimerEvent: {}
+[23.683354] (-) TimerEvent: {}
+[23.783772] (-) TimerEvent: {}
+[23.884192] (-) TimerEvent: {}
+[23.984610] (-) TimerEvent: {}
+[24.085033] (-) TimerEvent: {}
+[24.085470] (amr_navigation) StdoutLine: {'line': b'-- Found ament_lint_auto: 0.12.15 (/opt/ros/humble/share/ament_lint_auto/cmake)\n'}
+[24.185159] (-) TimerEvent: {}
+[24.285593] (-) TimerEvent: {}
+[24.385997] (-) TimerEvent: {}
+[24.486491] (-) TimerEvent: {}
+[24.539647] (amr_fleet) StdoutLine: {'line': b"-- Added test 'lint_cmake' to check CMake code style\n"}
+[24.586615] (-) TimerEvent: {}
+[24.687030] (-) TimerEvent: {}
+[24.787466] (-) TimerEvent: {}
+[24.853390] (amr_fleet) StdoutLine: {'line': b"-- Added test 'xmllint' to check XML markup files\n"}
+[24.887589] (-) TimerEvent: {}
+[24.988006] (-) TimerEvent: {}
+[25.088415] (-) TimerEvent: {}
+[25.111565] (amr_fleet) StdoutLine: {'line': b'-- Configuring done\n'}
+[25.188532] (-) TimerEvent: {}
+[25.288977] (-) TimerEvent: {}
+[25.389377] (-) TimerEvent: {}
+[25.489790] (-) TimerEvent: {}
+[25.590204] (-) TimerEvent: {}
+[25.675118] (amr_fleet) StdoutLine: {'line': b'-- Generating done\n'}
+[25.690363] (-) TimerEvent: {}
+[25.790768] (-) TimerEvent: {}
+[25.811057] (amr_slam) StdoutLine: {'line': b'-- Found ament_lint_auto: 0.12.15 (/opt/ros/humble/share/ament_lint_auto/cmake)\n'}
+[25.890893] (-) TimerEvent: {}
+[25.988376] (amr_fleet) StdoutLine: {'line': b'-- Build files have been written to: /workspace/github/opticore-amr/ros2_ws/build/amr_fleet\n'}
+[25.990983] (-) TimerEvent: {}
+[26.003951] (amr_fleet) CommandEnded: {'returncode': 0}
+[26.008898] (amr_fleet) JobProgress: {'identifier': 'amr_fleet', 'progress': 'build'}
+[26.014719] (amr_fleet) Command: {'cmd': ['/usr/bin/cmake', '--build', '/workspace/github/opticore-amr/ros2_ws/build/amr_fleet', '--', '-j128', '-l128'], 'cwd': '/workspace/github/opticore-amr/ros2_ws/build/amr_fleet', 'env': OrderedDict([('RUNPOD_PUBLIC_IP', '213.173.107.26'), ('RUNPOD_POD_HOSTNAME', '9oqg1l1xgz1auy-64411fda'), ('LIBRARY_PATH', '/usr/local/cuda/lib64/stubs'), ('NV_LIBCUBLAS_VERSION', '12.4.5.8-1'), ('NV_NVPROF_DEV_PACKAGE', 'cuda-nvprof-12-4=12.4.127-1'), ('NV_CUDA_COMPAT_PACKAGE', 'cuda-compat-12-4'), ('RUNPOD_POD_ID', '9oqg1l1xgz1auy'), ('NV_CUDA_NSIGHT_COMPUTE_VERSION', '12.4.1-1'), ('RUNPOD_GPU_NAME', 'NVIDIA+RTX+PRO+4500+Blackwell'), ('HOSTNAME', '786fdbe8cba3'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64'), ('NV_LIBNCCL_PACKAGE_VERSION', '2.21.5-1'), ('HOME', '/root'), ('OLDPWD', '/workspace/github/opticore-amr'), ('NV_LIBCUBLAS_DEV_VERSION', '12.4.5.8-1'), ('RUNPOD_API_KEY', 'rpa_OAM0NBEL93EG7ZBHMAJ49TYJ0LU9HKXVTEI0YAE0hbmerj'), ('ROS_PYTHON_VERSION', '3'), ('LC_CTYPE', 'C.UTF-8'), ('NV_LIBNCCL_DEV_PACKAGE_VERSION', '2.21.5-1'), ('NV_LIBNPP_PACKAGE', 'libnpp-12-4=12.2.5.30-1'), ('CUDA_VERSION', '12.4.1'), ('RUNPOD_VOLUME_ID', 'ti82fhq17n'), ('COLCON_PREFIX_PATH', '/workspace/ros2_ws/install'), ('NV_NVPROF_VERSION', '12.4.127-1'), ('ROS_DISTRO', 'humble'), ('NV_LIBCUBLAS_PACKAGE_NAME', 'libcublas-12-4'), ('NVIDIA_REQUIRE_CUDA', 'cuda>=12.4 brand=tesla,driver>=470,driver<471 brand=unknown,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=geforce,driver>=470,driver<471 brand=geforcertx,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=titan,driver>=470,driver<471 brand=titanrtx,driver>=470,driver<471 brand=tesla,driver>=525,driver<526 brand=unknown,driver>=525,driver<526 brand=nvidia,driver>=525,driver<526 brand=nvidiartx,driver>=525,driver<526 brand=geforce,driver>=525,driver<526 brand=geforcertx,driver>=525,driver<526 brand=quadro,driver>=525,driver<526 brand=quadrortx,driver>=525,driver<526 brand=titan,driver>=525,driver<526 brand=titanrtx,driver>=525,driver<526 brand=tesla,driver>=535,driver<536 brand=unknown,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=geforce,driver>=535,driver<536 brand=geforcertx,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=titan,driver>=535,driver<536 brand=titanrtx,driver>=535,driver<536'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('NV_LIBCUSPARSE_VERSION', '12.3.1.170-1'), ('NVIDIA_DRIVER_CAPABILITIES', 'compute,utility'), ('NV_CUDA_LIB_VERSION', '12.4.1-1'), ('NV_LIBNCCL_PACKAGE_NAME', 'libnccl2'), ('NV_NVML_DEV_VERSION', '12.4.127-1'), ('NV_LIBNPP_DEV_PACKAGE', 'libnpp-dev-12-4=12.2.5.30-1'), ('TERM', 'xterm'), ('NV_CUDA_CUDART_VERSION', '12.4.127-1'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/opt/ros/humble/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'), ('NV_LIBCUBLAS_DEV_PACKAGE_NAME', 'libcublas-dev-12-4'), ('NV_LIBCUBLAS_PACKAGE', 'libcublas-12-4=12.4.5.8-1'), ('NVARCH', 'x86_64'), ('NV_LIBNCCL_DEV_PACKAGE_NAME', 'libnccl-dev'), ('NV_LIBCUSPARSE_DEV_VERSION', '12.3.1.170-1'), ('NV_LIBNCCL_PACKAGE', 'libnccl2=2.21.5-1+cuda12.4'), ('NVIDIA_PRODUCT_NAME', 'CUDA'), ('NV_CUDA_CUDART_DEV_VERSION', '12.4.127-1'), ('RUNPOD_CPU_COUNT', '32'), ('AMENT_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_perception:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/opt/ros/humble'), ('DEBIAN_FRONTEND', 'noninteractive'), ('SHELL', '/bin/bash'), ('NV_LIBCUBLAS_DEV_PACKAGE', 'libcublas-dev-12-4=12.4.5.8-1'), ('RUNPOD_DC_ID', 'EU-RO-1'), ('PUBLIC_KEY', 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEjNRjXuPVBfXPSQHXnXQ0CJzMtJCUm12E6rH0LA2rAB Opticore-pcy\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILRJkinIEurocrZI8ja5gXMi61683caxj4eMxOyL9+N+ Opticore-<JW>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHl6hDWD9+4+Zndnl6kzWmzDrT2YRuhfVUg03rQVbo7P Opticore-<us>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEFqIyz9ZcUfXoND9oRrMlOQQB9KSBgAyUFY0grr+ozf Opticore-jsw\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOse8jd1peft/WWDca6gK4x400a6rL+6lssMEbLRoBgB ukkhnn_macbook'), ('NV_CUDA_NSIGHT_COMPUTE_DEV_PACKAGE', 'cuda-nsight-compute-12-4=12.4.1-1'), ('NV_LIBNCCL_DEV_PACKAGE', 'libnccl-dev=2.21.5-1+cuda12.4'), ('RUNPOD_GPU_COUNT', '1'), ('NV_NVTX_VERSION', '12.4.127-1'), ('NV_LIBNPP_VERSION', '12.2.5.30-1'), ('PWD', '/workspace/github/opticore-amr/ros2_ws/build/amr_fleet'), ('RUNPOD_MEM_GB', '62'), ('RUNPOD_TCP_PORT_22', '17600'), ('PYTHONPATH', '/workspace/ros2_ws/install/amr_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('NVIDIA_VISIBLE_DEVICES', 'all'), ('NCCL_VERSION', '2.21.5-1'), ('COLCON', '1'), ('NV_LIBNPP_DEV_VERSION', '12.2.5.30-1'), ('CMAKE_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble')]), 'shell': False}
+[26.091114] (-) TimerEvent: {}
+[26.191564] (-) TimerEvent: {}
+[26.242205] (amr_fleet) CommandEnded: {'returncode': 0}
+[26.254063] (amr_fleet) JobProgress: {'identifier': 'amr_fleet', 'progress': 'install'}
+[26.265144] (amr_fleet) Command: {'cmd': ['/usr/bin/cmake', '--install', '/workspace/github/opticore-amr/ros2_ws/build/amr_fleet'], 'cwd': '/workspace/github/opticore-amr/ros2_ws/build/amr_fleet', 'env': OrderedDict([('RUNPOD_PUBLIC_IP', '213.173.107.26'), ('RUNPOD_POD_HOSTNAME', '9oqg1l1xgz1auy-64411fda'), ('LIBRARY_PATH', '/usr/local/cuda/lib64/stubs'), ('NV_LIBCUBLAS_VERSION', '12.4.5.8-1'), ('NV_NVPROF_DEV_PACKAGE', 'cuda-nvprof-12-4=12.4.127-1'), ('NV_CUDA_COMPAT_PACKAGE', 'cuda-compat-12-4'), ('RUNPOD_POD_ID', '9oqg1l1xgz1auy'), ('NV_CUDA_NSIGHT_COMPUTE_VERSION', '12.4.1-1'), ('RUNPOD_GPU_NAME', 'NVIDIA+RTX+PRO+4500+Blackwell'), ('HOSTNAME', '786fdbe8cba3'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64'), ('NV_LIBNCCL_PACKAGE_VERSION', '2.21.5-1'), ('HOME', '/root'), ('OLDPWD', '/workspace/github/opticore-amr'), ('NV_LIBCUBLAS_DEV_VERSION', '12.4.5.8-1'), ('RUNPOD_API_KEY', 'rpa_OAM0NBEL93EG7ZBHMAJ49TYJ0LU9HKXVTEI0YAE0hbmerj'), ('ROS_PYTHON_VERSION', '3'), ('LC_CTYPE', 'C.UTF-8'), ('NV_LIBNCCL_DEV_PACKAGE_VERSION', '2.21.5-1'), ('NV_LIBNPP_PACKAGE', 'libnpp-12-4=12.2.5.30-1'), ('CUDA_VERSION', '12.4.1'), ('RUNPOD_VOLUME_ID', 'ti82fhq17n'), ('COLCON_PREFIX_PATH', '/workspace/ros2_ws/install'), ('NV_NVPROF_VERSION', '12.4.127-1'), ('ROS_DISTRO', 'humble'), ('NV_LIBCUBLAS_PACKAGE_NAME', 'libcublas-12-4'), ('NVIDIA_REQUIRE_CUDA', 'cuda>=12.4 brand=tesla,driver>=470,driver<471 brand=unknown,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=geforce,driver>=470,driver<471 brand=geforcertx,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=titan,driver>=470,driver<471 brand=titanrtx,driver>=470,driver<471 brand=tesla,driver>=525,driver<526 brand=unknown,driver>=525,driver<526 brand=nvidia,driver>=525,driver<526 brand=nvidiartx,driver>=525,driver<526 brand=geforce,driver>=525,driver<526 brand=geforcertx,driver>=525,driver<526 brand=quadro,driver>=525,driver<526 brand=quadrortx,driver>=525,driver<526 brand=titan,driver>=525,driver<526 brand=titanrtx,driver>=525,driver<526 brand=tesla,driver>=535,driver<536 brand=unknown,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=geforce,driver>=535,driver<536 brand=geforcertx,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=titan,driver>=535,driver<536 brand=titanrtx,driver>=535,driver<536'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('NV_LIBCUSPARSE_VERSION', '12.3.1.170-1'), ('NVIDIA_DRIVER_CAPABILITIES', 'compute,utility'), ('NV_CUDA_LIB_VERSION', '12.4.1-1'), ('NV_LIBNCCL_PACKAGE_NAME', 'libnccl2'), ('NV_NVML_DEV_VERSION', '12.4.127-1'), ('NV_LIBNPP_DEV_PACKAGE', 'libnpp-dev-12-4=12.2.5.30-1'), ('TERM', 'xterm'), ('NV_CUDA_CUDART_VERSION', '12.4.127-1'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/opt/ros/humble/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'), ('NV_LIBCUBLAS_DEV_PACKAGE_NAME', 'libcublas-dev-12-4'), ('NV_LIBCUBLAS_PACKAGE', 'libcublas-12-4=12.4.5.8-1'), ('NVARCH', 'x86_64'), ('NV_LIBNCCL_DEV_PACKAGE_NAME', 'libnccl-dev'), ('NV_LIBCUSPARSE_DEV_VERSION', '12.3.1.170-1'), ('NV_LIBNCCL_PACKAGE', 'libnccl2=2.21.5-1+cuda12.4'), ('NVIDIA_PRODUCT_NAME', 'CUDA'), ('NV_CUDA_CUDART_DEV_VERSION', '12.4.127-1'), ('RUNPOD_CPU_COUNT', '32'), ('AMENT_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_perception:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/opt/ros/humble'), ('DEBIAN_FRONTEND', 'noninteractive'), ('SHELL', '/bin/bash'), ('NV_LIBCUBLAS_DEV_PACKAGE', 'libcublas-dev-12-4=12.4.5.8-1'), ('RUNPOD_DC_ID', 'EU-RO-1'), ('PUBLIC_KEY', 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEjNRjXuPVBfXPSQHXnXQ0CJzMtJCUm12E6rH0LA2rAB Opticore-pcy\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILRJkinIEurocrZI8ja5gXMi61683caxj4eMxOyL9+N+ Opticore-<JW>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHl6hDWD9+4+Zndnl6kzWmzDrT2YRuhfVUg03rQVbo7P Opticore-<us>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEFqIyz9ZcUfXoND9oRrMlOQQB9KSBgAyUFY0grr+ozf Opticore-jsw\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOse8jd1peft/WWDca6gK4x400a6rL+6lssMEbLRoBgB ukkhnn_macbook'), ('NV_CUDA_NSIGHT_COMPUTE_DEV_PACKAGE', 'cuda-nsight-compute-12-4=12.4.1-1'), ('NV_LIBNCCL_DEV_PACKAGE', 'libnccl-dev=2.21.5-1+cuda12.4'), ('RUNPOD_GPU_COUNT', '1'), ('NV_NVTX_VERSION', '12.4.127-1'), ('NV_LIBNPP_VERSION', '12.2.5.30-1'), ('PWD', '/workspace/github/opticore-amr/ros2_ws/build/amr_fleet'), ('RUNPOD_MEM_GB', '62'), ('RUNPOD_TCP_PORT_22', '17600'), ('PYTHONPATH', '/workspace/ros2_ws/install/amr_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('NVIDIA_VISIBLE_DEVICES', 'all'), ('NCCL_VERSION', '2.21.5-1'), ('COLCON', '1'), ('NV_LIBNPP_DEV_VERSION', '12.2.5.30-1'), ('CMAKE_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble')]), 'shell': False}
+[26.291694] (-) TimerEvent: {}
+[26.294677] (amr_fleet) StdoutLine: {'line': b'-- Install configuration: ""\n'}
+[26.314651] (amr_fleet) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/ament_index/resource_index/package_run_dependencies/amr_fleet\n'}
+[26.337405] (amr_navigation) StdoutLine: {'line': b"-- Added test 'cppcheck' to perform static code analysis on C / C++ code\n"}
+[26.338001] (amr_navigation) StdoutLine: {'line': b'-- Configured cppcheck include dirs: \n'}
+[26.338489] (amr_navigation) StdoutLine: {'line': b'-- Configured cppcheck exclude dirs and/or files: \n'}
+[26.386692] (amr_fleet) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/ament_index/resource_index/parent_prefix_path/amr_fleet\n'}
+[26.391775] (-) TimerEvent: {}
+[26.445123] (amr_fleet) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/environment/ament_prefix_path.sh\n'}
+[26.490338] (amr_fleet) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/environment/ament_prefix_path.dsv\n'}
+[26.491860] (-) TimerEvent: {}
+[26.503238] (amr_navigation) StdoutLine: {'line': b"-- Added test 'lint_cmake' to check CMake code style\n"}
+[26.552064] (amr_fleet) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/environment/path.sh\n'}
+[26.591987] (-) TimerEvent: {}
+[26.597501] (amr_fleet) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/environment/path.dsv\n'}
+[26.654933] (amr_fleet) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/local_setup.bash\n'}
+[26.692112] (-) TimerEvent: {}
+[26.699360] (amr_fleet) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/local_setup.sh\n'}
+[26.755364] (amr_fleet) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/local_setup.zsh\n'}
+[26.792239] (-) TimerEvent: {}
+[26.797098] (amr_fleet) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/local_setup.dsv\n'}
+[26.853072] (amr_fleet) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/package.dsv\n'}
+[26.892363] (-) TimerEvent: {}
+[26.908894] (amr_fleet) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/ament_index/resource_index/packages/amr_fleet\n'}
+[26.941871] (amr_navigation) StdoutLine: {'line': b"-- Added test 'uncrustify' to check C / C++ code style\n"}
+[26.942664] (amr_navigation) StdoutLine: {'line': b'-- Configured uncrustify additional arguments: \n'}
+[26.972514] (amr_fleet) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/cmake/amr_fleetConfig.cmake\n'}
+[26.992451] (-) TimerEvent: {}
+[27.050601] (amr_fleet) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/cmake/amr_fleetConfig-version.cmake\n'}
+[27.051411] (amr_navigation) StdoutLine: {'line': b"-- Added test 'xmllint' to check XML markup files\n"}
+[27.092578] (-) TimerEvent: {}
+[27.094048] (amr_fleet) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/package.xml\n'}
+[27.160670] (amr_fleet) CommandEnded: {'returncode': 0}
+[27.192715] (-) TimerEvent: {}
+[27.293142] (-) TimerEvent: {}
+[27.344755] (amr_navigation) StdoutLine: {'line': b'-- Configuring done\n'}
+[27.393273] (-) TimerEvent: {}
+[27.493694] (-) TimerEvent: {}
+[27.594131] (-) TimerEvent: {}
+[27.694595] (-) TimerEvent: {}
+[27.762851] (amr_fleet) JobEnded: {'identifier': 'amr_fleet', 'rc': 0}
+[27.794718] (-) TimerEvent: {}
+[27.885105] (amr_navigation) StdoutLine: {'line': b'-- Generating done\n'}
+[27.894808] (-) TimerEvent: {}
+[27.995270] (-) TimerEvent: {}
+[28.095781] (-) TimerEvent: {}
+[28.196183] (-) TimerEvent: {}
+[28.198413] (amr_navigation) StdoutLine: {'line': b'-- Build files have been written to: /workspace/github/opticore-amr/ros2_ws/build/amr_navigation\n'}
+[28.216389] (amr_navigation) CommandEnded: {'returncode': 0}
+[28.237610] (amr_slam) StdoutLine: {'line': b"-- Added test 'lint_cmake' to check CMake code style\n"}
+[28.239229] (amr_navigation) JobProgress: {'identifier': 'amr_navigation', 'progress': 'build'}
+[28.294430] (amr_navigation) Command: {'cmd': ['/usr/bin/cmake', '--build', '/workspace/github/opticore-amr/ros2_ws/build/amr_navigation', '--', '-j128', '-l128'], 'cwd': '/workspace/github/opticore-amr/ros2_ws/build/amr_navigation', 'env': OrderedDict([('RUNPOD_PUBLIC_IP', '213.173.107.26'), ('RUNPOD_POD_HOSTNAME', '9oqg1l1xgz1auy-64411fda'), ('LIBRARY_PATH', '/usr/local/cuda/lib64/stubs'), ('NV_LIBCUBLAS_VERSION', '12.4.5.8-1'), ('NV_NVPROF_DEV_PACKAGE', 'cuda-nvprof-12-4=12.4.127-1'), ('NV_CUDA_COMPAT_PACKAGE', 'cuda-compat-12-4'), ('RUNPOD_POD_ID', '9oqg1l1xgz1auy'), ('NV_CUDA_NSIGHT_COMPUTE_VERSION', '12.4.1-1'), ('RUNPOD_GPU_NAME', 'NVIDIA+RTX+PRO+4500+Blackwell'), ('HOSTNAME', '786fdbe8cba3'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64'), ('NV_LIBNCCL_PACKAGE_VERSION', '2.21.5-1'), ('HOME', '/root'), ('OLDPWD', '/workspace/github/opticore-amr'), ('NV_LIBCUBLAS_DEV_VERSION', '12.4.5.8-1'), ('RUNPOD_API_KEY', 'rpa_OAM0NBEL93EG7ZBHMAJ49TYJ0LU9HKXVTEI0YAE0hbmerj'), ('ROS_PYTHON_VERSION', '3'), ('LC_CTYPE', 'C.UTF-8'), ('NV_LIBNCCL_DEV_PACKAGE_VERSION', '2.21.5-1'), ('NV_LIBNPP_PACKAGE', 'libnpp-12-4=12.2.5.30-1'), ('CUDA_VERSION', '12.4.1'), ('RUNPOD_VOLUME_ID', 'ti82fhq17n'), ('COLCON_PREFIX_PATH', '/workspace/ros2_ws/install'), ('NV_NVPROF_VERSION', '12.4.127-1'), ('ROS_DISTRO', 'humble'), ('NV_LIBCUBLAS_PACKAGE_NAME', 'libcublas-12-4'), ('NVIDIA_REQUIRE_CUDA', 'cuda>=12.4 brand=tesla,driver>=470,driver<471 brand=unknown,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=geforce,driver>=470,driver<471 brand=geforcertx,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=titan,driver>=470,driver<471 brand=titanrtx,driver>=470,driver<471 brand=tesla,driver>=525,driver<526 brand=unknown,driver>=525,driver<526 brand=nvidia,driver>=525,driver<526 brand=nvidiartx,driver>=525,driver<526 brand=geforce,driver>=525,driver<526 brand=geforcertx,driver>=525,driver<526 brand=quadro,driver>=525,driver<526 brand=quadrortx,driver>=525,driver<526 brand=titan,driver>=525,driver<526 brand=titanrtx,driver>=525,driver<526 brand=tesla,driver>=535,driver<536 brand=unknown,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=geforce,driver>=535,driver<536 brand=geforcertx,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=titan,driver>=535,driver<536 brand=titanrtx,driver>=535,driver<536'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('NV_LIBCUSPARSE_VERSION', '12.3.1.170-1'), ('NVIDIA_DRIVER_CAPABILITIES', 'compute,utility'), ('NV_CUDA_LIB_VERSION', '12.4.1-1'), ('NV_LIBNCCL_PACKAGE_NAME', 'libnccl2'), ('NV_NVML_DEV_VERSION', '12.4.127-1'), ('NV_LIBNPP_DEV_PACKAGE', 'libnpp-dev-12-4=12.2.5.30-1'), ('TERM', 'xterm'), ('NV_CUDA_CUDART_VERSION', '12.4.127-1'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/opt/ros/humble/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'), ('NV_LIBCUBLAS_DEV_PACKAGE_NAME', 'libcublas-dev-12-4'), ('NV_LIBCUBLAS_PACKAGE', 'libcublas-12-4=12.4.5.8-1'), ('NVARCH', 'x86_64'), ('NV_LIBNCCL_DEV_PACKAGE_NAME', 'libnccl-dev'), ('NV_LIBCUSPARSE_DEV_VERSION', '12.3.1.170-1'), ('NV_LIBNCCL_PACKAGE', 'libnccl2=2.21.5-1+cuda12.4'), ('NVIDIA_PRODUCT_NAME', 'CUDA'), ('NV_CUDA_CUDART_DEV_VERSION', '12.4.127-1'), ('RUNPOD_CPU_COUNT', '32'), ('AMENT_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_perception:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/opt/ros/humble'), ('DEBIAN_FRONTEND', 'noninteractive'), ('SHELL', '/bin/bash'), ('NV_LIBCUBLAS_DEV_PACKAGE', 'libcublas-dev-12-4=12.4.5.8-1'), ('RUNPOD_DC_ID', 'EU-RO-1'), ('PUBLIC_KEY', 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEjNRjXuPVBfXPSQHXnXQ0CJzMtJCUm12E6rH0LA2rAB Opticore-pcy\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILRJkinIEurocrZI8ja5gXMi61683caxj4eMxOyL9+N+ Opticore-<JW>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHl6hDWD9+4+Zndnl6kzWmzDrT2YRuhfVUg03rQVbo7P Opticore-<us>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEFqIyz9ZcUfXoND9oRrMlOQQB9KSBgAyUFY0grr+ozf Opticore-jsw\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOse8jd1peft/WWDca6gK4x400a6rL+6lssMEbLRoBgB ukkhnn_macbook'), ('NV_CUDA_NSIGHT_COMPUTE_DEV_PACKAGE', 'cuda-nsight-compute-12-4=12.4.1-1'), ('NV_LIBNCCL_DEV_PACKAGE', 'libnccl-dev=2.21.5-1+cuda12.4'), ('RUNPOD_GPU_COUNT', '1'), ('NV_NVTX_VERSION', '12.4.127-1'), ('NV_LIBNPP_VERSION', '12.2.5.30-1'), ('PWD', '/workspace/github/opticore-amr/ros2_ws/build/amr_navigation'), ('RUNPOD_MEM_GB', '62'), ('RUNPOD_TCP_PORT_22', '17600'), ('PYTHONPATH', '/workspace/ros2_ws/install/amr_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('NVIDIA_VISIBLE_DEVICES', 'all'), ('NCCL_VERSION', '2.21.5-1'), ('COLCON', '1'), ('NV_LIBNPP_DEV_VERSION', '12.2.5.30-1'), ('CMAKE_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble')]), 'shell': False}
+[28.296677] (-) TimerEvent: {}
+[28.397071] (-) TimerEvent: {}
+[28.497567] (-) TimerEvent: {}
+[28.518451] (amr_navigation) CommandEnded: {'returncode': 0}
+[28.562845] (amr_navigation) JobProgress: {'identifier': 'amr_navigation', 'progress': 'install'}
+[28.573039] (amr_navigation) Command: {'cmd': ['/usr/bin/cmake', '--install', '/workspace/github/opticore-amr/ros2_ws/build/amr_navigation'], 'cwd': '/workspace/github/opticore-amr/ros2_ws/build/amr_navigation', 'env': OrderedDict([('RUNPOD_PUBLIC_IP', '213.173.107.26'), ('RUNPOD_POD_HOSTNAME', '9oqg1l1xgz1auy-64411fda'), ('LIBRARY_PATH', '/usr/local/cuda/lib64/stubs'), ('NV_LIBCUBLAS_VERSION', '12.4.5.8-1'), ('NV_NVPROF_DEV_PACKAGE', 'cuda-nvprof-12-4=12.4.127-1'), ('NV_CUDA_COMPAT_PACKAGE', 'cuda-compat-12-4'), ('RUNPOD_POD_ID', '9oqg1l1xgz1auy'), ('NV_CUDA_NSIGHT_COMPUTE_VERSION', '12.4.1-1'), ('RUNPOD_GPU_NAME', 'NVIDIA+RTX+PRO+4500+Blackwell'), ('HOSTNAME', '786fdbe8cba3'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64'), ('NV_LIBNCCL_PACKAGE_VERSION', '2.21.5-1'), ('HOME', '/root'), ('OLDPWD', '/workspace/github/opticore-amr'), ('NV_LIBCUBLAS_DEV_VERSION', '12.4.5.8-1'), ('RUNPOD_API_KEY', 'rpa_OAM0NBEL93EG7ZBHMAJ49TYJ0LU9HKXVTEI0YAE0hbmerj'), ('ROS_PYTHON_VERSION', '3'), ('LC_CTYPE', 'C.UTF-8'), ('NV_LIBNCCL_DEV_PACKAGE_VERSION', '2.21.5-1'), ('NV_LIBNPP_PACKAGE', 'libnpp-12-4=12.2.5.30-1'), ('CUDA_VERSION', '12.4.1'), ('RUNPOD_VOLUME_ID', 'ti82fhq17n'), ('COLCON_PREFIX_PATH', '/workspace/ros2_ws/install'), ('NV_NVPROF_VERSION', '12.4.127-1'), ('ROS_DISTRO', 'humble'), ('NV_LIBCUBLAS_PACKAGE_NAME', 'libcublas-12-4'), ('NVIDIA_REQUIRE_CUDA', 'cuda>=12.4 brand=tesla,driver>=470,driver<471 brand=unknown,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=geforce,driver>=470,driver<471 brand=geforcertx,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=titan,driver>=470,driver<471 brand=titanrtx,driver>=470,driver<471 brand=tesla,driver>=525,driver<526 brand=unknown,driver>=525,driver<526 brand=nvidia,driver>=525,driver<526 brand=nvidiartx,driver>=525,driver<526 brand=geforce,driver>=525,driver<526 brand=geforcertx,driver>=525,driver<526 brand=quadro,driver>=525,driver<526 brand=quadrortx,driver>=525,driver<526 brand=titan,driver>=525,driver<526 brand=titanrtx,driver>=525,driver<526 brand=tesla,driver>=535,driver<536 brand=unknown,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=geforce,driver>=535,driver<536 brand=geforcertx,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=titan,driver>=535,driver<536 brand=titanrtx,driver>=535,driver<536'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('NV_LIBCUSPARSE_VERSION', '12.3.1.170-1'), ('NVIDIA_DRIVER_CAPABILITIES', 'compute,utility'), ('NV_CUDA_LIB_VERSION', '12.4.1-1'), ('NV_LIBNCCL_PACKAGE_NAME', 'libnccl2'), ('NV_NVML_DEV_VERSION', '12.4.127-1'), ('NV_LIBNPP_DEV_PACKAGE', 'libnpp-dev-12-4=12.2.5.30-1'), ('TERM', 'xterm'), ('NV_CUDA_CUDART_VERSION', '12.4.127-1'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/opt/ros/humble/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'), ('NV_LIBCUBLAS_DEV_PACKAGE_NAME', 'libcublas-dev-12-4'), ('NV_LIBCUBLAS_PACKAGE', 'libcublas-12-4=12.4.5.8-1'), ('NVARCH', 'x86_64'), ('NV_LIBNCCL_DEV_PACKAGE_NAME', 'libnccl-dev'), ('NV_LIBCUSPARSE_DEV_VERSION', '12.3.1.170-1'), ('NV_LIBNCCL_PACKAGE', 'libnccl2=2.21.5-1+cuda12.4'), ('NVIDIA_PRODUCT_NAME', 'CUDA'), ('NV_CUDA_CUDART_DEV_VERSION', '12.4.127-1'), ('RUNPOD_CPU_COUNT', '32'), ('AMENT_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_perception:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/opt/ros/humble'), ('DEBIAN_FRONTEND', 'noninteractive'), ('SHELL', '/bin/bash'), ('NV_LIBCUBLAS_DEV_PACKAGE', 'libcublas-dev-12-4=12.4.5.8-1'), ('RUNPOD_DC_ID', 'EU-RO-1'), ('PUBLIC_KEY', 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEjNRjXuPVBfXPSQHXnXQ0CJzMtJCUm12E6rH0LA2rAB Opticore-pcy\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILRJkinIEurocrZI8ja5gXMi61683caxj4eMxOyL9+N+ Opticore-<JW>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHl6hDWD9+4+Zndnl6kzWmzDrT2YRuhfVUg03rQVbo7P Opticore-<us>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEFqIyz9ZcUfXoND9oRrMlOQQB9KSBgAyUFY0grr+ozf Opticore-jsw\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOse8jd1peft/WWDca6gK4x400a6rL+6lssMEbLRoBgB ukkhnn_macbook'), ('NV_CUDA_NSIGHT_COMPUTE_DEV_PACKAGE', 'cuda-nsight-compute-12-4=12.4.1-1'), ('NV_LIBNCCL_DEV_PACKAGE', 'libnccl-dev=2.21.5-1+cuda12.4'), ('RUNPOD_GPU_COUNT', '1'), ('NV_NVTX_VERSION', '12.4.127-1'), ('NV_LIBNPP_VERSION', '12.2.5.30-1'), ('PWD', '/workspace/github/opticore-amr/ros2_ws/build/amr_navigation'), ('RUNPOD_MEM_GB', '62'), ('RUNPOD_TCP_PORT_22', '17600'), ('PYTHONPATH', '/workspace/ros2_ws/install/amr_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('NVIDIA_VISIBLE_DEVICES', 'all'), ('NCCL_VERSION', '2.21.5-1'), ('COLCON', '1'), ('NV_LIBNPP_DEV_VERSION', '12.2.5.30-1'), ('CMAKE_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble')]), 'shell': False}
+[28.597664] (-) TimerEvent: {}
+[28.597986] (amr_navigation) StdoutLine: {'line': b'-- Install configuration: ""\n'}
+[28.611546] (amr_slam) StdoutLine: {'line': b"-- Added test 'xmllint' to check XML markup files\n"}
+[28.638990] (amr_navigation) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/ament_index/resource_index/package_run_dependencies/amr_navigation\n'}
+[28.694665] (amr_navigation) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/ament_index/resource_index/parent_prefix_path/amr_navigation\n'}
+[28.697745] (-) TimerEvent: {}
+[28.758358] (amr_navigation) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/environment/ament_prefix_path.sh\n'}
+[28.797699] (amr_navigation) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/environment/ament_prefix_path.dsv\n'}
+[28.798365] (-) TimerEvent: {}
+[28.851565] (amr_navigation) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/environment/path.sh\n'}
+[28.882533] (amr_slam) StdoutLine: {'line': b'-- Configuring done\n'}
+[28.885563] (amr_navigation) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/environment/path.dsv\n'}
+[28.898461] (-) TimerEvent: {}
+[28.941237] (amr_navigation) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/local_setup.bash\n'}
+[28.981177] (amr_navigation) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/local_setup.sh\n'}
+[28.998549] (-) TimerEvent: {}
+[29.047679] (amr_navigation) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/local_setup.zsh\n'}
+[29.087645] (amr_navigation) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/local_setup.dsv\n'}
+[29.098640] (-) TimerEvent: {}
+[29.142032] (amr_navigation) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/package.dsv\n'}
+[29.198773] (-) TimerEvent: {}
+[29.202040] (amr_navigation) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/ament_index/resource_index/packages/amr_navigation\n'}
+[29.250545] (amr_navigation) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/cmake/amr_navigationConfig.cmake\n'}
+[29.288936] (amr_navigation) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/cmake/amr_navigationConfig-version.cmake\n'}
+[29.298858] (-) TimerEvent: {}
+[29.342886] (amr_navigation) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/package.xml\n'}
+[29.386334] (amr_navigation) CommandEnded: {'returncode': 0}
+[29.398958] (-) TimerEvent: {}
+[29.401269] (amr_slam) StdoutLine: {'line': b'-- Generating done\n'}
+[29.499094] (-) TimerEvent: {}
+[29.599560] (-) TimerEvent: {}
+[29.700044] (-) TimerEvent: {}
+[29.737092] (amr_slam) StdoutLine: {'line': b'-- Build files have been written to: /workspace/github/opticore-amr/ros2_ws/build/amr_slam\n'}
+[29.800177] (-) TimerEvent: {}
+[29.900682] (-) TimerEvent: {}
+[29.978630] (amr_navigation) JobEnded: {'identifier': 'amr_navigation', 'rc': 0}
+[29.994338] (amr_slam) CommandEnded: {'returncode': 0}
+[29.996254] (amr_slam) JobProgress: {'identifier': 'amr_slam', 'progress': 'build'}
+[29.996471] (amr_slam) Command: {'cmd': ['/usr/bin/cmake', '--build', '/workspace/github/opticore-amr/ros2_ws/build/amr_slam', '--', '-j128', '-l128'], 'cwd': '/workspace/github/opticore-amr/ros2_ws/build/amr_slam', 'env': OrderedDict([('RUNPOD_PUBLIC_IP', '213.173.107.26'), ('RUNPOD_POD_HOSTNAME', '9oqg1l1xgz1auy-64411fda'), ('LIBRARY_PATH', '/usr/local/cuda/lib64/stubs'), ('NV_LIBCUBLAS_VERSION', '12.4.5.8-1'), ('NV_NVPROF_DEV_PACKAGE', 'cuda-nvprof-12-4=12.4.127-1'), ('NV_CUDA_COMPAT_PACKAGE', 'cuda-compat-12-4'), ('RUNPOD_POD_ID', '9oqg1l1xgz1auy'), ('NV_CUDA_NSIGHT_COMPUTE_VERSION', '12.4.1-1'), ('RUNPOD_GPU_NAME', 'NVIDIA+RTX+PRO+4500+Blackwell'), ('HOSTNAME', '786fdbe8cba3'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64'), ('NV_LIBNCCL_PACKAGE_VERSION', '2.21.5-1'), ('HOME', '/root'), ('OLDPWD', '/workspace/github/opticore-amr'), ('NV_LIBCUBLAS_DEV_VERSION', '12.4.5.8-1'), ('RUNPOD_API_KEY', 'rpa_OAM0NBEL93EG7ZBHMAJ49TYJ0LU9HKXVTEI0YAE0hbmerj'), ('ROS_PYTHON_VERSION', '3'), ('LC_CTYPE', 'C.UTF-8'), ('NV_LIBNCCL_DEV_PACKAGE_VERSION', '2.21.5-1'), ('NV_LIBNPP_PACKAGE', 'libnpp-12-4=12.2.5.30-1'), ('CUDA_VERSION', '12.4.1'), ('RUNPOD_VOLUME_ID', 'ti82fhq17n'), ('COLCON_PREFIX_PATH', '/workspace/ros2_ws/install'), ('NV_NVPROF_VERSION', '12.4.127-1'), ('ROS_DISTRO', 'humble'), ('NV_LIBCUBLAS_PACKAGE_NAME', 'libcublas-12-4'), ('NVIDIA_REQUIRE_CUDA', 'cuda>=12.4 brand=tesla,driver>=470,driver<471 brand=unknown,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=geforce,driver>=470,driver<471 brand=geforcertx,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=titan,driver>=470,driver<471 brand=titanrtx,driver>=470,driver<471 brand=tesla,driver>=525,driver<526 brand=unknown,driver>=525,driver<526 brand=nvidia,driver>=525,driver<526 brand=nvidiartx,driver>=525,driver<526 brand=geforce,driver>=525,driver<526 brand=geforcertx,driver>=525,driver<526 brand=quadro,driver>=525,driver<526 brand=quadrortx,driver>=525,driver<526 brand=titan,driver>=525,driver<526 brand=titanrtx,driver>=525,driver<526 brand=tesla,driver>=535,driver<536 brand=unknown,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=geforce,driver>=535,driver<536 brand=geforcertx,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=titan,driver>=535,driver<536 brand=titanrtx,driver>=535,driver<536'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('NV_LIBCUSPARSE_VERSION', '12.3.1.170-1'), ('NVIDIA_DRIVER_CAPABILITIES', 'compute,utility'), ('NV_CUDA_LIB_VERSION', '12.4.1-1'), ('NV_LIBNCCL_PACKAGE_NAME', 'libnccl2'), ('NV_NVML_DEV_VERSION', '12.4.127-1'), ('NV_LIBNPP_DEV_PACKAGE', 'libnpp-dev-12-4=12.2.5.30-1'), ('TERM', 'xterm'), ('NV_CUDA_CUDART_VERSION', '12.4.127-1'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/opt/ros/humble/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'), ('NV_LIBCUBLAS_DEV_PACKAGE_NAME', 'libcublas-dev-12-4'), ('NV_LIBCUBLAS_PACKAGE', 'libcublas-12-4=12.4.5.8-1'), ('NVARCH', 'x86_64'), ('NV_LIBNCCL_DEV_PACKAGE_NAME', 'libnccl-dev'), ('NV_LIBCUSPARSE_DEV_VERSION', '12.3.1.170-1'), ('NV_LIBNCCL_PACKAGE', 'libnccl2=2.21.5-1+cuda12.4'), ('NVIDIA_PRODUCT_NAME', 'CUDA'), ('NV_CUDA_CUDART_DEV_VERSION', '12.4.127-1'), ('RUNPOD_CPU_COUNT', '32'), ('AMENT_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_perception:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/opt/ros/humble'), ('DEBIAN_FRONTEND', 'noninteractive'), ('SHELL', '/bin/bash'), ('NV_LIBCUBLAS_DEV_PACKAGE', 'libcublas-dev-12-4=12.4.5.8-1'), ('RUNPOD_DC_ID', 'EU-RO-1'), ('PUBLIC_KEY', 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEjNRjXuPVBfXPSQHXnXQ0CJzMtJCUm12E6rH0LA2rAB Opticore-pcy\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILRJkinIEurocrZI8ja5gXMi61683caxj4eMxOyL9+N+ Opticore-<JW>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHl6hDWD9+4+Zndnl6kzWmzDrT2YRuhfVUg03rQVbo7P Opticore-<us>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEFqIyz9ZcUfXoND9oRrMlOQQB9KSBgAyUFY0grr+ozf Opticore-jsw\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOse8jd1peft/WWDca6gK4x400a6rL+6lssMEbLRoBgB ukkhnn_macbook'), ('NV_CUDA_NSIGHT_COMPUTE_DEV_PACKAGE', 'cuda-nsight-compute-12-4=12.4.1-1'), ('NV_LIBNCCL_DEV_PACKAGE', 'libnccl-dev=2.21.5-1+cuda12.4'), ('RUNPOD_GPU_COUNT', '1'), ('NV_NVTX_VERSION', '12.4.127-1'), ('NV_LIBNPP_VERSION', '12.2.5.30-1'), ('PWD', '/workspace/github/opticore-amr/ros2_ws/build/amr_slam'), ('RUNPOD_MEM_GB', '62'), ('RUNPOD_TCP_PORT_22', '17600'), ('PYTHONPATH', '/workspace/ros2_ws/install/amr_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('NVIDIA_VISIBLE_DEVICES', 'all'), ('NCCL_VERSION', '2.21.5-1'), ('COLCON', '1'), ('NV_LIBNPP_DEV_VERSION', '12.2.5.30-1'), ('CMAKE_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble')]), 'shell': False}
+[30.000763] (-) TimerEvent: {}
+[30.101858] (-) TimerEvent: {}
+[30.202411] (-) TimerEvent: {}
+[30.246400] (amr_slam) CommandEnded: {'returncode': 0}
+[30.258122] (amr_slam) JobProgress: {'identifier': 'amr_slam', 'progress': 'install'}
+[30.278874] (amr_slam) Command: {'cmd': ['/usr/bin/cmake', '--install', '/workspace/github/opticore-amr/ros2_ws/build/amr_slam'], 'cwd': '/workspace/github/opticore-amr/ros2_ws/build/amr_slam', 'env': OrderedDict([('RUNPOD_PUBLIC_IP', '213.173.107.26'), ('RUNPOD_POD_HOSTNAME', '9oqg1l1xgz1auy-64411fda'), ('LIBRARY_PATH', '/usr/local/cuda/lib64/stubs'), ('NV_LIBCUBLAS_VERSION', '12.4.5.8-1'), ('NV_NVPROF_DEV_PACKAGE', 'cuda-nvprof-12-4=12.4.127-1'), ('NV_CUDA_COMPAT_PACKAGE', 'cuda-compat-12-4'), ('RUNPOD_POD_ID', '9oqg1l1xgz1auy'), ('NV_CUDA_NSIGHT_COMPUTE_VERSION', '12.4.1-1'), ('RUNPOD_GPU_NAME', 'NVIDIA+RTX+PRO+4500+Blackwell'), ('HOSTNAME', '786fdbe8cba3'), ('SHLVL', '1'), ('LD_LIBRARY_PATH', '/opt/ros/humble/opt/rviz_ogre_vendor/lib:/opt/ros/humble/lib/x86_64-linux-gnu:/opt/ros/humble/lib:/usr/local/nvidia/lib:/usr/local/nvidia/lib64'), ('NV_LIBNCCL_PACKAGE_VERSION', '2.21.5-1'), ('HOME', '/root'), ('OLDPWD', '/workspace/github/opticore-amr'), ('NV_LIBCUBLAS_DEV_VERSION', '12.4.5.8-1'), ('RUNPOD_API_KEY', 'rpa_OAM0NBEL93EG7ZBHMAJ49TYJ0LU9HKXVTEI0YAE0hbmerj'), ('ROS_PYTHON_VERSION', '3'), ('LC_CTYPE', 'C.UTF-8'), ('NV_LIBNCCL_DEV_PACKAGE_VERSION', '2.21.5-1'), ('NV_LIBNPP_PACKAGE', 'libnpp-12-4=12.2.5.30-1'), ('CUDA_VERSION', '12.4.1'), ('RUNPOD_VOLUME_ID', 'ti82fhq17n'), ('COLCON_PREFIX_PATH', '/workspace/ros2_ws/install'), ('NV_NVPROF_VERSION', '12.4.127-1'), ('ROS_DISTRO', 'humble'), ('NV_LIBCUBLAS_PACKAGE_NAME', 'libcublas-12-4'), ('NVIDIA_REQUIRE_CUDA', 'cuda>=12.4 brand=tesla,driver>=470,driver<471 brand=unknown,driver>=470,driver<471 brand=nvidia,driver>=470,driver<471 brand=nvidiartx,driver>=470,driver<471 brand=geforce,driver>=470,driver<471 brand=geforcertx,driver>=470,driver<471 brand=quadro,driver>=470,driver<471 brand=quadrortx,driver>=470,driver<471 brand=titan,driver>=470,driver<471 brand=titanrtx,driver>=470,driver<471 brand=tesla,driver>=525,driver<526 brand=unknown,driver>=525,driver<526 brand=nvidia,driver>=525,driver<526 brand=nvidiartx,driver>=525,driver<526 brand=geforce,driver>=525,driver<526 brand=geforcertx,driver>=525,driver<526 brand=quadro,driver>=525,driver<526 brand=quadrortx,driver>=525,driver<526 brand=titan,driver>=525,driver<526 brand=titanrtx,driver>=525,driver<526 brand=tesla,driver>=535,driver<536 brand=unknown,driver>=535,driver<536 brand=nvidia,driver>=535,driver<536 brand=nvidiartx,driver>=535,driver<536 brand=geforce,driver>=535,driver<536 brand=geforcertx,driver>=535,driver<536 brand=quadro,driver>=535,driver<536 brand=quadrortx,driver>=535,driver<536 brand=titan,driver>=535,driver<536 brand=titanrtx,driver>=535,driver<536'), ('_', '/usr/bin/colcon'), ('ROS_VERSION', '2'), ('NV_LIBCUSPARSE_VERSION', '12.3.1.170-1'), ('NVIDIA_DRIVER_CAPABILITIES', 'compute,utility'), ('NV_CUDA_LIB_VERSION', '12.4.1-1'), ('NV_LIBNCCL_PACKAGE_NAME', 'libnccl2'), ('NV_NVML_DEV_VERSION', '12.4.127-1'), ('NV_LIBNPP_DEV_PACKAGE', 'libnpp-dev-12-4=12.2.5.30-1'), ('TERM', 'xterm'), ('NV_CUDA_CUDART_VERSION', '12.4.127-1'), ('ROS_LOCALHOST_ONLY', '0'), ('PATH', '/opt/ros/humble/bin:/usr/local/nvidia/bin:/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'), ('NV_LIBCUBLAS_DEV_PACKAGE_NAME', 'libcublas-dev-12-4'), ('NV_LIBCUBLAS_PACKAGE', 'libcublas-12-4=12.4.5.8-1'), ('NVARCH', 'x86_64'), ('NV_LIBNCCL_DEV_PACKAGE_NAME', 'libnccl-dev'), ('NV_LIBCUSPARSE_DEV_VERSION', '12.3.1.170-1'), ('NV_LIBNCCL_PACKAGE', 'libnccl2=2.21.5-1+cuda12.4'), ('NVIDIA_PRODUCT_NAME', 'CUDA'), ('NV_CUDA_CUDART_DEV_VERSION', '12.4.127-1'), ('RUNPOD_CPU_COUNT', '32'), ('AMENT_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_perception:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/opt/ros/humble'), ('DEBIAN_FRONTEND', 'noninteractive'), ('SHELL', '/bin/bash'), ('NV_LIBCUBLAS_DEV_PACKAGE', 'libcublas-dev-12-4=12.4.5.8-1'), ('RUNPOD_DC_ID', 'EU-RO-1'), ('PUBLIC_KEY', 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEjNRjXuPVBfXPSQHXnXQ0CJzMtJCUm12E6rH0LA2rAB Opticore-pcy\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILRJkinIEurocrZI8ja5gXMi61683caxj4eMxOyL9+N+ Opticore-<JW>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHl6hDWD9+4+Zndnl6kzWmzDrT2YRuhfVUg03rQVbo7P Opticore-<us>\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEFqIyz9ZcUfXoND9oRrMlOQQB9KSBgAyUFY0grr+ozf Opticore-jsw\nssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOse8jd1peft/WWDca6gK4x400a6rL+6lssMEbLRoBgB ukkhnn_macbook'), ('NV_CUDA_NSIGHT_COMPUTE_DEV_PACKAGE', 'cuda-nsight-compute-12-4=12.4.1-1'), ('NV_LIBNCCL_DEV_PACKAGE', 'libnccl-dev=2.21.5-1+cuda12.4'), ('RUNPOD_GPU_COUNT', '1'), ('NV_NVTX_VERSION', '12.4.127-1'), ('NV_LIBNPP_VERSION', '12.2.5.30-1'), ('PWD', '/workspace/github/opticore-amr/ros2_ws/build/amr_slam'), ('RUNPOD_MEM_GB', '62'), ('RUNPOD_TCP_PORT_22', '17600'), ('PYTHONPATH', '/workspace/ros2_ws/install/amr_perception/lib/python3.10/site-packages:/opt/ros/humble/lib/python3.10/site-packages:/opt/ros/humble/local/lib/python3.10/dist-packages'), ('NVIDIA_VISIBLE_DEVICES', 'all'), ('NCCL_VERSION', '2.21.5-1'), ('COLCON', '1'), ('NV_LIBNPP_DEV_VERSION', '12.2.5.30-1'), ('CMAKE_PREFIX_PATH', '/workspace/ros2_ws/install/amr_slam:/workspace/ros2_ws/install/amr_navigation:/workspace/ros2_ws/install/amr_fleet:/workspace/ros2_ws/install/amr_bringup:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble')]), 'shell': False}
+[30.302540] (-) TimerEvent: {}
+[30.303853] (amr_slam) StdoutLine: {'line': b'-- Install configuration: ""\n'}
+[30.338925] (amr_slam) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/ament_index/resource_index/package_run_dependencies/amr_slam\n'}
+[30.389725] (amr_slam) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/ament_index/resource_index/parent_prefix_path/amr_slam\n'}
+[30.402691] (-) TimerEvent: {}
+[30.450673] (amr_slam) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/environment/ament_prefix_path.sh\n'}
+[30.481477] (amr_slam) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/environment/ament_prefix_path.dsv\n'}
+[30.502820] (-) TimerEvent: {}
+[30.558614] (amr_slam) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/environment/path.sh\n'}
+[30.602949] (-) TimerEvent: {}
+[30.605142] (amr_slam) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/environment/path.dsv\n'}
+[30.684123] (amr_slam) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.bash\n'}
+[30.703078] (-) TimerEvent: {}
+[30.741463] (amr_slam) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.sh\n'}
+[30.782100] (amr_slam) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.zsh\n'}
+[30.803205] (-) TimerEvent: {}
+[30.839120] (amr_slam) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.dsv\n'}
+[30.879851] (amr_slam) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.dsv\n'}
+[30.903366] (-) TimerEvent: {}
+[30.951273] (amr_slam) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/ament_index/resource_index/packages/amr_slam\n'}
+[30.995215] (amr_slam) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/cmake/amr_slamConfig.cmake\n'}
+[31.003494] (-) TimerEvent: {}
+[31.048391] (amr_slam) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/cmake/amr_slamConfig-version.cmake\n'}
+[31.085262] (amr_slam) StdoutLine: {'line': b'-- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.xml\n'}
+[31.103622] (-) TimerEvent: {}
+[31.151262] (amr_slam) CommandEnded: {'returncode': 0}
+[31.203757] (-) TimerEvent: {}
+[31.304267] (-) TimerEvent: {}
+[31.404792] (-) TimerEvent: {}
+[31.505380] (-) TimerEvent: {}
+[31.605907] (-) TimerEvent: {}
+[31.665546] (amr_slam) JobEnded: {'identifier': 'amr_slam', 'rc': 0}
+[31.680347] (-) EventReactorShutdown: {}

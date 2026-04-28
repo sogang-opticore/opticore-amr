@@ -1,0 +1,419 @@
+[0.195s] DEBUG:colcon:Command line arguments: ['/usr/bin/colcon', 'build']
+[0.196s] DEBUG:colcon:Parsed command line arguments: Namespace(log_base=None, log_level=None, verb_name='build', build_base='build', install_base='install', merge_install=False, symlink_install=False, test_result_base=None, continue_on_error=False, executor='parallel', parallel_workers=128, event_handlers=None, ignore_user_meta=False, metas=['./colcon.meta'], base_paths=['.'], packages_ignore=None, packages_ignore_regex=None, paths=None, packages_up_to=None, packages_up_to_regex=None, packages_above=None, packages_above_and_dependencies=None, packages_above_depth=None, packages_select_by_dep=None, packages_skip_by_dep=None, packages_skip_up_to=None, packages_select_build_failed=False, packages_skip_build_finished=False, packages_select_test_failures=False, packages_skip_test_passed=False, packages_select=None, packages_skip=None, packages_select_regex=None, packages_skip_regex=None, packages_start=None, packages_end=None, allow_overriding=[], cmake_args=None, cmake_target=None, cmake_target_skip_unavailable=False, cmake_clean_cache=False, cmake_clean_first=False, cmake_force_configure=False, ament_cmake_args=None, catkin_cmake_args=None, catkin_skip_building_tests=False, verb_parser=<colcon_defaults.argument_parser.defaults.DefaultArgumentsDecorator object at 0x72b0ec788220>, verb_extension=<colcon_core.verb.build.BuildVerb object at 0x72b0ec8cdd80>, main=<bound method BuildVerb.main of <colcon_core.verb.build.BuildVerb object at 0x72b0ec8cdd80>>)
+[0.309s] Level 1:colcon.colcon_core.package_discovery:discover_packages(colcon_meta) check parameters
+[0.312s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) check parameters
+[0.314s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) check parameters
+[0.349s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) check parameters
+[0.352s] Level 1:colcon.colcon_core.package_discovery:discover_packages(colcon_meta) discover
+[0.372s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) discover
+[0.375s] INFO:colcon.colcon_core.package_discovery:Crawling recursively for packages in '/workspace/github/opticore-amr/ros2_ws'
+[0.378s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['ignore', 'ignore_ament_install']
+[0.379s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ignore'
+[0.380s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ignore_ament_install'
+[0.384s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['colcon_pkg']
+[0.385s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'colcon_pkg'
+[0.386s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['colcon_meta']
+[0.387s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'colcon_meta'
+[0.388s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['ros']
+[0.389s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'ros'
+[0.463s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['cmake', 'python']
+[0.464s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'cmake'
+[0.466s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'python'
+[0.467s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extensions ['python_setup_py']
+[0.471s] Level 1:colcon.colcon_core.package_identification:_identify(.) by extension 'python_setup_py'
+[0.475s] Level 1:colcon.colcon_core.package_identification:_identify(build) by extensions ['ignore', 'ignore_ament_install']
+[0.476s] Level 1:colcon.colcon_core.package_identification:_identify(build) by extension 'ignore'
+[0.478s] Level 1:colcon.colcon_core.package_identification:_identify(build) ignored
+[0.480s] Level 1:colcon.colcon_core.package_identification:_identify(install) by extensions ['ignore', 'ignore_ament_install']
+[0.482s] Level 1:colcon.colcon_core.package_identification:_identify(install) by extension 'ignore'
+[0.484s] Level 1:colcon.colcon_core.package_identification:_identify(install) ignored
+[0.487s] Level 1:colcon.colcon_core.package_identification:_identify(log) by extensions ['ignore', 'ignore_ament_install']
+[0.488s] Level 1:colcon.colcon_core.package_identification:_identify(log) by extension 'ignore'
+[0.490s] Level 1:colcon.colcon_core.package_identification:_identify(log) ignored
+[0.494s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['ignore', 'ignore_ament_install']
+[0.494s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ignore'
+[0.496s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ignore_ament_install'
+[0.498s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['colcon_pkg']
+[0.499s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'colcon_pkg'
+[0.500s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['colcon_meta']
+[0.501s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'colcon_meta'
+[0.502s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['ros']
+[0.503s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'ros'
+[0.507s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['cmake', 'python']
+[0.508s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'cmake'
+[0.509s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'python'
+[0.511s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extensions ['python_setup_py']
+[0.511s] Level 1:colcon.colcon_core.package_identification:_identify(src) by extension 'python_setup_py'
+[0.516s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_bringup) by extensions ['ignore', 'ignore_ament_install']
+[0.517s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_bringup) by extension 'ignore'
+[0.518s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_bringup) by extension 'ignore_ament_install'
+[0.520s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_bringup) by extensions ['colcon_pkg']
+[0.521s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_bringup) by extension 'colcon_pkg'
+[0.523s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_bringup) by extensions ['colcon_meta']
+[0.524s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_bringup) by extension 'colcon_meta'
+[0.532s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_bringup) by extensions ['ros']
+[0.534s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_bringup) by extension 'ros'
+[0.568s] DEBUG:colcon.colcon_core.package_identification:Package 'src/amr_bringup' with type 'ros.ament_cmake' and name 'amr_bringup'
+[0.573s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_description) by extensions ['ignore', 'ignore_ament_install']
+[0.573s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_description) by extension 'ignore'
+[0.575s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_description) by extension 'ignore_ament_install'
+[0.577s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_description) by extensions ['colcon_pkg']
+[0.578s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_description) by extension 'colcon_pkg'
+[0.579s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_description) by extensions ['colcon_meta']
+[0.580s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_description) by extension 'colcon_meta'
+[0.582s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_description) by extensions ['ros']
+[0.583s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_description) by extension 'ros'
+[0.588s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_description) by extensions ['cmake', 'python']
+[0.589s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_description) by extension 'cmake'
+[0.591s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_description) by extension 'python'
+[0.592s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_description) by extensions ['python_setup_py']
+[0.593s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_description) by extension 'python_setup_py'
+[0.598s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_fleet) by extensions ['ignore', 'ignore_ament_install']
+[0.599s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_fleet) by extension 'ignore'
+[0.600s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_fleet) by extension 'ignore_ament_install'
+[0.602s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_fleet) by extensions ['colcon_pkg']
+[0.613s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_fleet) by extension 'colcon_pkg'
+[0.616s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_fleet) by extensions ['colcon_meta']
+[0.616s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_fleet) by extension 'colcon_meta'
+[0.618s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_fleet) by extensions ['ros']
+[0.619s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_fleet) by extension 'ros'
+[0.667s] DEBUG:colcon.colcon_core.package_identification:Package 'src/amr_fleet' with type 'ros.ament_cmake' and name 'amr_fleet'
+[0.671s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_gazebo) by extensions ['ignore', 'ignore_ament_install']
+[0.672s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_gazebo) by extension 'ignore'
+[0.684s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_gazebo) by extension 'ignore_ament_install'
+[0.686s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_gazebo) by extensions ['colcon_pkg']
+[0.687s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_gazebo) by extension 'colcon_pkg'
+[0.688s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_gazebo) by extensions ['colcon_meta']
+[0.689s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_gazebo) by extension 'colcon_meta'
+[0.691s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_gazebo) by extensions ['ros']
+[0.692s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_gazebo) by extension 'ros'
+[0.696s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_gazebo) by extensions ['cmake', 'python']
+[0.698s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_gazebo) by extension 'cmake'
+[0.699s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_gazebo) by extension 'python'
+[0.701s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_gazebo) by extensions ['python_setup_py']
+[0.701s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_gazebo) by extension 'python_setup_py'
+[0.706s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_msgs) by extensions ['ignore', 'ignore_ament_install']
+[0.707s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_msgs) by extension 'ignore'
+[0.708s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_msgs) by extension 'ignore_ament_install'
+[0.711s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_msgs) by extensions ['colcon_pkg']
+[0.711s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_msgs) by extension 'colcon_pkg'
+[0.713s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_msgs) by extensions ['colcon_meta']
+[0.714s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_msgs) by extension 'colcon_meta'
+[0.717s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_msgs) by extensions ['ros']
+[0.718s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_msgs) by extension 'ros'
+[0.722s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_msgs) by extensions ['cmake', 'python']
+[0.723s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_msgs) by extension 'cmake'
+[0.724s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_msgs) by extension 'python'
+[0.725s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_msgs) by extensions ['python_setup_py']
+[0.726s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_msgs) by extension 'python_setup_py'
+[0.731s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_navigation) by extensions ['ignore', 'ignore_ament_install']
+[0.732s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_navigation) by extension 'ignore'
+[0.734s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_navigation) by extension 'ignore_ament_install'
+[0.736s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_navigation) by extensions ['colcon_pkg']
+[0.736s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_navigation) by extension 'colcon_pkg'
+[0.738s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_navigation) by extensions ['colcon_meta']
+[0.738s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_navigation) by extension 'colcon_meta'
+[0.740s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_navigation) by extensions ['ros']
+[0.740s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_navigation) by extension 'ros'
+[0.776s] DEBUG:colcon.colcon_core.package_identification:Package 'src/amr_navigation' with type 'ros.ament_cmake' and name 'amr_navigation'
+[0.781s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_perception) by extensions ['ignore', 'ignore_ament_install']
+[0.781s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_perception) by extension 'ignore'
+[0.783s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_perception) by extension 'ignore_ament_install'
+[0.785s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_perception) by extensions ['colcon_pkg']
+[0.786s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_perception) by extension 'colcon_pkg'
+[0.787s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_perception) by extensions ['colcon_meta']
+[0.788s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_perception) by extension 'colcon_meta'
+[0.790s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_perception) by extensions ['ros']
+[0.790s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_perception) by extension 'ros'
+[0.802s] DEBUG:colcon.colcon_core.package_identification:Package 'src/amr_perception' with type 'ros.ament_python' and name 'amr_perception'
+[0.806s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_slam) by extensions ['ignore', 'ignore_ament_install']
+[0.806s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_slam) by extension 'ignore'
+[0.808s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_slam) by extension 'ignore_ament_install'
+[0.810s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_slam) by extensions ['colcon_pkg']
+[0.810s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_slam) by extension 'colcon_pkg'
+[0.812s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_slam) by extensions ['colcon_meta']
+[0.813s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_slam) by extension 'colcon_meta'
+[0.814s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_slam) by extensions ['ros']
+[0.816s] Level 1:colcon.colcon_core.package_identification:_identify(src/amr_slam) by extension 'ros'
+[0.829s] DEBUG:colcon.colcon_core.package_identification:Package 'src/amr_slam' with type 'ros.ament_cmake' and name 'amr_slam'
+[0.829s] Level 1:colcon.colcon_core.package_discovery:discover_packages(recursive) using defaults
+[0.830s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) discover
+[0.831s] Level 1:colcon.colcon_core.package_discovery:discover_packages(ignore) using defaults
+[0.831s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) discover
+[0.832s] Level 1:colcon.colcon_core.package_discovery:discover_packages(path) using defaults
+[0.879s] Level 1:colcon.colcon_core.package_discovery:discover_packages(prefix_path) check parameters
+[0.879s] Level 1:colcon.colcon_core.package_discovery:discover_packages(prefix_path) discover
+[0.987s] DEBUG:colcon.colcon_installed_package_information.package_discovery:Found 5 installed packages in /workspace/ros2_ws/install
+[0.993s] DEBUG:colcon.colcon_installed_package_information.package_discovery:Found 337 installed packages in /opt/ros/humble
+[0.997s] Level 1:colcon.colcon_core.package_discovery:discover_packages(prefix_path) using defaults
+[1.180s] Level 5:colcon.colcon_core.verb:set package 'amr_bringup' build argument 'cmake_args' from command line to 'None'
+[1.181s] Level 5:colcon.colcon_core.verb:set package 'amr_bringup' build argument 'cmake_target' from command line to 'None'
+[1.182s] Level 5:colcon.colcon_core.verb:set package 'amr_bringup' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[1.183s] Level 5:colcon.colcon_core.verb:set package 'amr_bringup' build argument 'cmake_clean_cache' from command line to 'False'
+[1.183s] Level 5:colcon.colcon_core.verb:set package 'amr_bringup' build argument 'cmake_clean_first' from command line to 'False'
+[1.184s] Level 5:colcon.colcon_core.verb:set package 'amr_bringup' build argument 'cmake_force_configure' from command line to 'False'
+[1.185s] Level 5:colcon.colcon_core.verb:set package 'amr_bringup' build argument 'ament_cmake_args' from command line to 'None'
+[1.186s] Level 5:colcon.colcon_core.verb:set package 'amr_bringup' build argument 'catkin_cmake_args' from command line to 'None'
+[1.187s] Level 5:colcon.colcon_core.verb:set package 'amr_bringup' build argument 'catkin_skip_building_tests' from command line to 'False'
+[1.188s] DEBUG:colcon.colcon_core.verb:Building package 'amr_bringup' with the following arguments: {'ament_cmake_args': None, 'build_base': '/workspace/github/opticore-amr/ros2_ws/build/amr_bringup', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup', 'merge_install': False, 'path': '/workspace/github/opticore-amr/ros2_ws/src/amr_bringup', 'symlink_install': False, 'test_result_base': None}
+[1.189s] Level 5:colcon.colcon_core.verb:set package 'amr_fleet' build argument 'cmake_args' from command line to 'None'
+[1.190s] Level 5:colcon.colcon_core.verb:set package 'amr_fleet' build argument 'cmake_target' from command line to 'None'
+[1.190s] Level 5:colcon.colcon_core.verb:set package 'amr_fleet' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[1.191s] Level 5:colcon.colcon_core.verb:set package 'amr_fleet' build argument 'cmake_clean_cache' from command line to 'False'
+[1.192s] Level 5:colcon.colcon_core.verb:set package 'amr_fleet' build argument 'cmake_clean_first' from command line to 'False'
+[1.193s] Level 5:colcon.colcon_core.verb:set package 'amr_fleet' build argument 'cmake_force_configure' from command line to 'False'
+[1.193s] Level 5:colcon.colcon_core.verb:set package 'amr_fleet' build argument 'ament_cmake_args' from command line to 'None'
+[1.194s] Level 5:colcon.colcon_core.verb:set package 'amr_fleet' build argument 'catkin_cmake_args' from command line to 'None'
+[1.196s] Level 5:colcon.colcon_core.verb:set package 'amr_fleet' build argument 'catkin_skip_building_tests' from command line to 'False'
+[1.196s] DEBUG:colcon.colcon_core.verb:Building package 'amr_fleet' with the following arguments: {'ament_cmake_args': None, 'build_base': '/workspace/github/opticore-amr/ros2_ws/build/amr_fleet', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet', 'merge_install': False, 'path': '/workspace/github/opticore-amr/ros2_ws/src/amr_fleet', 'symlink_install': False, 'test_result_base': None}
+[1.198s] Level 5:colcon.colcon_core.verb:set package 'amr_navigation' build argument 'cmake_args' from command line to 'None'
+[1.198s] Level 5:colcon.colcon_core.verb:set package 'amr_navigation' build argument 'cmake_target' from command line to 'None'
+[1.199s] Level 5:colcon.colcon_core.verb:set package 'amr_navigation' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[1.200s] Level 5:colcon.colcon_core.verb:set package 'amr_navigation' build argument 'cmake_clean_cache' from command line to 'False'
+[1.200s] Level 5:colcon.colcon_core.verb:set package 'amr_navigation' build argument 'cmake_clean_first' from command line to 'False'
+[1.201s] Level 5:colcon.colcon_core.verb:set package 'amr_navigation' build argument 'cmake_force_configure' from command line to 'False'
+[1.202s] Level 5:colcon.colcon_core.verb:set package 'amr_navigation' build argument 'ament_cmake_args' from command line to 'None'
+[1.203s] Level 5:colcon.colcon_core.verb:set package 'amr_navigation' build argument 'catkin_cmake_args' from command line to 'None'
+[1.203s] Level 5:colcon.colcon_core.verb:set package 'amr_navigation' build argument 'catkin_skip_building_tests' from command line to 'False'
+[1.213s] DEBUG:colcon.colcon_core.verb:Building package 'amr_navigation' with the following arguments: {'ament_cmake_args': None, 'build_base': '/workspace/github/opticore-amr/ros2_ws/build/amr_navigation', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation', 'merge_install': False, 'path': '/workspace/github/opticore-amr/ros2_ws/src/amr_navigation', 'symlink_install': False, 'test_result_base': None}
+[1.215s] Level 5:colcon.colcon_core.verb:set package 'amr_perception' build argument 'cmake_args' from command line to 'None'
+[1.216s] Level 5:colcon.colcon_core.verb:set package 'amr_perception' build argument 'cmake_target' from command line to 'None'
+[1.216s] Level 5:colcon.colcon_core.verb:set package 'amr_perception' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[1.217s] Level 5:colcon.colcon_core.verb:set package 'amr_perception' build argument 'cmake_clean_cache' from command line to 'False'
+[1.218s] Level 5:colcon.colcon_core.verb:set package 'amr_perception' build argument 'cmake_clean_first' from command line to 'False'
+[1.219s] Level 5:colcon.colcon_core.verb:set package 'amr_perception' build argument 'cmake_force_configure' from command line to 'False'
+[1.224s] Level 5:colcon.colcon_core.verb:set package 'amr_perception' build argument 'ament_cmake_args' from command line to 'None'
+[1.225s] Level 5:colcon.colcon_core.verb:set package 'amr_perception' build argument 'catkin_cmake_args' from command line to 'None'
+[1.226s] Level 5:colcon.colcon_core.verb:set package 'amr_perception' build argument 'catkin_skip_building_tests' from command line to 'False'
+[1.227s] DEBUG:colcon.colcon_core.verb:Building package 'amr_perception' with the following arguments: {'ament_cmake_args': None, 'build_base': '/workspace/github/opticore-amr/ros2_ws/build/amr_perception', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/workspace/github/opticore-amr/ros2_ws/install/amr_perception', 'merge_install': False, 'path': '/workspace/github/opticore-amr/ros2_ws/src/amr_perception', 'symlink_install': False, 'test_result_base': None}
+[1.229s] Level 5:colcon.colcon_core.verb:set package 'amr_slam' build argument 'cmake_args' from command line to 'None'
+[1.230s] Level 5:colcon.colcon_core.verb:set package 'amr_slam' build argument 'cmake_target' from command line to 'None'
+[1.230s] Level 5:colcon.colcon_core.verb:set package 'amr_slam' build argument 'cmake_target_skip_unavailable' from command line to 'False'
+[1.231s] Level 5:colcon.colcon_core.verb:set package 'amr_slam' build argument 'cmake_clean_cache' from command line to 'False'
+[1.232s] Level 5:colcon.colcon_core.verb:set package 'amr_slam' build argument 'cmake_clean_first' from command line to 'False'
+[1.233s] Level 5:colcon.colcon_core.verb:set package 'amr_slam' build argument 'cmake_force_configure' from command line to 'False'
+[1.233s] Level 5:colcon.colcon_core.verb:set package 'amr_slam' build argument 'ament_cmake_args' from command line to 'None'
+[1.234s] Level 5:colcon.colcon_core.verb:set package 'amr_slam' build argument 'catkin_cmake_args' from command line to 'None'
+[1.235s] Level 5:colcon.colcon_core.verb:set package 'amr_slam' build argument 'catkin_skip_building_tests' from command line to 'False'
+[1.236s] DEBUG:colcon.colcon_core.verb:Building package 'amr_slam' with the following arguments: {'ament_cmake_args': None, 'build_base': '/workspace/github/opticore-amr/ros2_ws/build/amr_slam', 'catkin_cmake_args': None, 'catkin_skip_building_tests': False, 'cmake_args': None, 'cmake_clean_cache': False, 'cmake_clean_first': False, 'cmake_force_configure': False, 'cmake_target': None, 'cmake_target_skip_unavailable': False, 'install_base': '/workspace/github/opticore-amr/ros2_ws/install/amr_slam', 'merge_install': False, 'path': '/workspace/github/opticore-amr/ros2_ws/src/amr_slam', 'symlink_install': False, 'test_result_base': None}
+[1.236s] INFO:colcon.colcon_core.executor:Executing jobs using 'parallel' executor
+[1.239s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete
+[1.240s] INFO:colcon.colcon_ros.task.ament_cmake.build:Building ROS package in '/workspace/github/opticore-amr/ros2_ws/src/amr_bringup' with build type 'ament_cmake'
+[1.242s] INFO:colcon.colcon_cmake.task.cmake.build:Building CMake package in '/workspace/github/opticore-amr/ros2_ws/src/amr_bringup'
+[1.263s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_core.shell.bat': Not used on non-Windows systems
+[1.264s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[1.265s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[1.371s] INFO:colcon.colcon_ros.task.ament_cmake.build:Building ROS package in '/workspace/github/opticore-amr/ros2_ws/src/amr_fleet' with build type 'ament_cmake'
+[1.372s] INFO:colcon.colcon_cmake.task.cmake.build:Building CMake package in '/workspace/github/opticore-amr/ros2_ws/src/amr_fleet'
+[1.373s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[1.374s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[1.475s] INFO:colcon.colcon_ros.task.ament_cmake.build:Building ROS package in '/workspace/github/opticore-amr/ros2_ws/src/amr_navigation' with build type 'ament_cmake'
+[1.476s] INFO:colcon.colcon_cmake.task.cmake.build:Building CMake package in '/workspace/github/opticore-amr/ros2_ws/src/amr_navigation'
+[1.477s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[1.479s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[1.587s] INFO:colcon.colcon_ros.task.ament_python.build:Building ROS package in '/workspace/github/opticore-amr/ros2_ws/src/amr_perception' with build type 'ament_python'
+[1.589s] Level 1:colcon.colcon_core.shell:create_environment_hook('amr_perception', 'ament_prefix_path')
+[1.590s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_perception/share/amr_perception/hook/ament_prefix_path.ps1'
+[1.610s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/github/opticore-amr/ros2_ws/install/amr_perception/share/amr_perception/hook/ament_prefix_path.dsv'
+[1.625s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_perception/share/amr_perception/hook/ament_prefix_path.sh'
+[1.642s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[1.659s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[1.768s] INFO:colcon.colcon_ros.task.ament_cmake.build:Building ROS package in '/workspace/github/opticore-amr/ros2_ws/src/amr_slam' with build type 'ament_cmake'
+[1.768s] INFO:colcon.colcon_cmake.task.cmake.build:Building CMake package in '/workspace/github/opticore-amr/ros2_ws/src/amr_slam'
+[1.769s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[1.770s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[1.965s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/workspace/github/opticore-amr/ros2_ws/build/amr_bringup': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /workspace/github/opticore-amr/ros2_ws/build/amr_bringup -- -j128 -l128
+[2.017s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/workspace/github/opticore-amr/ros2_ws/build/amr_fleet': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /workspace/github/opticore-amr/ros2_ws/build/amr_fleet -- -j128 -l128
+[2.105s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/workspace/github/opticore-amr/ros2_ws/build/amr_navigation': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /workspace/github/opticore-amr/ros2_ws/build/amr_navigation -- -j128 -l128
+[2.697s] INFO:colcon.colcon_core.task.python.build:Building Python package in '/workspace/github/opticore-amr/ros2_ws/src/amr_perception'
+[2.699s] INFO:colcon.colcon_core.shell:Skip shell extension 'powershell' for command environment: Not usable outside of PowerShell
+[2.700s] DEBUG:colcon.colcon_core.shell:Skip shell extension 'dsv' for command environment
+[2.830s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/workspace/github/opticore-amr/ros2_ws/build/amr_bringup' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /workspace/github/opticore-amr/ros2_ws/build/amr_bringup -- -j128 -l128
+[2.897s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/workspace/github/opticore-amr/ros2_ws/build/amr_bringup': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /workspace/github/opticore-amr/ros2_ws/build/amr_bringup
+[2.899s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/workspace/github/opticore-amr/ros2_ws/build/amr_fleet' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /workspace/github/opticore-amr/ros2_ws/build/amr_fleet -- -j128 -l128
+[2.935s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/workspace/github/opticore-amr/ros2_ws/build/amr_fleet': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /workspace/github/opticore-amr/ros2_ws/build/amr_fleet
+[3.037s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/workspace/github/opticore-amr/ros2_ws/build/amr_slam': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /workspace/github/opticore-amr/ros2_ws/build/amr_slam -- -j128 -l128
+[3.039s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/workspace/github/opticore-amr/ros2_ws/build/amr_navigation' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /workspace/github/opticore-amr/ros2_ws/build/amr_navigation -- -j128 -l128
+[3.088s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/workspace/github/opticore-amr/ros2_ws/build/amr_navigation': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /workspace/github/opticore-amr/ros2_ws/build/amr_navigation
+[3.177s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(amr_fleet)
+[3.178s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/workspace/github/opticore-amr/ros2_ws/build/amr_fleet' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /workspace/github/opticore-amr/ros2_ws/build/amr_fleet
+[3.185s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet' for CMake module files
+[3.212s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet' for CMake config files
+[3.228s] Level 1:colcon.colcon_core.shell:create_environment_hook('amr_fleet', 'cmake_prefix_path')
+[3.229s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/hook/cmake_prefix_path.ps1'
+[3.266s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/hook/cmake_prefix_path.dsv'
+[3.283s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/hook/cmake_prefix_path.sh'
+[3.303s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/bin'
+[3.304s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/lib/pkgconfig/amr_fleet.pc'
+[3.305s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/lib/python3.10/site-packages'
+[3.307s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/bin'
+[3.309s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/package.ps1'
+[3.329s] INFO:colcon.colcon_core.shell:Creating package descriptor '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/package.dsv'
+[3.359s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/package.sh'
+[3.378s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/package.bash'
+[3.395s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/package.zsh'
+[3.418s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/colcon-core/packages/amr_fleet)
+[3.466s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(amr_fleet)
+[3.468s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet' for CMake module files
+[3.496s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet' for CMake config files
+[3.511s] Level 1:colcon.colcon_core.shell:create_environment_hook('amr_fleet', 'cmake_prefix_path')
+[3.512s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/hook/cmake_prefix_path.ps1'
+[3.527s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/hook/cmake_prefix_path.dsv'
+[3.540s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/hook/cmake_prefix_path.sh'
+[3.577s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/bin'
+[3.579s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/lib/pkgconfig/amr_fleet.pc'
+[3.580s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/lib/python3.10/site-packages'
+[3.582s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/bin'
+[3.584s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/package.ps1'
+[3.600s] INFO:colcon.colcon_core.shell:Creating package descriptor '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/package.dsv'
+[3.617s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/package.sh'
+[3.633s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/package.bash'
+[3.665s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/package.zsh'
+[3.683s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/workspace/github/opticore-amr/ros2_ws/install/amr_fleet/share/colcon-core/packages/amr_fleet)
+[3.701s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(amr_bringup)
+[3.702s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup' for CMake module files
+[3.716s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/workspace/github/opticore-amr/ros2_ws/build/amr_bringup' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /workspace/github/opticore-amr/ros2_ws/build/amr_bringup
+[3.733s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup' for CMake config files
+[3.783s] Level 1:colcon.colcon_core.shell:create_environment_hook('amr_bringup', 'cmake_prefix_path')
+[3.785s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/hook/cmake_prefix_path.ps1'
+[3.801s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/hook/cmake_prefix_path.dsv'
+[3.821s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/hook/cmake_prefix_path.sh'
+[3.841s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/bin'
+[3.858s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/lib/pkgconfig/amr_bringup.pc'
+[3.861s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/lib/python3.10/site-packages'
+[3.864s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/bin'
+[3.866s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/package.ps1'
+[3.882s] INFO:colcon.colcon_core.shell:Creating package descriptor '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/package.dsv'
+[3.905s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/package.sh'
+[3.920s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/package.bash'
+[3.965s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/package.zsh'
+[3.984s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/colcon-core/packages/amr_bringup)
+[4.015s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(amr_bringup)
+[4.016s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup' for CMake module files
+[4.076s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup' for CMake config files
+[4.118s] Level 1:colcon.colcon_core.shell:create_environment_hook('amr_bringup', 'cmake_prefix_path')
+[4.119s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/hook/cmake_prefix_path.ps1'
+[4.139s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/hook/cmake_prefix_path.dsv'
+[4.172s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/hook/cmake_prefix_path.sh'
+[4.208s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/bin'
+[4.210s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/lib/pkgconfig/amr_bringup.pc'
+[4.211s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/lib/python3.10/site-packages'
+[4.213s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/bin'
+[4.215s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/package.ps1'
+[4.239s] INFO:colcon.colcon_core.shell:Creating package descriptor '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/package.dsv'
+[4.272s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/package.sh'
+[4.290s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/package.bash'
+[4.312s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/package.zsh'
+[4.334s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/colcon-core/packages/amr_bringup)
+[4.382s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/workspace/github/opticore-amr/ros2_ws/build/amr_slam' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /workspace/github/opticore-amr/ros2_ws/build/amr_slam -- -j128 -l128
+[4.398s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/workspace/github/opticore-amr/ros2_ws/build/amr_slam': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /workspace/github/opticore-amr/ros2_ws/build/amr_slam
+[4.399s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(amr_navigation)
+[4.402s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation' for CMake module files
+[4.402s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/workspace/github/opticore-amr/ros2_ws/build/amr_navigation' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /workspace/github/opticore-amr/ros2_ws/build/amr_navigation
+[4.433s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation' for CMake config files
+[4.476s] Level 1:colcon.colcon_core.shell:create_environment_hook('amr_navigation', 'cmake_prefix_path')
+[4.477s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/hook/cmake_prefix_path.ps1'
+[4.493s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/hook/cmake_prefix_path.dsv'
+[4.510s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/hook/cmake_prefix_path.sh'
+[4.530s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/bin'
+[4.531s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/lib/pkgconfig/amr_navigation.pc'
+[4.533s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/lib/python3.10/site-packages'
+[4.535s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/bin'
+[4.537s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/package.ps1'
+[4.708s] INFO:colcon.colcon_core.shell:Creating package descriptor '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/package.dsv'
+[4.724s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/package.sh'
+[4.759s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/package.bash'
+[4.776s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/package.zsh'
+[4.796s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/colcon-core/packages/amr_navigation)
+[4.825s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(amr_navigation)
+[4.826s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation' for CMake module files
+[4.871s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation' for CMake config files
+[4.885s] Level 1:colcon.colcon_core.shell:create_environment_hook('amr_navigation', 'cmake_prefix_path')
+[4.886s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/hook/cmake_prefix_path.ps1'
+[4.902s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/hook/cmake_prefix_path.dsv'
+[4.919s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/hook/cmake_prefix_path.sh'
+[4.936s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/bin'
+[4.939s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/lib/pkgconfig/amr_navigation.pc'
+[4.940s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/lib/python3.10/site-packages'
+[4.942s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/bin'
+[4.960s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/package.ps1'
+[4.977s] INFO:colcon.colcon_core.shell:Creating package descriptor '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/package.dsv'
+[4.992s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/package.sh'
+[5.007s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/package.bash'
+[5.023s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/package.zsh'
+[5.038s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/colcon-core/packages/amr_navigation)
+[5.091s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(amr_slam)
+[5.092s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_slam' for CMake module files
+[5.142s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoking command in '/workspace/github/opticore-amr/ros2_ws/src/amr_perception': PYTHONPATH=/workspace/github/opticore-amr/ros2_ws/build/amr_perception/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/github/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/amr_perception build --build-base /workspace/github/opticore-amr/ros2_ws/build/amr_perception/build install --record /workspace/github/opticore-amr/ros2_ws/build/amr_perception/install.log --single-version-externally-managed install_data
+[5.160s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/workspace/github/opticore-amr/ros2_ws/build/amr_slam' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /workspace/github/opticore-amr/ros2_ws/build/amr_slam
+[5.173s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_slam' for CMake config files
+[5.191s] Level 1:colcon.colcon_core.shell:create_environment_hook('amr_slam', 'cmake_prefix_path')
+[5.192s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/hook/cmake_prefix_path.ps1'
+[5.208s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/hook/cmake_prefix_path.dsv'
+[5.225s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/hook/cmake_prefix_path.sh'
+[5.260s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/bin'
+[5.261s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/lib/pkgconfig/amr_slam.pc'
+[5.263s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/lib/python3.10/site-packages'
+[5.265s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/bin'
+[5.268s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.ps1'
+[5.292s] INFO:colcon.colcon_core.shell:Creating package descriptor '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.dsv'
+[5.308s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.sh'
+[5.324s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.bash'
+[5.374s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.zsh'
+[5.390s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/colcon-core/packages/amr_slam)
+[5.415s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(amr_slam)
+[5.416s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_slam' for CMake module files
+[5.462s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_slam' for CMake config files
+[5.478s] Level 1:colcon.colcon_core.shell:create_environment_hook('amr_slam', 'cmake_prefix_path')
+[5.479s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/hook/cmake_prefix_path.ps1'
+[5.495s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/hook/cmake_prefix_path.dsv'
+[5.520s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/hook/cmake_prefix_path.sh'
+[5.563s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/bin'
+[5.565s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/lib/pkgconfig/amr_slam.pc'
+[5.567s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/lib/python3.10/site-packages'
+[5.569s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/bin'
+[5.571s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.ps1'
+[5.589s] INFO:colcon.colcon_core.shell:Creating package descriptor '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.dsv'
+[5.606s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.sh'
+[5.621s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.bash'
+[5.635s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.zsh'
+[5.668s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/colcon-core/packages/amr_slam)
+[6.878s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_perception' for CMake module files
+[6.879s] DEBUG:colcon.colcon_core.event_handler.log_command:Invoked command in '/workspace/github/opticore-amr/ros2_ws/src/amr_perception' returned '0': PYTHONPATH=/workspace/github/opticore-amr/ros2_ws/build/amr_perception/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/workspace/github/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/amr_perception build --build-base /workspace/github/opticore-amr/ros2_ws/build/amr_perception/build install --record /workspace/github/opticore-amr/ros2_ws/build/amr_perception/install.log --single-version-externally-managed install_data
+[6.913s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_perception' for CMake config files
+[6.981s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_perception/lib'
+[6.987s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_perception/bin'
+[6.989s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_perception/lib/pkgconfig/amr_perception.pc'
+[6.990s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages'
+[6.992s] Level 1:colcon.colcon_core.shell:create_environment_hook('amr_perception', 'pythonpath')
+[6.993s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_perception/share/amr_perception/hook/pythonpath.ps1'
+[7.013s] INFO:colcon.colcon_core.shell:Creating environment descriptor '/workspace/github/opticore-amr/ros2_ws/install/amr_perception/share/amr_perception/hook/pythonpath.dsv'
+[7.029s] INFO:colcon.colcon_core.shell:Creating environment hook '/workspace/github/opticore-amr/ros2_ws/install/amr_perception/share/amr_perception/hook/pythonpath.sh'
+[7.060s] Level 1:colcon.colcon_core.environment:checking '/workspace/github/opticore-amr/ros2_ws/install/amr_perception/bin'
+[7.063s] Level 1:colcon.colcon_core.environment:create_environment_scripts_only(amr_perception)
+[7.065s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_perception/share/amr_perception/package.ps1'
+[7.084s] INFO:colcon.colcon_core.shell:Creating package descriptor '/workspace/github/opticore-amr/ros2_ws/install/amr_perception/share/amr_perception/package.dsv'
+[7.101s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_perception/share/amr_perception/package.sh'
+[7.120s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_perception/share/amr_perception/package.bash'
+[7.136s] INFO:colcon.colcon_core.shell:Creating package script '/workspace/github/opticore-amr/ros2_ws/install/amr_perception/share/amr_perception/package.zsh'
+[7.194s] Level 1:colcon.colcon_core.environment:create_file_with_runtime_dependencies(/workspace/github/opticore-amr/ros2_ws/install/amr_perception/share/colcon-core/packages/amr_perception)
+[7.210s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:closing loop
+[7.211s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:loop closed
+[7.212s] DEBUG:colcon.colcon_parallel_executor.executor.parallel:run_until_complete finished with '0'
+[7.213s] DEBUG:colcon.colcon_core.event_reactor:joining thread
+[7.264s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.notify_send': Could not find 'notify-send'
+[7.265s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.terminal_notifier': Not used on non-Darwin systems
+[7.266s] INFO:colcon.colcon_core.plugin_system:Skipping extension 'colcon_notification.desktop_notification.win32': Not used on non-Windows systems
+[7.267s] INFO:colcon.colcon_notification.desktop_notification:Sending desktop notification using 'notify2'
+[7.268s] DEBUG:colcon.colcon_notification.desktop_notification.notify2:Failed to initialize notify2: org.freedesktop.DBus.Error.NotSupported: Unable to autolaunch a dbus-daemon without a $DISPLAY for X11
+[7.269s] DEBUG:colcon.colcon_core.event_reactor:joined thread
+[7.271s] INFO:colcon.colcon_core.shell:Creating prefix script '/workspace/github/opticore-amr/ros2_ws/install/local_setup.ps1'
+[7.291s] INFO:colcon.colcon_core.shell:Creating prefix util module '/workspace/github/opticore-amr/ros2_ws/install/_local_setup_util_ps1.py'
+[7.312s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/workspace/github/opticore-amr/ros2_ws/install/setup.ps1'
+[7.386s] INFO:colcon.colcon_core.shell:Creating prefix script '/workspace/github/opticore-amr/ros2_ws/install/local_setup.sh'
+[7.403s] INFO:colcon.colcon_core.shell:Creating prefix util module '/workspace/github/opticore-amr/ros2_ws/install/_local_setup_util_sh.py'
+[7.419s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/workspace/github/opticore-amr/ros2_ws/install/setup.sh'
+[7.497s] INFO:colcon.colcon_core.shell:Creating prefix script '/workspace/github/opticore-amr/ros2_ws/install/local_setup.bash'
+[7.515s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/workspace/github/opticore-amr/ros2_ws/install/setup.bash'
+[7.583s] INFO:colcon.colcon_core.shell:Creating prefix script '/workspace/github/opticore-amr/ros2_ws/install/local_setup.zsh'
+[7.611s] INFO:colcon.colcon_core.shell:Creating prefix chain script '/workspace/github/opticore-amr/ros2_ws/install/setup.zsh'

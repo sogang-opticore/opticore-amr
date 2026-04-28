@@ -1,0 +1,30 @@
+[0.722s] Invoking command in '/workspace/github/opticore-amr/ros2_ws/build/amr_bringup': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /workspace/github/opticore-amr/ros2_ws/build/amr_bringup -- -j128 -l128
+[1.587s] Invoked command in '/workspace/github/opticore-amr/ros2_ws/build/amr_bringup' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /workspace/github/opticore-amr/ros2_ws/build/amr_bringup -- -j128 -l128
+[1.654s] Invoking command in '/workspace/github/opticore-amr/ros2_ws/build/amr_bringup': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /workspace/github/opticore-amr/ros2_ws/build/amr_bringup
+[1.800s] -- Install configuration: ""
+[1.801s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//urdf
+[1.801s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//urdf/amr_robot.urdf.xacro
+[1.802s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//worlds
+[1.802s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//worlds/warehouse.world
+[1.803s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//launch
+[1.803s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//launch/slam.launch.py
+[1.803s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//launch/warehouse.launch.py
+[1.804s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//config
+[1.805s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//config/slam_params.yaml
+[1.850s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//config/ekf.yaml
+[1.863s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/ament_index/resource_index/package_run_dependencies/amr_bringup
+[1.870s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/ament_index/resource_index/parent_prefix_path/amr_bringup
+[1.874s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/environment/ament_prefix_path.sh
+[1.923s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/environment/ament_prefix_path.dsv
+[1.924s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/environment/path.sh
+[1.924s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/environment/path.dsv
+[1.925s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/local_setup.bash
+[1.928s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/local_setup.sh
+[1.934s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/local_setup.zsh
+[1.940s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/local_setup.dsv
+[1.948s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/package.dsv
+[1.985s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/ament_index/resource_index/packages/amr_bringup
+[1.993s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/cmake/amr_bringupConfig.cmake
+[2.025s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/cmake/amr_bringupConfig-version.cmake
+[2.031s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/package.xml
+[2.473s] Invoked command in '/workspace/github/opticore-amr/ros2_ws/build/amr_bringup' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /workspace/github/opticore-amr/ros2_ws/build/amr_bringup
