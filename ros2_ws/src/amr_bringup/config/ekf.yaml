@@ -12,9 +12,9 @@ ekf_filter_node:
     two_d_mode: true
 
     # Transform config
-    odom_frame: odom
+    odom_frame: odom_filtered
     base_link_frame: base_footprint
-    world_frame: odom       # Use 'map' when integrating with AMCL
+    world_frame: odom_filtered     # Use 'map' when integrating with AMCL
     map_frame: map
 
     publish_tf: true
