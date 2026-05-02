@@ -106,6 +106,30 @@ def generate_launch_description():
         ],
     )
 
+    # ── 6. Dynamic obstacle mover (EKF 안정화 후) ──
+    dynamic_obstacle_mover = TimerAction(
+        period=8.0,
+        actions=[
+            Node(
+                package='amr_bringup',
+                executable='dynamic_obstacle_mover.py',
+                name='dynamic_obstacle_mover',
+                output='screen',
+                parameters=[{'use_sim_time': use_sim_time}],
+            ),
+        ],
+    )
+
+    lidar_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='lidar_tf_fix',
+        arguments=['0', '0', '0', '0', '0', '0',
+                'lidar_link',
+                'opticore_amr/base_footprint/lidar_sensor'
+                ],
+    )
+
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         ign_gazebo,
@@ -113,4 +137,6 @@ def generate_launch_description():
         spawn_robot,     # +3s
         bridge,          # +5s
         ekf_node,        # +7s
+        dynamic_obstacle_mover,  # +8s
+        lidar_tf,
     ])

@@ -6,7 +6,7 @@ slam_toolbox:
     mode: mapping
 
     # 프레임 — 반드시 프로젝트 URDF와 일치시킬 것
-    odom_frame: odom
+    odom_frame: odom  # SL-2 이후 EKF 붙이면 odom_filtered 로 변경
     map_frame: map
     base_frame: base_footprint
     scan_topic: /lidar

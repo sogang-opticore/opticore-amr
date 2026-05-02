@@ -135,7 +135,7 @@
     <!-- ==================== STORAGE RACKS ==================== -->
     <!--
       Layout (top view, Y-up):
-      
+
       Y=30 ┌──────────────────────────────────────┐ North wall
            │                                        │
            │   [Rack Row 4]  y≈24                   │
@@ -461,6 +461,7 @@
       <static>false</static>
       <pose>12 16 0.85 0 0 0</pose>
       <link name="link">
+        <kinematic>true</kinematic>
         <collision name="collision"><geometry><cylinder><radius>0.25</radius><length>1.7</length></cylinder></geometry></collision>
         <visual name="visual">
           <geometry><cylinder><radius>0.25</radius><length>1.7</length></cylinder></geometry>
@@ -482,6 +483,7 @@
       <static>false</static>
       <pose>28 21 0.5 0 0 0.3</pose>
       <link name="link">
+        <kinematic>true</kinematic>
         <collision name="collision"><geometry><box><size>2.0 1.0 1.0</size></box></geometry></collision>
         <visual name="visual">
           <geometry><box><size>2.0 1.0 1.0</size></box></geometry>

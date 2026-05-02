@@ -126,7 +126,8 @@ def generate_launch_description():
         name='lidar_tf_fix',
         arguments=['0', '0', '0', '0', '0', '0',
                 'lidar_link',
-                'opticore_amr/base_footprint/lidar_sensor'],
+                'opticore_amr/base_footprint/lidar_sensor'
+                ],
     )
 
     return LaunchDescription([
