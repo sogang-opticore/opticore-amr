@@ -34,3 +34,6 @@ slam_toolbox:
     do_loop_closing: true
     loop_match_minimum_chain_size: 3
     loop_match_maximum_variance_coarse: 3.0
+
+    map_update_interval: 0.2          # 맵 업데이트 주기 (초) — 기본값 5.0
+    publish_period_sec: 0.2           # /map 토픽 publish 주기 (초) — 기본값 1.0 ~ 5.0
