@@ -132,6 +132,25 @@
     </model>
 
     <!-- ==================== STORAGE RACKS ==================== -->
+    <!--
+      Layout (top view, Y-up):
+
+      Y=30 ┌──────────────────────────────────────┐ North wall
+           │                                        │
+           │   [Rack Row 4]  y≈24                   │
+           │   ─── corridor 3m ───                  │
+           │   [Rack Row 3]  y≈19                   │
+           │   ─── corridor 3m ───                  │
+           │   [Rack Row 2]  y≈14                   │
+           │   ─── corridor 3m ───                  │
+           │   [Rack Row 1]  y≈9                    │
+           │                                        │
+      Y=0  └──────────────────────────────────────┘ South wall
+           X=0  Loading                    Unloading  X=40
+                Zone                       Zone
+    -->
+
+    <!-- Rack: 6m long × 1m deep × 2.5m tall -->
 
     <!-- Row 1 (y=9) -->
     <model name="rack_r1_1">
@@ -443,7 +462,19 @@
       <pose>12 16 0.85 0 0 0</pose>
       <link name="link">
         <kinematic>true</kinematic>
-        ...
+<!--         <collision name="collision"><geometry><cylinder><radius>0.25</radius><length>1.7</length></cylinder></geometry></collision>
+        <visual name="visual">
+          <geometry><cylinder><radius>0.25</radius><length>1.7</length></cylinder></geometry>
+          <material><ambient>0.8 0.6 0.4 1</ambient><diffuse>0.85 0.65 0.45 1</diffuse></material>
+        </visual>
+        <inertial>
+          <mass>70.0</mass>
+          <inertia>
+            <ixx>17.0</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>17.0</iyy><iyz>0</iyz>
+            <izz>2.2</izz>
+          </inertia>
+        </inertial> -->
       </link>
     </model> -->
 
@@ -453,7 +484,19 @@
       <pose>28 21 0.5 0 0 0.3</pose>
       <link name="link">
         <kinematic>true</kinematic>
-        ...
+<!--         <collision name="collision"><geometry><box><size>2.0 1.0 1.0</size></box></geometry></collision>
+        <visual name="visual">
+          <geometry><box><size>2.0 1.0 1.0</size></box></geometry>
+          <material><ambient>0.9 0.7 0.1 1</ambient><diffuse>0.95 0.75 0.15 1</diffuse></material>
+        </visual>
+        <inertial>
+          <mass>500.0</mass>
+          <inertia>
+            <ixx>50.0</ixx><ixy>0</ixy><ixz>0</ixz>
+            <iyy>100.0</iyy><iyz>0</iyz>
+            <izz>70.0</izz>
+          </inertia>
+        </inertial> -->
       </link>
     </model> -->
 
