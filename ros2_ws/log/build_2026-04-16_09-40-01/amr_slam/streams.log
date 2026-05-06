@@ -1,0 +1,20 @@
+[1.269s] Invoking command in '/workspace/github/opticore-amr/ros2_ws/build/amr_slam': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /workspace/github/opticore-amr/ros2_ws/build/amr_slam -- -j128 -l128
+[2.614s] Invoked command in '/workspace/github/opticore-amr/ros2_ws/build/amr_slam' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /workspace/github/opticore-amr/ros2_ws/build/amr_slam -- -j128 -l128
+[2.630s] Invoking command in '/workspace/github/opticore-amr/ros2_ws/build/amr_slam': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /workspace/github/opticore-amr/ros2_ws/build/amr_slam
+[3.323s] -- Install configuration: ""
+[3.324s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/ament_index/resource_index/package_run_dependencies/amr_slam
+[3.325s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/ament_index/resource_index/parent_prefix_path/amr_slam
+[3.325s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/environment/ament_prefix_path.sh
+[3.326s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/environment/ament_prefix_path.dsv
+[3.326s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/environment/path.sh
+[3.327s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/environment/path.dsv
+[3.328s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.bash
+[3.329s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.sh
+[3.329s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.zsh
+[3.330s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.dsv
+[3.330s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.dsv
+[3.330s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/ament_index/resource_index/packages/amr_slam
+[3.331s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/cmake/amr_slamConfig.cmake
+[3.331s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/cmake/amr_slamConfig-version.cmake
+[3.332s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.xml
+[3.392s] Invoked command in '/workspace/github/opticore-amr/ros2_ws/build/amr_slam' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /workspace/github/opticore-amr/ros2_ws/build/amr_slam
