@@ -18,14 +18,14 @@ slam_toolbox:
 
     # 스캔 매칭
     use_scan_matching: true
-    max_laser_range: 12.0
-    minimum_laser_range: 0.1
+    max_laser_range: 25.0
+    minimum_laser_range: 0.12
     minimum_travel_distance: 0.3
     minimum_travel_heading: 0.3
 
     # 스캔 버퍼
     scan_buffer_size: 10
-    scan_buffer_maximum_scan_distance: 10.0
+    scan_buffer_maximum_scan_distance: 25.0
 
     # TF 퍼블리시 주기
     transform_publish_period: 0.02
