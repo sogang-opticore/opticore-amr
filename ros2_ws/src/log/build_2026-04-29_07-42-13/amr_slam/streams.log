@@ -1,0 +1,63 @@
+[0.779s] Invoking command in '/workspace/github/opticore-amr/ros2_ws/src/build/amr_slam': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake /workspace/github/opticore-amr/ros2_ws/src/amr_slam -DCMAKE_INSTALL_PREFIX=/workspace/github/opticore-amr/ros2_ws/src/install/amr_slam
+[1.186s] -- The C compiler identification is GNU 11.4.0
+[1.431s] -- The CXX compiler identification is GNU 11.4.0
+[1.502s] -- Detecting C compiler ABI info
+[2.148s] -- Detecting C compiler ABI info - done
+[2.192s] -- Check for working C compiler: /usr/bin/cc - skipped
+[2.193s] -- Detecting C compile features
+[2.193s] -- Detecting C compile features - done
+[2.255s] -- Detecting CXX compiler ABI info
+[2.970s] -- Detecting CXX compiler ABI info - done
+[2.999s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[2.999s] -- Detecting CXX compile features
+[3.000s] -- Detecting CXX compile features - done
+[3.143s] -- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)
+[4.149s] -- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+[6.236s] -- Found rclcpp: 16.0.19 (/opt/ros/humble/share/rclcpp/cmake)
+[7.911s] -- Found rosidl_generator_c: 3.1.8 (/opt/ros/humble/share/rosidl_generator_c/cmake)
+[8.196s] -- Found rosidl_adapter: 3.1.8 (/opt/ros/humble/share/rosidl_adapter/cmake)
+[8.514s] -- Found rosidl_generator_cpp: 3.1.8 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)
+[8.852s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[9.354s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[10.454s] -- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)
+[10.597s] -- Found rmw_fastrtps_cpp: 6.2.10 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)
+[11.585s] -- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.2")  
+[11.815s] -- Found FastRTPS: /opt/ros/humble/include  
+[12.281s] -- Using RMW implementation 'rmw_fastrtps_cpp' as default
+[12.826s] -- Looking for pthread.h
+[13.652s] -- Looking for pthread.h - found
+[13.681s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+[14.469s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+[14.478s] -- Found Threads: TRUE  
+[15.052s] -- Found sensor_msgs: 4.9.1 (/opt/ros/humble/share/sensor_msgs/cmake)
+[15.238s] -- Found nav_msgs: 4.9.1 (/opt/ros/humble/share/nav_msgs/cmake)
+[15.338s] -- Found tf2_ros: 0.25.20 (/opt/ros/humble/share/tf2_ros/cmake)
+[16.754s] -- Found ament_lint_auto: 0.12.15 (/opt/ros/humble/share/ament_lint_auto/cmake)
+[18.678s] -- Added test 'flake8' to check Python code syntax and style conventions
+[18.744s] -- Added test 'lint_cmake' to check CMake code style
+[18.807s] -- Added test 'pep257' to check Python code against some of the docstring style conventions in PEP 257
+[19.005s] -- Added test 'xmllint' to check XML markup files
+[19.193s] -- Configuring done
+[19.651s] -- Generating done
+[19.916s] -- Build files have been written to: /workspace/github/opticore-amr/ros2_ws/src/build/amr_slam
+[19.936s] Invoked command in '/workspace/github/opticore-amr/ros2_ws/src/build/amr_slam' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake /workspace/github/opticore-amr/ros2_ws/src/amr_slam -DCMAKE_INSTALL_PREFIX=/workspace/github/opticore-amr/ros2_ws/src/install/amr_slam
+[19.950s] Invoking command in '/workspace/github/opticore-amr/ros2_ws/src/build/amr_slam': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /workspace/github/opticore-amr/ros2_ws/src/build/amr_slam -- -j112 -l112
+[20.102s] Invoked command in '/workspace/github/opticore-amr/ros2_ws/src/build/amr_slam' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /workspace/github/opticore-amr/ros2_ws/src/build/amr_slam -- -j112 -l112
+[20.121s] Invoking command in '/workspace/github/opticore-amr/ros2_ws/src/build/amr_slam': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /workspace/github/opticore-amr/ros2_ws/src/build/amr_slam
+[20.136s] -- Install configuration: ""
+[20.147s] -- Installing: /workspace/github/opticore-amr/ros2_ws/src/install/amr_slam/share/ament_index/resource_index/package_run_dependencies/amr_slam
+[20.203s] -- Installing: /workspace/github/opticore-amr/ros2_ws/src/install/amr_slam/share/ament_index/resource_index/parent_prefix_path/amr_slam
+[20.241s] -- Installing: /workspace/github/opticore-amr/ros2_ws/src/install/amr_slam/share/amr_slam/environment/ament_prefix_path.sh
+[20.284s] -- Installing: /workspace/github/opticore-amr/ros2_ws/src/install/amr_slam/share/amr_slam/environment/ament_prefix_path.dsv
+[20.318s] -- Installing: /workspace/github/opticore-amr/ros2_ws/src/install/amr_slam/share/amr_slam/environment/path.sh
+[20.373s] -- Installing: /workspace/github/opticore-amr/ros2_ws/src/install/amr_slam/share/amr_slam/environment/path.dsv
+[20.407s] -- Installing: /workspace/github/opticore-amr/ros2_ws/src/install/amr_slam/share/amr_slam/local_setup.bash
+[20.449s] -- Installing: /workspace/github/opticore-amr/ros2_ws/src/install/amr_slam/share/amr_slam/local_setup.sh
+[20.511s] -- Installing: /workspace/github/opticore-amr/ros2_ws/src/install/amr_slam/share/amr_slam/local_setup.zsh
+[20.545s] -- Installing: /workspace/github/opticore-amr/ros2_ws/src/install/amr_slam/share/amr_slam/local_setup.dsv
+[20.600s] -- Installing: /workspace/github/opticore-amr/ros2_ws/src/install/amr_slam/share/amr_slam/package.dsv
+[20.641s] -- Installing: /workspace/github/opticore-amr/ros2_ws/src/install/amr_slam/share/ament_index/resource_index/packages/amr_slam
+[20.682s] -- Installing: /workspace/github/opticore-amr/ros2_ws/src/install/amr_slam/share/amr_slam/cmake/amr_slamConfig.cmake
+[20.714s] -- Installing: /workspace/github/opticore-amr/ros2_ws/src/install/amr_slam/share/amr_slam/cmake/amr_slamConfig-version.cmake
+[20.752s] -- Installing: /workspace/github/opticore-amr/ros2_ws/src/install/amr_slam/share/amr_slam/package.xml
+[20.900s] Invoked command in '/workspace/github/opticore-amr/ros2_ws/src/build/amr_slam' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /workspace/github/opticore-amr/ros2_ws/src/build/amr_slam

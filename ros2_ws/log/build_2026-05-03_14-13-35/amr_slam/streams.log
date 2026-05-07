@@ -1,0 +1,36 @@
+[0.766s] Invoking command in '/workspace/github/opticore-amr/ros2_ws/build/amr_slam': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /workspace/github/opticore-amr/ros2_ws/build/amr_slam -- -j112 -l112
+[0.881s] -- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)
+[1.188s] -- Found ament_lint_auto: 0.12.15 (/opt/ros/humble/share/ament_lint_auto/cmake)
+[2.057s] -- Added test 'flake8' to check Python code syntax and style conventions
+[2.211s] -- Added test 'lint_cmake' to check CMake code style
+[2.284s] -- Added test 'pep257' to check Python code against some of the docstring style conventions in PEP 257
+[2.972s] -- Added test 'xmllint' to check XML markup files
+[3.031s] -- Configuring done
+[3.399s] -- Generating done
+[3.610s] -- Build files have been written to: /workspace/github/opticore-amr/ros2_ws/build/amr_slam
+[3.886s] Invoked command in '/workspace/github/opticore-amr/ros2_ws/build/amr_slam' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /workspace/github/opticore-amr/ros2_ws/build/amr_slam -- -j112 -l112
+[3.889s] Invoking command in '/workspace/github/opticore-amr/ros2_ws/build/amr_slam': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /workspace/github/opticore-amr/ros2_ws/build/amr_slam
+[3.899s] -- Install configuration: ""
+[3.902s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/config
+[3.908s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/config/slam_params.yaml
+[3.955s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/config/ekf.yaml
+[3.984s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/config/.gitkeep
+[3.999s] -- Up-to-date: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/launch
+[4.004s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/launch/slam.launch.py
+[4.032s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/launch/.gitkeep
+[4.067s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/ament_index/resource_index/package_run_dependencies/amr_slam
+[4.099s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/ament_index/resource_index/parent_prefix_path/amr_slam
+[4.126s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/environment/ament_prefix_path.sh
+[4.165s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/environment/ament_prefix_path.dsv
+[4.193s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/environment/path.sh
+[4.217s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/environment/path.dsv
+[4.263s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.bash
+[4.290s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.sh
+[4.319s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.zsh
+[4.366s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.dsv
+[4.396s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.dsv
+[4.430s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/ament_index/resource_index/packages/amr_slam
+[4.499s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/cmake/amr_slamConfig.cmake
+[4.519s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/cmake/amr_slamConfig-version.cmake
+[4.556s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.xml
+[4.613s] Invoked command in '/workspace/github/opticore-amr/ros2_ws/build/amr_slam' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /workspace/github/opticore-amr/ros2_ws/build/amr_slam
