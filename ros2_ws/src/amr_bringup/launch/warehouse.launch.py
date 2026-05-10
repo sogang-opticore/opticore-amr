@@ -150,6 +150,7 @@ def generate_launch_description():
         robot_state_publisher,
         spawn_robot,     # +3s
         bridge,          # +5s
+        odom_cov_node,
         ekf_node,        # +7s
         #dynamic_obstacle_mover,  # +8s
         lidar_tf,
