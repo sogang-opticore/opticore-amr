@@ -1,1 +1,1 @@
-/workspace/github/opticore-amr/ros2_ws/build/amr_bringup/ament_cmake_index/share/ament_index/resource_index/package_run_dependencies/amr_bringup
+robot_state_publisher;joint_state_publisher;xacro;gazebo_ros;gazebo_ros_pkgs;robot_localization;ros_gz_sim;ros_gz_bridge

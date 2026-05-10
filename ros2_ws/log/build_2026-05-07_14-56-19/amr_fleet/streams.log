@@ -1,0 +1,20 @@
+[0.073s] Invoking command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_fleet': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_fleet -- -j10 -l10
+[0.518s] Invoked command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_fleet' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_fleet -- -j10 -l10
+[0.532s] Invoking command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_fleet': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_fleet
+[0.623s] -- Install configuration: ""
+[0.631s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/ament_index/resource_index/package_run_dependencies/amr_fleet
+[0.638s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/ament_index/resource_index/parent_prefix_path/amr_fleet
+[0.647s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/environment/ament_prefix_path.sh
+[0.652s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/environment/ament_prefix_path.dsv
+[0.668s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/environment/path.sh
+[0.669s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/environment/path.dsv
+[0.671s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/local_setup.bash
+[0.676s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/local_setup.sh
+[0.680s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/local_setup.zsh
+[0.685s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/local_setup.dsv
+[0.700s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/package.dsv
+[0.723s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/ament_index/resource_index/packages/amr_fleet
+[0.724s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/cmake/amr_fleetConfig.cmake
+[0.727s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/cmake/amr_fleetConfig-version.cmake
+[0.730s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/package.xml
+[0.759s] Invoked command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_fleet' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_fleet

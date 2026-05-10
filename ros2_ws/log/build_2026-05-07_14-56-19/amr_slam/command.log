@@ -1,0 +1,4 @@
+Invoking command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_slam': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_slam -- -j10 -l10
+Invoked command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_slam' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_slam -- -j10 -l10
+Invoking command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_slam': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_slam
+Invoked command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_slam' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_slam

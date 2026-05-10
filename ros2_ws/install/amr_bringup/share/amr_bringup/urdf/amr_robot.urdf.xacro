@@ -1,1 +1,245 @@
-/workspace/github/opticore-amr/ros2_ws/src/amr_bringup/urdf/amr_robot.urdf.xacro
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="opticore_amr">
+
+  <xacro:property name="PI" value="3.14159265359"/>
+  <xacro:property name="chassis_length"  value="0.60"/>
+  <xacro:property name="chassis_width"   value="0.40"/>
+  <xacro:property name="chassis_height"  value="0.20"/>
+  <xacro:property name="chassis_mass"    value="40.0"/>
+  <xacro:property name="chassis_z_offset" value="0.10"/>
+  <xacro:property name="wheel_radius"    value="0.08"/>
+  <xacro:property name="wheel_width"     value="0.04"/>
+  <xacro:property name="wheel_mass"      value="2.0"/>
+  <xacro:property name="wheel_x_offset"  value="-0.18"/>
+  <xacro:property name="wheel_y_offset"  value="0.22"/>
+  <xacro:property name="caster_radius"   value="0.04"/>
+  <xacro:property name="caster_mass"     value="0.5"/>
+  <xacro:property name="caster_x_offset" value="0.22"/>
+  <xacro:property name="caster_y_offset" value="0.15"/>
+  <xacro:property name="lidar_x"  value="0.25"/>
+  <xacro:property name="camera_x" value="0.30"/>
+
+  <material name="dark_gray"><color rgba="0.3 0.3 0.3 1.0"/></material>
+  <material name="black"><color rgba="0.1 0.1 0.1 1.0"/></material>
+  <material name="blue"><color rgba="0.2 0.4 0.8 1.0"/></material>
+  <material name="red"><color rgba="0.8 0.2 0.2 1.0"/></material>
+  <material name="orange"><color rgba="1.0 0.5 0.0 1.0"/></material>
+
+  <xacro:macro name="box_inertia" params="m x y z">
+    <inertial><mass value="${m}"/>
+      <inertia ixx="${(m/12.0)*(y*y+z*z)}" ixy="0" ixz="0"
+               iyy="${(m/12.0)*(x*x+z*z)}" iyz="0"
+               izz="${(m/12.0)*(x*x+y*y)}"/>
+    </inertial>
+  </xacro:macro>
+  <xacro:macro name="cylinder_inertia" params="m r h">
+    <inertial><mass value="${m}"/>
+      <inertia ixx="${(m/12.0)*(3*r*r+h*h)}" ixy="0" ixz="0"
+               iyy="${(m/12.0)*(3*r*r+h*h)}" iyz="0"
+               izz="${(m/2.0)*r*r}"/>
+    </inertial>
+  </xacro:macro>
+  <xacro:macro name="sphere_inertia" params="m r">
+    <inertial><mass value="${m}"/>
+      <inertia ixx="${(2.0/5.0)*m*r*r}" ixy="0" ixz="0"
+               iyy="${(2.0/5.0)*m*r*r}" iyz="0"
+               izz="${(2.0/5.0)*m*r*r}"/>
+    </inertial>
+  </xacro:macro>
+
+  <!-- ==================== LINKS & JOINTS ==================== -->
+  <link name="base_footprint"/>
+  <joint name="base_footprint_joint" type="fixed">
+    <parent link="base_footprint"/><child link="base_link"/>
+    <origin xyz="0 0 ${chassis_z_offset + chassis_height/2.0}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="base_link">
+    <visual><geometry><box size="${chassis_length} ${chassis_width} ${chassis_height}"/></geometry><material name="dark_gray"/></visual>
+    <collision><geometry><box size="${chassis_length} ${chassis_width} ${chassis_height}"/></geometry></collision>
+    <xacro:box_inertia m="${chassis_mass}" x="${chassis_length}" y="${chassis_width}" z="${chassis_height}"/>
+  </link>
+
+  <xacro:macro name="drive_wheel" params="prefix y_sign">
+    <link name="${prefix}_wheel_link">
+      <visual><geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry><material name="black"/></visual>
+      <collision><geometry><cylinder radius="${wheel_radius}" length="${wheel_width}"/></geometry></collision>
+      <xacro:cylinder_inertia m="${wheel_mass}" r="${wheel_radius}" h="${wheel_width}"/>
+    </link>
+    <joint name="${prefix}_wheel_joint" type="continuous">
+      <parent link="base_link"/><child link="${prefix}_wheel_link"/>
+      <origin xyz="${wheel_x_offset} ${y_sign * wheel_y_offset} ${-(chassis_height/2.0 + chassis_z_offset - wheel_radius)}" rpy="${-PI/2.0} 0 0"/>
+      <axis xyz="0 0 1"/>
+      <dynamics damping="0.1" friction="0.1"/>
+    </joint>
+  </xacro:macro>
+  <xacro:drive_wheel prefix="left"  y_sign="1"/>
+  <xacro:drive_wheel prefix="right" y_sign="-1"/>
+
+  <xacro:macro name="caster_wheel" params="prefix x_sign y_sign">
+    <link name="${prefix}_caster_link">
+      <visual><geometry><sphere radius="${caster_radius}"/></geometry><material name="black"/></visual>
+      <collision><geometry><sphere radius="${caster_radius}"/></geometry></collision>
+      <xacro:sphere_inertia m="${caster_mass}" r="${caster_radius}"/>
+    </link>
+    <joint name="${prefix}_caster_joint" type="fixed">
+      <parent link="base_link"/><child link="${prefix}_caster_link"/>
+      <origin xyz="${x_sign * caster_x_offset} ${y_sign * caster_y_offset} ${-(chassis_height/2.0 + chassis_z_offset - caster_radius)}" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+  <xacro:caster_wheel prefix="front_left"  x_sign="1" y_sign="1"/>
+  <xacro:caster_wheel prefix="front_right" x_sign="1" y_sign="-1"/>
+
+  <link name="lidar_link">
+    <visual><geometry><cylinder radius="0.04" length="0.05"/></geometry><material name="blue"/></visual>
+    <collision><geometry><cylinder radius="0.04" length="0.05"/></geometry></collision>
+    <xacro:cylinder_inertia m="0.3" r="0.04" h="0.05"/>
+  </link>
+  <joint name="lidar_joint" type="fixed">
+    <parent link="base_link"/><child link="lidar_link"/>
+    <origin xyz="${lidar_x} 0 ${chassis_height/2.0 + 0.025}" rpy="0 0 0"/>
+  </joint>
+
+  <link name="camera_link">
+    <visual><geometry><box size="0.03 0.08 0.03"/></geometry><material name="red"/></visual>
+    <collision><geometry><box size="0.03 0.08 0.03"/></geometry></collision>
+    <xacro:box_inertia m="0.1" x="0.03" y="0.08" z="0.03"/>
+  </link>
+  <joint name="camera_joint" type="fixed">
+    <parent link="base_link"/><child link="camera_link"/>
+    <origin xyz="${camera_x} 0 ${chassis_height/2.0 - 0.05}" rpy="0 0 0"/>
+  </joint>
+  <link name="camera_optical_link"/>
+  <joint name="camera_optical_joint" type="fixed">
+    <parent link="camera_link"/><child link="camera_optical_link"/>
+    <origin xyz="0 0 0" rpy="${-PI/2.0} 0 ${-PI/2.0}"/>
+  </joint>
+
+  <link name="imu_link">
+    <visual><geometry><box size="0.02 0.02 0.01"/></geometry><material name="orange"/></visual>
+    <collision><geometry><box size="0.02 0.02 0.01"/></geometry></collision>
+    <xacro:box_inertia m="0.05" x="0.02" y="0.02" z="0.01"/>
+  </link>
+  <joint name="imu_joint" type="fixed">
+    <parent link="base_link"/><child link="imu_link"/>
+    <origin xyz="0 0 ${chassis_height/2.0 + 0.005}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ================================================================ -->
+  <!--  IGNITION FORTRESS PLUGINS                                       -->
+  <!--  Sensors → Ignition topics → ros_gz_bridge → ROS2 topics        -->
+  <!-- ================================================================ -->
+
+  <gazebo>
+    <plugin filename="ignition-gazebo-diff-drive-system" name="ignition::gazebo::systems::DiffDrive">
+      <left_joint>left_wheel_joint</left_joint>
+      <right_joint>right_wheel_joint</right_joint>
+      <wheel_separation>${2 * wheel_y_offset}</wheel_separation>
+      <wheel_radius>${wheel_radius}</wheel_radius>
+      <max_linear_acceleration>2.0</max_linear_acceleration>
+      <odom_publish_frequency>50</odom_publish_frequency>
+      <topic>cmd_vel</topic>
+      <odom_topic>odom</odom_topic>
+      <tf_topic>tf</tf_topic>
+      <frame_id>odom</frame_id>
+      <child_frame_id>base_footprint</child_frame_id>
+    </plugin>
+        <!-- Wheel slip: encoder 현실화 (창고 바닥 폴리우레탄 휠 기준) -->
+    <plugin filename="ignition-gazebo-wheel-slip-system"
+            name="ignition::gazebo::systems::WheelSlip">
+      <wheel link_name="left_wheel_link">
+        <slip_compliance_lateral>0.02</slip_compliance_lateral>
+        <slip_compliance_longitudinal>0.02</slip_compliance_longitudinal>
+        <wheel_normal_force>225</wheel_normal_force>
+        <wheel_radius>0.08</wheel_radius>
+      </wheel>
+      <wheel link_name="right_wheel_link">
+        <slip_compliance_lateral>0.02</slip_compliance_lateral>
+        <slip_compliance_longitudinal>0.02</slip_compliance_longitudinal>
+        <wheel_normal_force>225</wheel_normal_force>
+        <wheel_radius>0.08</wheel_radius>
+      </wheel>
+    </plugin>
+  </gazebo>
+
+  <gazebo>
+    <plugin filename="ignition-gazebo-joint-state-publisher-system" name="ignition::gazebo::systems::JointStatePublisher">
+      <joint_name>left_wheel_joint</joint_name>
+      <joint_name>right_wheel_joint</joint_name>
+      <topic>joint_states</topic>
+      <update_rate>50</update_rate>
+    </plugin>
+  </gazebo>
+
+  <!-- GPU LiDAR (Ignition uses gpu_lidar) -->
+  <gazebo reference="lidar_link">
+    <sensor name="lidar_sensor" type="gpu_lidar">
+      <pose>0 0 0 0 0 0</pose>
+      <always_on>true</always_on>
+      <update_rate>10</update_rate>
+      <visualize>false</visualize>
+      <topic>lidar</topic>
+      <lidar>
+        <scan><horizontal>
+          <samples>360</samples><resolution>1</resolution>
+          <min_angle>-3.14159</min_angle><max_angle>3.14159</max_angle>
+        </horizontal></scan>
+        <range><min>0.12</min><max>12.0</max><resolution>0.01</resolution></range>
+        <noise><type>gaussian</type><mean>0.0</mean><stddev>0.01</stddev></noise>
+      </lidar>
+    </sensor>
+  </gazebo>
+
+  <!-- Camera -->
+  <gazebo reference="camera_link">
+    <sensor name="rgb_camera" type="camera">
+      <always_on>true</always_on>
+      <update_rate>15</update_rate>
+      <visualize>false</visualize>
+      <topic>camera</topic>
+      <camera>
+        <horizontal_fov>1.3962634</horizontal_fov>
+        <image><width>640</width><height>480</height><format>R8G8B8</format></image>
+        <clip><near>0.05</near><far>20.0</far></clip>
+        <noise><type>gaussian</type><mean>0.0</mean><stddev>0.007</stddev></noise>
+      </camera>
+    </sensor>
+  </gazebo>
+
+  <!-- IMU -->
+  <gazebo reference="imu_link">
+    <sensor name="imu_sensor" type="imu">
+      <always_on>true</always_on>
+      <update_rate>100</update_rate>
+      <topic>imu</topic>
+      <imu>
+        <angular_velocity>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>0.005</stddev><bias_mean>0.0001</bias_mean><bias_stddev>0.00005</bias_stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>0.005</stddev><bias_mean>0.0001</bias_mean><bias_stddev>0.00005</bias_stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>0.005</stddev><bias_mean>0.0001</bias_mean><bias_stddev>0.00005</bias_stddev></noise></z>
+        </angular_velocity>
+        <linear_acceleration>
+          <x><noise type="gaussian"><mean>0.0</mean><stddev>0.1</stddev><bias_mean>0.01</bias_mean><bias_stddev>0.005</bias_stddev></noise></x>
+          <y><noise type="gaussian"><mean>0.0</mean><stddev>0.1</stddev><bias_mean>0.01</bias_mean><bias_stddev>0.005</bias_stddev></noise></y>
+          <z><noise type="gaussian"><mean>0.0</mean><stddev>0.1</stddev><bias_mean>0.01</bias_mean><bias_stddev>0.005</bias_stddev></noise></z>
+        </linear_acceleration>
+      </imu>
+    </sensor>
+  </gazebo>
+
+  <!-- Friction -->
+  <gazebo reference="left_wheel_link"><mu1>1.0</mu1><mu2>1.0</mu2></gazebo>
+  <gazebo reference="right_wheel_link"><mu1>1.0</mu1><mu2>1.0</mu2></gazebo>
+  <gazebo reference="front_left_caster_link"><mu1>0.01</mu1><mu2>0.01</mu2></gazebo>
+  <gazebo reference="front_right_caster_link"><mu1>0.01</mu1><mu2>0.01</mu2></gazebo>
+  
+  
+  
+  <gazebo>
+    <plugin filename="ignition-gazebo-odometry-publisher-system" name="ignition::gazebo::systems::OdometryPublisher">
+      <odom_topic>ground_truth</odom_topic> <odom_frame>world</odom_frame>       <robot_base_frame>base_footprint</robot_base_frame>
+      <publish_tf>false</publish_tf>      </plugin>
+  </gazebo>
+
+
+</robot>
