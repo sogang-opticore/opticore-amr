@@ -148,14 +148,14 @@
     <plugin filename="ignition-gazebo-wheel-slip-system"
             name="ignition::gazebo::systems::WheelSlip">
       <wheel link_name="left_wheel_link">
-        <slip_compliance_lateral>0.02</slip_compliance_lateral>
-        <slip_compliance_longitudinal>0.02</slip_compliance_longitudinal>
+        <slip_compliance_lateral>0.05</slip_compliance_lateral>
+        <slip_compliance_longitudinal>0.05</slip_compliance_longitudinal>
         <wheel_normal_force>225</wheel_normal_force>
         <wheel_radius>0.08</wheel_radius>
       </wheel>
       <wheel link_name="right_wheel_link">
-        <slip_compliance_lateral>0.02</slip_compliance_lateral>
-        <slip_compliance_longitudinal>0.02</slip_compliance_longitudinal>
+        <slip_compliance_lateral>0.05</slip_compliance_lateral>
+        <slip_compliance_longitudinal>0.05</slip_compliance_longitudinal>
         <wheel_normal_force>225</wheel_normal_force>
         <wheel_radius>0.08</wheel_radius>
       </wheel>
