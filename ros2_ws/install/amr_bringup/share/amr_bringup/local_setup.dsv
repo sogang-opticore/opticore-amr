@@ -1,2 +1,1 @@
-source;share/amr_bringup/environment/ament_prefix_path.sh
-source;share/amr_bringup/environment/path.sh
+/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_bringup/ament_cmake_environment_hooks/local_setup.dsv

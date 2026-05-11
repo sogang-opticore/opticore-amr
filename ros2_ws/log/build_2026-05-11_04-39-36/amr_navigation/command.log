@@ -1,0 +1,4 @@
+Invoking command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_navigation': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_navigation -- -j10 -l10
+Invoked command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_navigation' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_navigation -- -j10 -l10
+Invoking command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_navigation': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_navigation
+Invoked command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_navigation' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_navigation

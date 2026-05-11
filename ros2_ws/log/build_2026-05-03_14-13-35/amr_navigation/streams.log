@@ -1,0 +1,20 @@
+[0.517s] Invoking command in '/workspace/github/opticore-amr/ros2_ws/build/amr_navigation': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /workspace/github/opticore-amr/ros2_ws/build/amr_navigation -- -j112 -l112
+[0.988s] Invoked command in '/workspace/github/opticore-amr/ros2_ws/build/amr_navigation' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /workspace/github/opticore-amr/ros2_ws/build/amr_navigation -- -j112 -l112
+[1.015s] Invoking command in '/workspace/github/opticore-amr/ros2_ws/build/amr_navigation': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /workspace/github/opticore-amr/ros2_ws/build/amr_navigation
+[1.037s] -- Install configuration: ""
+[1.037s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/ament_index/resource_index/package_run_dependencies/amr_navigation
+[1.057s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/ament_index/resource_index/parent_prefix_path/amr_navigation
+[1.101s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/environment/ament_prefix_path.sh
+[1.121s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/environment/ament_prefix_path.dsv
+[1.145s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/environment/path.sh
+[1.185s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/environment/path.dsv
+[1.210s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/local_setup.bash
+[1.236s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/local_setup.sh
+[1.280s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/local_setup.zsh
+[1.310s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/local_setup.dsv
+[1.335s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/package.dsv
+[1.378s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/ament_index/resource_index/packages/amr_navigation
+[1.394s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/cmake/amr_navigationConfig.cmake
+[1.418s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/cmake/amr_navigationConfig-version.cmake
+[1.446s] -- Installing: /workspace/github/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/package.xml
+[1.499s] Invoked command in '/workspace/github/opticore-amr/ros2_ws/build/amr_navigation' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/workspace/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /workspace/github/opticore-amr/ros2_ws/build/amr_navigation

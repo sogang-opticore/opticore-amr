@@ -1,0 +1,63 @@
+# =============================================================
+#  EKF Configuration for Opticore AMR
+#  Fuses: Wheel Odometry + IMU
+#  (AMCL will be added separately for LiDAR-based correction)
+# =============================================================
+
+ekf_filter_node:
+  ros__parameters:
+    use_sim_time: true
+    frequency: 50.0
+    sensor_timeout: 0.1
+    two_d_mode: true
+
+    # Transform config
+    odom_frame: odom_filtered
+    base_link_frame: base_footprint
+    world_frame: odom_filtered   # Use 'map' when integrating with AMCL
+    map_frame: map
+
+    publish_tf: true
+    publish_acceleration: false
+
+    # ── Wheel Odometry ──
+    odom0: odom_with_cov
+    odom0_config: [false, false, false,    # x, y, z
+                   false, false, true,    # roll, pitch, yaw
+                   true, false, false,     # vx, vy, vz
+                   false, false, true,    # vroll, vpitch, vyaw
+                   false, false, false]   # ax, ay, az
+    odom0_differential: false
+    odom0_relative: false
+    odom0_queue_size: 10
+
+    # ── IMU ──
+    imu0: /imu
+    imu0_config: [false, false, false,   # x, y, z
+                  false, false, true,     # roll, pitch, yaw
+                  false, false, false,    # vx, vy, vz
+                  false, false, true,     # vroll, vpitch, vyaw
+                  false, false, false]      # ax, ay, az
+    imu0_differential: true         # Use relative yaw changes
+    imu0_relative: false
+    imu0_queue_size: 10
+    imu0_remove_gravitational_acceleration: true
+
+    # Process noise covariance (tune as needed)
+    process_noise_covariance: [
+       0.05,  0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,
+      0.0,     0.05,  0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,
+      0.0,     0.0,     0.06,  0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,
+      0.0,     0.0,     0.0,     0.03,  0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,
+      0.0,     0.0,     0.0,     0.0,     0.03,  0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,
+      0.0,     0.0,     0.0,     0.0,     0.0,     0.06,  0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,
+      0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.025, 0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,
+      0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.025, 0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,
+      0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.04,  0.0,     0.0,     0.0,     0.0,     0.0,     0.0,
+      0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.01,  0.0,     0.0,     0.0,     0.0,     0.0,
+      0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.01,  0.0,     0.0,     0.0,     0.0,
+      0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.02,  0.0,     0.0,     0.0,
+      0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.01,  0.0,     0.0,
+      0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.01,  0.0,
+      0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.0,     0.015
+    ]

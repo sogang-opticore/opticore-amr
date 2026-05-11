@@ -53,9 +53,23 @@
           </geometry>
           <surface>
             <friction>
-              <ode><mu>1.0</mu><mu2>1.0</mu2></ode>
-            </friction>
-          </surface>
+              <ode>
+                <mu>0.6</mu>       <!-- 정지 마찰: 에폭시 코팅 바닥 기준 (1.0은 드라이 고무 수준으로 너무 높음) -->
+                <mu2>0.5</mu2>     <!-- 횡방향 슬립 마찰 -->
+                <slip1>0.003</slip1>   <!-- 종방향 미끄럼 허용 -->
+                <slip2>0.003</slip2>   <!-- 횡방향 미끄럼 허용 -->
+                <fdir1>1 0 0</fdir1>   <!-- 주 마찰 방향: X축 (전진 방향) -->
+            </ode>
+          </friction>
+          <contact>
+            <ode>
+              <kp>1e6</kp>           <!-- 접촉 강성: 딱딱한 콘크리트 바닥 -->
+              <kd>100.0</kd>         <!-- 접촉 댐핑 -->
+              <max_vel>0.1</max_vel>
+              <min_depth>0.001</min_depth>
+            </ode>
+          </contact>
+        </surface>
         </collision>
         <visual name="ground_visual">
           <geometry>
@@ -462,7 +476,7 @@
       <pose>12 16 0.85 0 0 0</pose>
       <link name="link">
         <kinematic>true</kinematic>
-<!--         <collision name="collision"><geometry><cylinder><radius>0.25</radius><length>1.7</length></cylinder></geometry></collision>
+             <collision name="collision"><geometry><cylinder><radius>0.25</radius><length>1.7</length></cylinder></geometry></collision>
         <visual name="visual">
           <geometry><cylinder><radius>0.25</radius><length>1.7</length></cylinder></geometry>
           <material><ambient>0.8 0.6 0.4 1</ambient><diffuse>0.85 0.65 0.45 1</diffuse></material>
@@ -474,17 +488,17 @@
             <iyy>17.0</iyy><iyz>0</iyz>
             <izz>2.2</izz>
           </inertia>
-        </inertial> -->
+        </inertial>
       </link>
-    </model> -->
+    </model>
 
-    <!-- Forklift
+    Forklift
     <model name="forklift_1">
       <static>false</static>
       <pose>28 21 0.5 0 0 0.3</pose>
       <link name="link">
         <kinematic>true</kinematic>
-<!--         <collision name="collision"><geometry><box><size>2.0 1.0 1.0</size></box></geometry></collision>
+        <collision name="collision"><geometry><box><size>2.0 1.0 1.0</size></box></geometry></collision>
         <visual name="visual">
           <geometry><box><size>2.0 1.0 1.0</size></box></geometry>
           <material><ambient>0.9 0.7 0.1 1</ambient><diffuse>0.95 0.75 0.15 1</diffuse></material>
@@ -496,7 +510,7 @@
             <iyy>100.0</iyy><iyz>0</iyz>
             <izz>70.0</izz>
           </inertia>
-        </inertial> -->
+        </inertial> 
       </link>
     </model> -->
 

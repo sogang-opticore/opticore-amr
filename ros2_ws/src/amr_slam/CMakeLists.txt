@@ -14,6 +14,11 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
+install(PROGRAMS
+  src/odom_covariance_injector.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 install(DIRECTORY config launch
   DESTINATION share/${PROJECT_NAME}
 )

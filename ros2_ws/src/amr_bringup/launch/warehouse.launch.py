@@ -94,6 +94,19 @@ def generate_launch_description():
 
     # ── 5. EKF (bridge 안정화 7초 대기 후) ──
     ekf_config = os.path.join(pkg_dir, 'config', 'ekf.yaml')
+    
+    
+    odom_cov_node = TimerAction(
+        period=6.0,
+        actions=[
+            Node(
+                package='amr_slam',
+                executable='odom_covariance_injector.py',
+                name='odom_covariance_injector',
+                output='screen',
+            ),
+        ],
+    )
     ekf_node = TimerAction(
         period=7.0,
         actions=[
@@ -137,6 +150,7 @@ def generate_launch_description():
         robot_state_publisher,
         spawn_robot,     # +3s
         bridge,          # +5s
+        odom_cov_node,
         ekf_node,        # +7s
         #dynamic_obstacle_mover,  # +8s
         lidar_tf,
