@@ -1,1 +1,1 @@
-prepend-non-duplicate-if-exists;PATH;bin
+/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_bringup/ament_cmake_environment_hooks/path.dsv

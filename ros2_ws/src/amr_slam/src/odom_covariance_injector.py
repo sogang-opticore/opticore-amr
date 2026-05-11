@@ -2,14 +2,22 @@
 import rclpy
 from rclpy.node import Node
 from nav_msgs.msg import Odometry
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 
 class OdomCovarianceInjector(Node):
     def __init__(self):
         super().__init__('odom_covariance_injector')
+
+        qos = QoSProfile(                                    # 추가
+            reliability=ReliabilityPolicy.BEST_EFFORT,       # 추가
+            history=HistoryPolicy.KEEP_LAST,                 # 추가
+            depth=10                                         # 추가
+        )   
+
         self.sub = self.create_subscription(
-            Odometry, '/odom', self.callback, 10)
+            Odometry, '/odom', self.callback, qos)
         self.pub = self.create_publisher(
-            Odometry, '/odom_with_cov', 10)
+            Odometry, '/odom_with_cov', qos)
 
     def callback(self, msg):
         msg.pose.covariance[0]  = 0.05   # x
