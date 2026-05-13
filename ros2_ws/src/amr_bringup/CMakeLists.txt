@@ -18,4 +18,8 @@ install(
   DESTINATION lib/${PROJECT_NAME}
 )
 
+install(DIRECTORY maps/
+  DESTINATION share/${PROJECT_NAME}/maps
+)
+
 ament_package()

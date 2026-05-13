@@ -1,0 +1,53 @@
+# =============================================================
+#  AMCL Configuration for Opticore AMR
+#  LiDAR 기반 위치추정 (Adaptive Monte Carlo Localization)
+#  EKF 출력(/odometry/filtered)을 odom 소스로 사용
+# =============================================================
+
+amcl:
+  ros__parameters:
+    use_sim_time: true
+
+    # 파티클 필터 범위 — 40x30m 창고 환경 기준
+    min_particles: 500
+    max_particles: 2000
+
+    # 모션 모델 (Differential Drive)
+    robot_model_type: nav2_amcl::DifferentialMotionModel
+    alpha1: 0.2   # 회전 → 회전 노이즈
+    alpha2: 0.2   # 평행이동 → 회전 노이즈
+    alpha3: 0.2   # 평행이동 → 평행이동 노이즈
+    alpha4: 0.2   # 회전 → 평행이동 노이즈
+
+    # 센서 모델
+    laser_model_type: likelihood_field
+    laser_max_range: 25.0         # slam_params.yaml max_laser_range 일치
+    laser_min_range: 0.12         # slam_params.yaml minimum_laser_range 일치
+    max_beams: 60
+
+    # 토픽 / 프레임
+    scan_topic: /lidar
+    odom_topic: /odometry/filtered  # EKF 출력 — SL-2 미완성 시 /odom으로 임시 대체
+    base_frame_id: base_footprint
+    odom_frame_id: odom
+    global_frame_id: map
+
+    # 초기 위치 (시뮬레이터 원점 기준)
+    set_initial_pose: true
+    initial_pose:
+      x: 3.0
+      y: 15.0
+      z: 0.0
+      yaw: 0.0
+
+    # TF 발행 — slam_toolbox 대체하여 map→odom TF 발행
+    tf_broadcast: true
+
+    # 업데이트 주기
+    update_min_d: 0.25    # 최소 이동 거리 (m)
+    update_min_a: 0.2     # 최소 회전 각도 (rad)
+    resample_interval: 1
+
+    # 회복 동작
+    recovery_alpha_slow: 0.001
+    recovery_alpha_fast: 0.1

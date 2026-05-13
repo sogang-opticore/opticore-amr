@@ -8,7 +8,8 @@ def generate_launch_description():
     slam_params = os.path.join(pkg, 'config', 'slam_params.yaml')
 
     return LaunchDescription([
-        # slam_toolbox
+        # slam_toolbox — localization 모드
+        # publish_map_to_odom_tf: false → AMCL이 map→odom TF 발행 담당
         Node(
             package='slam_toolbox',
             executable='async_slam_toolbox_node',

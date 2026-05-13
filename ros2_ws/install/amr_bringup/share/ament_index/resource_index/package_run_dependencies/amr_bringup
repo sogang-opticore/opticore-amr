@@ -1,1 +1,0 @@
-robot_state_publisher;joint_state_publisher;xacro;gazebo_ros;gazebo_ros_pkgs;robot_localization;ros_gz_sim;ros_gz_bridge
