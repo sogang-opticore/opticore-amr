@@ -76,7 +76,7 @@ def generate_launch_description():
                     # Odometry (Ign→ROS)
                     '/odom@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
                     # TF (Ign→ROS)
-                    '/tf@tf2_msgs/msg/TFMessage[ignition.msgs.Pose_V',
+                    '/tf_gazebo@tf2_msgs/msg/TFMessage[ignition.msgs.Pose_V',
                     # Joint states (Ign→ROS)
                     '/joint_states@sensor_msgs/msg/JointState[ignition.msgs.Model',
                     # LiDAR (Ign→ROS)
