@@ -49,3 +49,17 @@ qtcreator-*
 
 # Catkin custom files
 CATKIN_IGNORE
+
+# ROS2
+ros2_ws/install/
+ros2_ws/log/
+ros2_ws/build/
+
+# macOS
+.DS_Store
+ros2_ws/.DS_Store
+ros2_ws/src/.DS_Store
+
+# Dockerfile / build artifacts
+Dockerfile
+build.log
