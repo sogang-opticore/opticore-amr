@@ -82,7 +82,7 @@ def generate_launch_description():
                     # LiDAR (Ign→ROS)
                     '/lidar@sensor_msgs/msg/LaserScan[ignition.msgs.LaserScan',
                     # IMU (Ign→ROS)
-                    '/imu@sensor_msgs/msg/Imu[ignition.msgs.IMU',
+                    '/imu_raw@sensor_msgs/msg/Imu[ignition.msgs.IMU',
                     # Camera (Ign→ROS)
                     '/camera@sensor_msgs/msg/Image[ignition.msgs.Image',
                     '/camera/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
@@ -119,6 +119,12 @@ def generate_launch_description():
             ),
         ],
     )
+    imu_injector = Node(
+        package='amr_slam',
+        executable='imu_covariance_injector.py',
+        name='imu_covariance_injector',
+        output='screen',
+    )
 
     # ── 6. Dynamic obstacle mover (EKF 안정화 후) 
     # dynamic_obstacle_mover = TimerAction(
@@ -152,6 +158,7 @@ def generate_launch_description():
         bridge,          # +5s
         odom_cov_node,
         ekf_node,        # +7s
+        imu_injector,
         #dynamic_obstacle_mover,  # +8s
         lidar_tf,
     ])

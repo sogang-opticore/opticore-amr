@@ -1,0 +1,33 @@
+-- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)
+-- Found ament_lint_auto: 0.12.15 (/opt/ros/humble/share/ament_lint_auto/cmake)
+-- Added test 'flake8' to check Python code syntax and style conventions
+-- Added test 'lint_cmake' to check CMake code style
+-- Added test 'pep257' to check Python code against some of the docstring style conventions in PEP 257
+-- Added test 'xmllint' to check XML markup files
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_slam
+-- Install configuration: ""
+-- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/lib/amr_slam/odom_covariance_injector.py
+-- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/lib/amr_slam/imu_covariance_injector.py
+-- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/config
+-- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/config/amcl_params.yaml
+-- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/config/.gitkeep
+-- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/config/slam_params.yaml
+-- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/launch
+-- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/launch/.gitkeep
+-- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/launch/slam.launch.py
+-- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/launch/localization.launch.py
+-- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/ament_index/resource_index/package_run_dependencies/amr_slam
+-- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/ament_index/resource_index/parent_prefix_path/amr_slam
+-- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/environment/ament_prefix_path.dsv
+-- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/environment/path.dsv
+-- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.bash
+-- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.sh
+-- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.zsh
+-- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.dsv
+-- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.dsv
+-- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/ament_index/resource_index/packages/amr_slam
+-- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/cmake/amr_slamConfig.cmake
+-- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/cmake/amr_slamConfig-version.cmake
+-- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.xml
