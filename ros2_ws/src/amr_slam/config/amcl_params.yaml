@@ -1,0 +1,43 @@
+amcl:
+  ros__parameters:
+    use_sim_time: true
+
+    # 프레임 — 프로젝트 기준
+    global_frame_id: map
+    odom_frame_id: odom_filtered   # EKF 출력 프레임과 일치
+    base_frame_id: base_footprint
+
+    # 스캔 토픽 — URDF/bridge와 일치
+    scan_topic: /lidar
+
+    # 파티클 수 (창고 40x30m 기준 적절한 범위)
+    min_particles: 500
+    max_particles: 3000
+
+    # 라이다 모델 — 프로젝트 LiDAR 스펙 반영
+    laser_model_type: likelihood_field
+    laser_max_range: 12.0       # URDF max_laser_range와 동일
+    laser_min_range: 0.12       # URDF min과 동일
+    max_beams: 60
+
+    # 모션 모델 (diff-drive)
+    robot_model_type: nav2_amcl::DifferentialMotionModel
+    alpha1: 0.2
+    alpha2: 0.2
+    alpha3: 0.2
+    alpha4: 0.2
+
+    # 초기 위치 — 스폰 위치(3.0, 15.0)에 맞춤
+    set_initial_pose: true
+    initial_pose:
+      x: 0.0   # 3.0 - 3.09 ≈ 0
+      y: 0.0   # 15.0 - 15.3 ≈ 0
+      yaw: 0.0
+
+    # 맵 업데이트
+    update_min_d: 0.1
+    update_min_a: 0.1
+    resample_interval: 1
+    transform_tolerance: 1.0
+    recovery_alpha_slow: 0.001
+    recovery_alpha_fast: 0.1

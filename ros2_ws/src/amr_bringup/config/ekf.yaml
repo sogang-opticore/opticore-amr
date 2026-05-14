@@ -38,8 +38,8 @@ ekf_filter_node:
                   false, false, false,    # vx, vy, vz
                   false, false, true,     # vroll, vpitch, vyaw
                   false, false, false]      # ax, ay, az
-    imu0_differential: true         # Use relative yaw changes
-    imu0_relative: false
+    imu0_differential: false         # Use relative yaw changes
+    imu0_relative: true
     imu0_queue_size: 10
     imu0_remove_gravitational_acceleration: true
 
