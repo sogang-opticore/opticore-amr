@@ -1,0 +1,18 @@
+astar_planner:
+  ros__parameters:
+    # 휴리스틱 종류: manhattan / euclidean / octile
+    # 8-connected 환경에서는 octile이 최적
+    heuristic: "octile"
+
+    # 대각 이동 허용 여부 (true = 8-connected)
+    allow_diagonal: true
+
+    # inflation 반경 [m] — 로봇 폭 0.40m + 여유 0.10m
+    # 좁은 통로에서 경로가 막히면 줄여볼 것
+    inflation_radius: 0.30
+
+    # 경로 스무딩: none / catmull_rom / bezier
+    smoothing: "catmull_rom"
+
+    # 시뮬레이션 시간 사용 (Ignition Gazebo 필수)
+    use_sim_time: true

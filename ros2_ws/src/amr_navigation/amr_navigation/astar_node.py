@@ -1,0 +1,407 @@
+#!/usr/bin/env python3
+"""
+astar_node.py — A* 전역 경로계획 노드
+담당: HU (메인) · SW, JW (구현 참여)
+패키지: amr_navigation
+"""
+
+import heapq
+import math
+import numpy as np
+
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy
+
+from nav_msgs.msg import OccupancyGrid, Path
+from geometry_msgs.msg import PoseStamped
+
+import tf2_ros
+from tf2_ros import TransformException
+
+from amr_navigation.heuristics import heuristic, movement_cost
+
+
+class AstarPlanner(Node):
+
+    def __init__(self):
+        super().__init__('astar_planner')
+
+        # ── 파라미터 선언 ──────────────────────────────────────────
+        self.declare_parameter('heuristic', 'octile')
+        self.declare_parameter('allow_diagonal', True)
+        self.declare_parameter('inflation_radius', 0.30)
+        self.declare_parameter('smoothing', 'catmull_rom')
+        #self.declare_parameter('use_sim_time', True)
+
+        self.heuristic_type   = self.get_parameter('heuristic').value
+        self.allow_diagonal   = self.get_parameter('allow_diagonal').value
+        self.inflation_radius = self.get_parameter('inflation_radius').value
+        self.smoothing        = self.get_parameter('smoothing').value
+
+        # ── 내부 상태 ──────────────────────────────────────────────
+        self.map_data: OccupancyGrid | None = None
+        self.inflated_grid: np.ndarray | None = None
+        self.goal: PoseStamped | None = None
+
+        # ── TF ────────────────────────────────────────────────────
+        self.tf_buffer   = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+
+        # ── QoS 설정 ───────────────────────────────────────────────
+        # /map은 slam_toolbox가 TRANSIENT_LOCAL(latched)로 발행.
+        # 구독 QoS도 맞춰야 노드 시작 시 맵을 즉시 받을 수 있음.
+        map_qos = QoSProfile(
+            depth=1,
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+        )
+
+        # ── 구독 ───────────────────────────────────────────────────
+        self.map_sub = self.create_subscription(
+            OccupancyGrid, '/map', self._map_callback, map_qos,
+        )
+        self.goal_sub = self.create_subscription(
+            PoseStamped, '/goal_pose', self._goal_callback, 10,
+        )
+
+        # ── 발행 ───────────────────────────────────────────────────
+        self.path_pub = self.create_publisher(Path, '/global_path', 10)
+
+        self.get_logger().info('AstarPlanner 노드 시작 — 맵과 goal 대기 중')
+
+    # ══════════════════════════════════════════════════════════════
+    # 콜백
+    # ══════════════════════════════════════════════════════════════
+
+    def _map_callback(self, msg: OccupancyGrid):
+        """
+        /map 수신 시 호출.
+        맵을 캐시하고 inflation 그리드를 즉시 빌드.
+        맵이 바뀔 때마다 재빌드됨 (slam_toolbox가 계속 업데이트).
+        """
+        self.map_data = msg
+        self.inflated_grid = self._build_inflated_grid(msg)
+        self.get_logger().info(
+            f'맵 수신: {msg.info.width}×{msg.info.height}, '
+            f'해상도={msg.info.resolution:.3f} m/cell'
+        )
+
+    def _goal_callback(self, msg: PoseStamped):
+        """
+        /goal_pose 수신 시 호출.
+        맵이 없으면 goal 무시, 있으면 즉시 경로 계획 시작.
+        """
+        if self.map_data is None:
+            self.get_logger().warn('맵 미수신 — goal 무시')
+            return
+        self.goal = msg
+        self.get_logger().info(
+            f'Goal 수신: ({msg.pose.position.x:.2f}, {msg.pose.position.y:.2f})'
+        )
+        self._plan()
+
+    # ══════════════════════════════════════════════════════════════
+    # 경로 계획 메인
+    # ══════════════════════════════════════════════════════════════
+
+    def _plan(self):
+        """
+        A* 경로 계획 메인 함수.
+        성공 시 /global_path 발행, 실패 시 빈 Path 발행 (DWA 정지 트리거).
+        """
+        # 현재 로봇 위치 TF lookup (base_footprint → map)
+        start_world = self._get_robot_position()
+        if start_world is None:
+            self.get_logger().warn('TF lookup 실패 — 경로 계획 중단')
+            self._publish_empty_path()
+            return
+
+        goal_world = (self.goal.pose.position.x, self.goal.pose.position.y)
+
+        start_cell = self._world_to_cell(start_world)
+        goal_cell  = self._world_to_cell(goal_world)
+
+        if not self._is_free_cell(goal_cell):
+            self.get_logger().warn('Goal이 점유 셀 또는 맵 밖 — 빈 path 발행')
+            self._publish_empty_path()
+            return
+
+        cell_path = self._astar(start_cell, goal_cell)
+
+        if cell_path is None:
+            self.get_logger().warn('경로 없음 — 빈 path 발행')
+            self._publish_empty_path()
+            return
+
+        if self.smoothing == 'catmull_rom':
+            cell_path = self._smooth_catmull_rom(cell_path)
+
+        path_msg = self._cells_to_path(cell_path)
+        self.path_pub.publish(path_msg)
+        self.get_logger().info(f'경로 발행: {len(path_msg.poses)} 웨이포인트')
+
+    # ══════════════════════════════════════════════════════════════
+    # A* 알고리즘
+    # ══════════════════════════════════════════════════════════════
+
+    def _astar(self, start: tuple, goal: tuple) -> list | None:
+        """
+        A* 탐색 메인 로직.
+
+        open_set: (f값, 셀) 형태의 min-heap
+        g_score: 시작점에서 각 셀까지의 실제 비용
+        closed_set: 이미 처리한 셀 (재방문 방지)
+        came_from: 경로 역추적용 부모 셀 기록
+
+        반환: 셀 좌표 리스트 [(row, col), ...] 또는 None (실패)
+        """
+        open_set: list = []
+        heapq.heappush(open_set, (0.0, start))
+
+        came_from: dict = {}
+        g_score: dict   = {start: 0.0}
+        closed_set: set = set()
+
+        while open_set:
+            _, current = heapq.heappop(open_set)
+
+            # heapq는 같은 셀이 여러 번 들어갈 수 있으므로
+            # closed_set으로 중복 처리 방지
+            if current in closed_set:
+                continue
+            closed_set.add(current)
+
+            if current == goal:
+                return self._reconstruct_path(came_from, current)
+
+            for neighbor in self._get_neighbors(current):
+                if neighbor in closed_set:
+                    continue
+
+                # g(n) = 현재까지의 실제 이동 비용
+                tentative_g = g_score[current] + movement_cost(current, neighbor)
+
+                if tentative_g < g_score.get(neighbor, float('inf')):
+                    came_from[neighbor] = current
+                    g_score[neighbor]   = tentative_g
+                    # f(n) = g(n) + h(n)
+                    f = tentative_g + heuristic(neighbor, goal, self.heuristic_type)
+                    heapq.heappush(open_set, (f, neighbor))
+
+        return None  # 경로 없음
+
+    def _reconstruct_path(self, came_from: dict, current: tuple) -> list:
+        """came_from dict를 역추적해 start → goal 셀 리스트 반환."""
+        path = [current]
+        while current in came_from:
+            current = came_from[current]
+            path.append(current)
+        path.reverse()
+        return path
+
+    # ══════════════════════════════════════════════════════════════
+    # 그리드 헬퍼
+    # ══════════════════════════════════════════════════════════════
+
+    def _get_neighbors(self, cell: tuple) -> list:
+        """
+        8-connected 또는 4-connected 이웃 셀 반환.
+        맵 밖이거나 점유된 셀은 제외.
+        """
+        row, col = cell
+        deltas = (
+            [(-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)]
+            if self.allow_diagonal
+            else [(-1,0),(0,-1),(0,1),(1,0)]
+        )
+        return [
+            (row + dr, col + dc)
+            for dr, dc in deltas
+            if self._is_free_cell((row + dr, col + dc))
+        ]
+
+    def _is_free_cell(self, cell: tuple) -> bool:
+        """
+        셀이 맵 범위 내이고 통과 가능한지 확인.
+        inflated_grid 기준 사용 (0=free, 1=blocked).
+
+        # 보강 필요: inflation_radius=0.30m가 창고 통로(~3m)에서
+        # 너무 보수적으로 막히지 않는지 실제 주행 후 튜닝 권장.
+        """
+        if self.inflated_grid is None:
+            return False
+        row, col = cell
+        h, w = self.inflated_grid.shape
+        if row < 0 or col < 0 or row >= h or col >= w:
+            return False
+        return self.inflated_grid[row, col] == 0
+
+    def _build_inflated_grid(self, msg: OccupancyGrid) -> np.ndarray:
+        """
+        OccupancyGrid → 2D numpy 배열 변환 + 원형 커널 inflation 적용.
+        로봇이 벽/선반에 너무 가깝게 붙지 않도록 장애물 주변을 팽창.
+
+        점유(>=50) 또는 unknown(-1) 셀을 blocked으로 처리.
+
+        # 보강 필요: 현재는 binary dilation (단순 팽창).
+        # 거리 기반 비용 그라디언트로 바꾸면 DWA clearance와 더 잘 맞음.
+        """
+        from scipy.ndimage import binary_dilation
+
+        w   = msg.info.width
+        h   = msg.info.height
+        res = msg.info.resolution
+
+        raw     = np.array(msg.data, dtype=np.int8).reshape((h, w))
+        blocked = (raw >= 50) | (raw == -1)
+
+        radius_cells = int(math.ceil(self.inflation_radius / res))
+        if radius_cells > 0:
+            y, x    = np.ogrid[-radius_cells:radius_cells+1, -radius_cells:radius_cells+1]
+            kernel  = (x*x + y*y <= radius_cells*radius_cells)
+            blocked = binary_dilation(blocked, structure=kernel)
+
+        return blocked.astype(np.uint8)
+
+    # ══════════════════════════════════════════════════════════════
+    # 경로 스무딩
+    # ══════════════════════════════════════════════════════════════
+
+    def _smooth_catmull_rom(self, cells: list, samples: int = 5) -> list:
+        """
+        Catmull-Rom 스플라인으로 경로 스무딩.
+        인접 4점을 이용해 곡선 보간, 각 구간을 samples개 점으로 분할.
+
+        # 보강 필요:
+        # 1) samples 튜닝 — 5~10 사이 권장.
+        # 2) 스무딩 후 inflated 셀 통과 여부 재검증 없음.
+        #    좁은 통로에서 경로가 장애물을 뚫을 수 있음. 추후 검토.
+        """
+        if len(cells) < 4:
+            return cells
+
+        def _cr(p0, p1, p2, p3, t):
+            """Catmull-Rom 보간 단일 점 계산."""
+            t2, t3 = t*t, t*t*t
+            r = 0.5 * (2*p1[0] + (-p0[0]+p2[0])*t
+                       + (2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*t2
+                       + (-p0[0]+3*p1[0]-3*p2[0]+p3[0])*t3)
+            c = 0.5 * (2*p1[1] + (-p0[1]+p2[1])*t
+                       + (2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2
+                       + (-p0[1]+3*p1[1]-3*p2[1]+p3[1])*t3)
+            return (int(round(r)), int(round(c)))
+
+        padded   = [cells[0]] + cells + [cells[-1]]
+        smoothed = [cells[0]]
+
+        for i in range(1, len(padded) - 2):
+            p0, p1, p2, p3 = padded[i-1], padded[i], padded[i+1], padded[i+2]
+            for s in range(1, samples + 1):
+                smoothed.append(_cr(p0, p1, p2, p3, s / samples))
+
+        return smoothed
+
+    # ══════════════════════════════════════════════════════════════
+    # 좌표 변환
+    # ══════════════════════════════════════════════════════════════
+
+    def _world_to_cell(self, world: tuple) -> tuple:
+        """월드 좌표 (x, y) → 그리드 셀 (row, col)."""
+        info = self.map_data.info
+        col  = int((world[0] - info.origin.position.x) / info.resolution)
+        row  = int((world[1] - info.origin.position.y) / info.resolution)
+        return (row, col)
+
+    def _cell_to_world(self, cell: tuple) -> tuple:
+        """그리드 셀 (row, col) → 월드 좌표 (x, y) — 셀 중심점."""
+        info = self.map_data.info
+        x = cell[1] * info.resolution + info.origin.position.x + info.resolution / 2
+        y = cell[0] * info.resolution + info.origin.position.y + info.resolution / 2
+        return (x, y)
+
+    def _get_robot_position(self) -> tuple | None:
+        """
+        TF lookup으로 현재 로봇 위치(map frame 기준) 반환.
+        실패 시 None 반환.
+
+        # 보강 필요: timeout=0.1s — 시뮬레이션 초기 TF가 느리게
+        # 올라오는 경우 실패할 수 있음. 문제 생기면 늘려볼 것.
+        기존 map → base_footprint TF lookup에서 base_footprint → map으로 변경.(대유상 그는 감히 전설이라고 할 수 있다)
+        """
+        try:
+            tf = self.tf_buffer.lookup_transform(
+                'odom_filtered',
+                'base_footprint',
+                rclpy.time.Time(),
+                timeout=rclpy.duration.Duration(seconds=0.1),
+            )
+            return (tf.transform.translation.x, tf.transform.translation.y)
+        except TransformException as e:
+            self.get_logger().warn(f'TF lookup 실패: {e}')
+            return None
+
+    # ══════════════════════════════════════════════════════════════
+    # Path 메시지 변환 / 발행
+    # ══════════════════════════════════════════════════════════════
+
+    def _cells_to_path(self, cells: list) -> Path:
+        """
+        셀 리스트 → nav_msgs/Path (frame_id=map).
+        인접 점 방향으로 heading(yaw → quaternion) 채움.
+        """
+        path = Path()
+        path.header.stamp    = self.get_clock().now().to_msg()
+        path.header.frame_id = 'map'
+
+        world_points = [self._cell_to_world(c) for c in cells]
+
+        for i, (wx, wy) in enumerate(world_points):
+            pose = PoseStamped()
+            pose.header = path.header
+            pose.pose.position.x = wx
+            pose.pose.position.y = wy
+            pose.pose.position.z = 0.0
+
+            # heading: 다음 점 방향으로 yaw 계산
+            if i < len(world_points) - 1:
+                nx, ny = world_points[i + 1]
+                yaw = math.atan2(ny - wy, nx - wx)
+            else:
+                # 마지막 점: 직전 방향 유지
+                if len(world_points) >= 2:
+                    px, py = world_points[-2]
+                    yaw = math.atan2(wy - py, wx - px)
+                else:
+                    yaw = 0.0
+
+            # yaw → quaternion (z축 회전만, 2D)
+            pose.pose.orientation.z = math.sin(yaw / 2)
+            pose.pose.orientation.w = math.cos(yaw / 2)
+            path.poses.append(pose)
+
+        return path
+
+    def _publish_empty_path(self):
+        """실패 시 빈 Path 발행 — DWA 정지 트리거."""
+        path = Path()
+        path.header.stamp    = self.get_clock().now().to_msg()
+        path.header.frame_id = 'map'
+        self.path_pub.publish(path)
+
+
+# ══════════════════════════════════════════════════════════════════
+def main(args=None):
+    rclpy.init(args=args)
+    node = AstarPlanner()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
