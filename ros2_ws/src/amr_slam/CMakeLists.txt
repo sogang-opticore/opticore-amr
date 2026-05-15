@@ -16,6 +16,7 @@ endif()
 
 install(PROGRAMS
   src/odom_covariance_injector.py
+  src/imu_covariance_injector.py 
   DESTINATION lib/${PROJECT_NAME}
 )
 
