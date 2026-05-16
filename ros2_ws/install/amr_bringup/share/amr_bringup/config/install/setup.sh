@@ -1,1 +1,0 @@
-/ros2_ws/opticore-amr/opticore-amr/ros2_ws/src/amr_bringup/config/install/setup.sh
