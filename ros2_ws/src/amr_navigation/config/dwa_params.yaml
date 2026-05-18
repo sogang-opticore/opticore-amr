@@ -1,0 +1,51 @@
+# DWA Local Planner 파라미터 (Notion 명세 §4.1 + sw_context.md + 디스코드 N-2 반영)
+#
+# CLAUDE.md 6.1: 모든 튜닝 값은 YAML로. 코드 안 하드코딩 금지.
+# 변경 시 README.md §4 표와 동기화.
+
+dwa_planner:
+  ros__parameters:
+    use_sim_time: true
+
+    # ----- 로봇 동역학 한계 (Notion 명세 §4.1) -----
+    # TODO(디스코드 N-2): v_max는 팀 합의 전까지 임시값 1.5 m/s 사용.
+    #                    명세는 2.0 m/s. 안전 마진 + 가속도 동기화 필요.
+    #                    최대 속도 확정 후 v_max / a_max 같이 갱신 필수.
+    v_max: 1.5          # m/s, ⚠ 임시값 (명세 §4.1: 2.0)
+    v_min: -1.0         # m/s, 후진 운영 정책
+    w_max: 1.5          # rad/s, 명세 §4.1
+    a_max: 1.0          # m/s², 명세 §4.1 (v_max 갱신 시 같이)
+    alpha_max: 1.5      # rad/s², ⚠ 명세 미명시 — 시뮬 측정 후 갱신
+
+    # ----- 샘플링 / 시뮬레이션 -----
+    sample_v_n: 11
+    sample_w_n: 21
+    predict_horizon: 1.0    # s, trajectory 예측 시간
+    dt: 0.1                 # s, 적분 step
+    control_rate: 20.0      # Hz
+
+    # ----- 평가함수 가중치 -----
+    # TR-05: clearance 가중치를 높여서 좁은 통로에서 부드러운 회피 유도.
+    # heading은 살짝 낮춰 직진 고집 약화. velocity는 유지.
+    weight_heading: 0.6
+    weight_clearance: 1.2
+    weight_velocity: 0.2
+
+    # ----- 추종 / 평가 보조 -----
+    lookahead_dist: 1.0     # m, A* path 위 어디를 향할지 (DWA가 보는 단기 goal)
+    max_clearance: 1.0      # m, clearance_score 정규화 분모
+    goal_tolerance: 0.10    # m, 도착 판정 거리
+
+    # ----- 안전 -----
+    robot_radius: 0.20         # m, URDF width 0.40 / 2 — 외곽 ↔ 중심 보정 (TR-05)
+    hard_collision_distance: 0.05  # m, 거부 게이트 — 진짜 충돌 직전 (TR-05)
+    safety_distance: 0.30      # m, 명세 §7 — clearance_score 정규화·시각화 의미
+    odom_timeout: 0.5          # s, EKF timeout 시 /odom fallback
+    scan_range_max: 25.0       # m, LaserScan 유효 max range (명세 §4.1 = 25m)
+
+    # ----- 토픽명 (README 계약과 일치) -----
+    odom_topic: "/odometry/filtered"
+    odom_fallback_topic: "/odom"
+    global_path_topic: "/global_path"
+    scan_topic: "/lidar"
+    cmd_vel_topic: "/cmd_vel"

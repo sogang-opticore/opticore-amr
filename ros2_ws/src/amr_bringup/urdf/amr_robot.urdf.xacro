@@ -211,7 +211,7 @@
     <sensor name="imu_sensor" type="imu">
       <always_on>true</always_on>
       <update_rate>100</update_rate>
-      <topic>imu</topic>
+      <topic>imu_raw</topic>
       <imu>
         <angular_velocity>
           <x><noise type="gaussian"><mean>0.0</mean><stddev>0.005</stddev><bias_mean>0.0001</bias_mean><bias_stddev>0.00005</bias_stddev></noise></x>
