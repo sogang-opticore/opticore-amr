@@ -3,7 +3,7 @@
 <package format="3">
   <name>amr_perception</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
+  <description>Perception package for Opticore AMR — YOLOv8 object detection</description>
   <maintainer email="root@todo.todo">root</maintainer>
   <license>TODO: License declaration</license>
 
@@ -11,6 +11,7 @@
   <depend>sensor_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>cv_bridge</depend>
+  <depend>vision_msgs</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

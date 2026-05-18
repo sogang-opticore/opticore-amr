@@ -1,0 +1,16 @@
+yolo_detector:
+  ros__parameters:
+    # 모델
+    model_path: "/workspace/models/yolov8n.pt"
+    device: "cuda"
+    confidence_threshold: 0.5
+    target_classes: ["person", "forklift"]  # YOLO class 필터 (미확정 - COCO index 매핑 확인 필요)
+
+    # 토픽
+    image_topic: "/camera"
+    camera_info_topic: "/camera/camera_info"
+    detections_topic: "/perception/detections"
+    debug_image_topic: "/perception/debug_image"
+
+    # 성능
+    inference_target_fps: 15
