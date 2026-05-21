@@ -471,7 +471,7 @@
     <!-- ==================== DYNAMIC OBSTACLES (주석 처리였는데 이젠 아니지롱) ==================== -->
 
     <include>
-      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Casual%20male</uri>
+      <uri>https://fuel.gazebosim.org/1.0/OpenRobotics/models/Standing person</uri>
       <name>person_1</name>
       <pose>12.0 16.0 0.0 0 0 0</pose>
     </include>
