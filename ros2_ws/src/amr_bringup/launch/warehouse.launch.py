@@ -4,6 +4,9 @@ Bridge stabilized via TimerAction (Gazebo 초기화 대기 후 실행)
 """
 import os
 
+os.environ['IGN_GAZEBO_RESOURCE_PATH'] = \
+    '/workspace/ros2_ws/src/amr_bringup/models'
+
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
