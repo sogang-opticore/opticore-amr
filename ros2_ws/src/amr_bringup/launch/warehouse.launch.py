@@ -4,6 +4,9 @@ Bridge stabilized via TimerAction (Gazebo 초기화 대기 후 실행)
 """
 import os
 
+os.environ['IGN_GAZEBO_RESOURCE_PATH'] = \
+    '/workspace/ros2_ws/src/amr_bringup/models'
+
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
@@ -127,18 +130,18 @@ def generate_launch_description():
     )
 
     # ── 6. Dynamic obstacle mover (EKF 안정화 후) 
-    # dynamic_obstacle_mover = TimerAction(
-    #     period=8.0,
-    #     actions=[
-    #         Node(
-    #             package='amr_bringup',
-    #             executable='dynamic_obstacle_mover.py',
-    #             name='dynamic_obstacle_mover',
-    #             output='screen',
-    #             parameters=[{'use_sim_time': use_sim_time}],
-    #         ),
-    #     ],
-    # )
+    dynamic_obstacle_mover = TimerAction(
+         period=8.0,
+         actions=[
+             Node(
+                 package='amr_bringup',
+                 executable='dynamic_obstacle_mover.py',
+                 name='dynamic_obstacle_mover',
+                 output='screen',
+                 parameters=[{'use_sim_time': use_sim_time}],
+             ),
+         ],
+     )
 
     lidar_tf = Node(
         package='tf2_ros',
@@ -159,6 +162,6 @@ def generate_launch_description():
         odom_cov_node,
         ekf_node,        # +7s
         imu_injector,
-        #dynamic_obstacle_mover,  # +8s
+        dynamic_obstacle_mover,  # +8s
         lidar_tf,
     ])
