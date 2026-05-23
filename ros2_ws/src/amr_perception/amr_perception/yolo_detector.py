@@ -15,11 +15,11 @@ import time
 from ultralytics import YOLO
 
 
-# COCO index 기준. forklift는 COCO에 없으므로 임시로 truck(7) 사용
-# [미확정 - 팀 논의 필요] 커스텀 모델 사용 시 수정 필요
+# COCO index 기준. forklift는 COCO에 없으므로 truck(7)으로 대체 확정
+# 시뮬레이션 환경 한정 (커스텀 모델 미사용 확정 — 팀 합의 2026-05-21)
 TARGET_CLASS_IDS = {
     0: 'person',
-    7: 'forklift',  # truck으로 임시 대체
+    7: 'forklift',  # truck(class_id=7)으로 대체 확정
 }
 
 
