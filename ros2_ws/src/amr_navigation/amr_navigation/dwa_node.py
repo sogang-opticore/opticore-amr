@@ -588,17 +588,31 @@ class DwaPlannerNode(Node):
     # 헬퍼
     # -----------------------------------------------------------------------
     def _update_state_from_odom(self, msg: Odometry) -> None:
-        p = msg.pose.pose.position
-        q = msg.pose.pose.orientation
-        # 쿼터니언 → yaw (2D 평면)
-        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
-        cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
-        yaw = math.atan2(siny_cosp, cosy_cosp)
-        self._state = RobotState(
-            x=p.x, y=p.y, theta=yaw,
-            v=msg.twist.twist.linear.x,
-            w=msg.twist.twist.angular.z,
-        )
+        """odom 콜백 — v, w 만 갱신. pose 는 절대 건드리지 않음.
+
+        2026-05-25 수정 (spiral bug fix):
+          기존 코드는 _state 전체 (x, y, theta, v, w) 를 odom 으로 덮어썼는데,
+          odom 의 pose 는 odom_filtered frame 좌표. _control_loop 가 매 cycle
+          _update_pose_from_tf() 로 map frame pose 로 다시 덮어쓰는데, 그 사이에
+          odom 콜백이 또 끼어들어 odom frame pose 로 덮어쓰는 경쟁 발생.
+          → DWA 의 _state.x/y 가 매 50ms 마다 두 frame 사이를 진동 → spiral.
+
+          v, w 는 본체 운동량 (body frame) 이라 frame 무관 — 이것만 갱신.
+          pose 는 오직 _update_pose_from_tf() 가 map frame TF 로 갱신.
+
+        비유: 시계 두 사람이 같은 시계 바늘을 동시에 돌리면 시계가 진동.
+              odom 사람은 v/w 시계만, TF 사람은 pose 시계만 — 분담.
+        """
+        twist = msg.twist.twist
+        v = twist.linear.x
+        w = twist.angular.z
+        if self._state is None:
+            # 첫 호출 — pose 는 (0, 0, 0) 로 두고 TF lookup 첫 성공이 갱신
+            self._state = RobotState(x=0.0, y=0.0, theta=0.0, v=v, w=w)
+        else:
+            # 기존 pose 유지, v/w 만 갱신
+            self._state.v = v
+            self._state.w = w
 
     def _sec_now(self) -> float:
         t = self.get_clock().now().to_msg()
