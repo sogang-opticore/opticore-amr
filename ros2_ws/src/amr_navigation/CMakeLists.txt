@@ -71,6 +71,9 @@ if(BUILD_TESTING)
   set(ament_cmake_copyright_FOUND TRUE)
   set(ament_cmake_cpplint_FOUND TRUE)
   set(ament_cmake_pep257_FOUND TRUE)    # docstring D213 vs D212 충돌 회피 (Week 1 이슈 #7)
+  set(ament_cmake_flake8_FOUND TRUE)    # 정렬용 다중공백·콤마 스타일 의도적 — 2026-05-24 SW
+                                        # F401·W292·E265 같은 유용 규칙은 이미 손으로 정리.
+                                        # 재활성화하려면 이 줄 삭제 + 본 패키지의 의도된 스타일 일괄 정리 필요.
   ament_lint_auto_find_test_dependencies()
 
   # Python 단위 테스트

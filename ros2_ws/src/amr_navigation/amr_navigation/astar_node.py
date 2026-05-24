@@ -36,7 +36,7 @@ class AstarPlanner(Node):
         #   goal 셀이 inflation/점유로 막혔을 때 nearest free cell로 자동 보정.
         #   BFS 반경 [cell] = goal_snap_radius / resolution.
         self.declare_parameter('goal_snap_radius', 0.6)   # m, 0 이면 비활성
-        #self.declare_parameter('use_sim_time', True)
+        # self.declare_parameter('use_sim_time', True)
 
         self.heuristic_type   = self.get_parameter('heuristic').value
         self.allow_diagonal   = self.get_parameter('allow_diagonal').value

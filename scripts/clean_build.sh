@@ -8,14 +8,17 @@
 #    작업을 한 줄로 끝낸다. 권한·실행 비트·symlink-install 까지 한꺼번에 정리.
 #
 #  사용:
-#    bash scripts/clean_build.sh              # 전체 패키지 clean 재빌드
-#    bash scripts/clean_build.sh nav          # amr_navigation 만 (단축)
-#    bash scripts/clean_build.sh full         # build/install/log 통째로 제거 후 재빌드
+#    bash scripts/clean_build.sh              # amr_navigation 캐시 정리 + 재빌드 (default)
+#    bash scripts/clean_build.sh nav          # 위와 동일 (단축)
+#    bash scripts/clean_build.sh full         # build/install/log 통째 제거 후 전 패키지 재빌드
+#                                             # (단, SKIP_BROKEN 에 등록된 패키지는 자동 제외)
 #    bash scripts/clean_build.sh test         # 단위 테스트까지 실행
+#
+#    SKIP_BROKEN="" bash scripts/clean_build.sh full   # 자동 skip 해제하고 강제 시도
 #
 #  비유:
 #    매번 손빨래 하던 걸 세탁기 한 사이클로 돌리는 셈. 권한·실행 비트 같은
-#    'symlink-install + .py executable' 함정도 함께 처리한다.
+#    'symlink-install + .py executable' 함정과, 알려진 깨진 빌드(amr_perception)도 함께 처리한다.
 # ============================================================================
 
 set -e   # 한 단계라도 실패하면 즉시 중단
@@ -27,11 +30,9 @@ R='\033[0;31m'  # 빨강
 N='\033[0m'
 
 # ── 경로 ──
-# 스크립트 위치에서 ros2_ws 추정
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 WS_DIR="$( cd "${SCRIPT_DIR}/../ros2_ws" 2>/dev/null && pwd )"
 if [ -z "$WS_DIR" ] || [ ! -d "$WS_DIR/src" ]; then
-    # 기본 RunPod 경로
     WS_DIR="/workspace/opticore-amr/ros2_ws"
 fi
 
@@ -45,6 +46,12 @@ cd "$WS_DIR"
 echo -e "${G}[INFO]${N} ros2_ws = $WS_DIR"
 
 MODE="${1:-default}"
+
+# ── 빌드 제외 패키지 (알려진 깨진 빌드) ──────────────────────────
+# amr_perception: setup.py가 --editable 옵션을 인식 못 함 (콜콘 symlink-install + 구형 setuptools 조합).
+# → 본 패키지는 현재 빌드 비활성. 수정되면 SKIP_BROKEN="" 으로 강제 시도하거나 이 줄을 제거.
+# 환경변수로 override:  SKIP_BROKEN="" bash clean_build.sh full
+SKIP_BROKEN="${SKIP_BROKEN:---packages-skip amr_perception}"
 
 # ── 0. ROS2 환경 ──
 if [ -z "$ROS_DISTRO" ]; then
@@ -68,7 +75,7 @@ case "$MODE" in
     full)
         echo -e "${Y}[STEP]${N} full clean: build/ install/ log/ 통째로 삭제"
         rm -rf build install log
-        PKGS=""   # 모든 패키지
+        PKGS="$SKIP_BROKEN"
         ;;
     nav)
         echo -e "${G}[STEP]${N} amr_navigation 캐시만 삭제"
@@ -88,6 +95,9 @@ esac
 
 # ── 3. 빌드 ──
 if [ "$MODE" != "test" ]; then
+    if [[ "$PKGS" == *"--packages-skip"* ]]; then
+        echo -e "${Y}[NOTE]${N} 빌드 제외 패키지: $(echo "$SKIP_BROKEN" | sed 's/--packages-skip //')"
+    fi
     echo -e "${G}[STEP]${N} colcon build --symlink-install $PKGS"
     # shellcheck disable=SC2086
     colcon build --symlink-install $PKGS

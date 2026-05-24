@@ -9,10 +9,6 @@ ROS 의존성 없이 순수 알고리즘 검증.
     python3 -m pytest src/amr_navigation/test/test_frontier_explorer.py -v
 """
 
-import math
-
-import pytest
-
 from amr_navigation.frontier_explorer import (
     find_frontier_cells,
     cluster_frontiers,

@@ -34,7 +34,7 @@ nav_full.launch.py — 풀 네비게이션 통합 launch (2026-05-24 SW)
 """
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, GroupAction
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
@@ -47,7 +47,7 @@ def generate_launch_description() -> LaunchDescription:
     slam_share = FindPackageShare("amr_slam")
 
     astar_params = PathJoinSubstitution([nav_share, "config", "astar_params.yaml"])
-    dwa_params   = PathJoinSubstitution([nav_share, "config", "dwa_params.yaml"])
+    dwa_params = PathJoinSubstitution([nav_share, "config", "dwa_params.yaml"])
 
     # ── 런치 인자 ──
     use_sim_time_arg = DeclareLaunchArgument(
