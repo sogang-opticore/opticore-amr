@@ -47,6 +47,13 @@ install(PROGRAMS
   RENAME astar_planner
 )
 
+# Frontier Explorer 노드 — 자율 매핑 (2026-05-24 SW)
+# A*+DWA를 활용한 frontier-based exploration.
+install(PROGRAMS
+  ${PROJECT_NAME}/frontier_explorer.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 # ---------------------------------------------------------------------------
 # launch / config 설치
 # ---------------------------------------------------------------------------
@@ -74,6 +81,10 @@ if(BUILD_TESTING)
   )
   ament_add_pytest_test(test_dwa
     test/test_dwa.py
+    TIMEOUT 60
+  )
+  ament_add_pytest_test(test_frontier_explorer
+    test/test_frontier_explorer.py
     TIMEOUT 60
   )
 endif()

@@ -32,12 +32,17 @@ class AstarPlanner(Node):
         self.declare_parameter('allow_diagonal', True)
         self.declare_parameter('inflation_radius', 0.30)
         self.declare_parameter('smoothing', 'catmull_rom')
+        # 2026-05-24 보강(SW, HU 보강-1):
+        #   goal 셀이 inflation/점유로 막혔을 때 nearest free cell로 자동 보정.
+        #   BFS 반경 [cell] = goal_snap_radius / resolution.
+        self.declare_parameter('goal_snap_radius', 0.6)   # m, 0 이면 비활성
         #self.declare_parameter('use_sim_time', True)
 
         self.heuristic_type   = self.get_parameter('heuristic').value
         self.allow_diagonal   = self.get_parameter('allow_diagonal').value
         self.inflation_radius = self.get_parameter('inflation_radius').value
         self.smoothing        = self.get_parameter('smoothing').value
+        self.goal_snap_radius = self.get_parameter('goal_snap_radius').value
 
         # ── 내부 상태 ──────────────────────────────────────────────
         self.map_data: OccupancyGrid | None = None
@@ -122,10 +127,19 @@ class AstarPlanner(Node):
         start_cell = self._world_to_cell(start_world)
         goal_cell  = self._world_to_cell(goal_world)
 
+        # 2026-05-24 보강(SW, HU 보강-1): goal 셀이 막혔으면 nearest free cell 보정.
+        # 비유: 우체부가 "그 주소엔 우체통이 없네요" 라고 그냥 돌아가지 않고
+        #       가장 가까운 우체통을 찾아 거기에 두는 것.
         if not self._is_free_cell(goal_cell):
-            self.get_logger().warn('Goal이 점유 셀 또는 맵 밖 — 빈 path 발행')
-            self._publish_empty_path()
-            return
+            snapped = self._snap_to_nearest_free(goal_cell)
+            if snapped is None:
+                self.get_logger().warn(
+                    f'Goal {goal_cell}이 점유/맵-밖이고 인근 자유공간 없음 — 빈 path')
+                self._publish_empty_path()
+                return
+            self.get_logger().info(
+                f'Goal 보정: {goal_cell} (점유/inflation) → {snapped} (인근 free)')
+            goal_cell = snapped
 
         cell_path = self._astar(start_cell, goal_cell)
 
@@ -220,6 +234,44 @@ class AstarPlanner(Node):
             for dr, dc in deltas
             if self._is_free_cell((row + dr, col + dc))
         ]
+
+    def _snap_to_nearest_free(self, cell: tuple) -> tuple | None:
+        """막힌 셀에 대해 BFS로 인근 자유공간 셀 찾기 (HU 보강-1, 2026-05-24).
+
+        반경: goal_snap_radius / resolution [cells]. 0이면 비활성.
+        BFS는 4-conn 또는 8-conn 어떤 거든 거의 차이 없음 → 8-conn으로.
+
+        반환: 가장 가까운 free cell (row, col) 또는 None.
+        """
+        if self.goal_snap_radius <= 0 or self.inflated_grid is None or self.map_data is None:
+            return None
+
+        res = self.map_data.info.resolution
+        max_radius = int(math.ceil(self.goal_snap_radius / res))
+        if max_radius <= 0:
+            return None
+
+        from collections import deque
+        h, w = self.inflated_grid.shape
+        r0, c0 = cell
+        visited = {(r0, c0)}
+        q = deque([(r0, c0, 0)])
+        deltas = (
+            (-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)
+        )
+        while q:
+            r, c, d = q.popleft()
+            if 0 <= r < h and 0 <= c < w and self.inflated_grid[r, c] == 0:
+                return (r, c)
+            if d >= max_radius:
+                continue
+            for dr, dc in deltas:
+                nr, nc = r + dr, c + dc
+                if (nr, nc) in visited:
+                    continue
+                visited.add((nr, nc))
+                q.append((nr, nc, d + 1))
+        return None
 
     def _is_free_cell(self, cell: tuple) -> bool:
         """

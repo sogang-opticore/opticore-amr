@@ -14,5 +14,10 @@ astar_planner:
     # 경로 스무딩: none / catmull_rom / bezier
     smoothing: "catmull_rom"
 
+    # 2026-05-24 보강: goal이 점유/inflation으로 막혔을 때
+    # 인근 자유공간 셀로 자동 보정. BFS 반경 [m]. 0이면 비활성.
+    # (예: Loading zone (3,15)이 맵 가장자리라 BLOCK → 인근 (3,14.5)로 자동 이동)
+    goal_snap_radius: 0.6
+
     # 시뮬레이션 시간 사용 (Ignition Gazebo 필수)
     use_sim_time: true
