@@ -402,6 +402,18 @@ class DwaPlannerNode(Node):
         # delay > 0 면 그만큼 과거의 안정된 TF interpolated (stale 위험 낮음)
         self.declare_parameter("tf_lookup_delay", 0.0)        # s, 0=latest
 
+        # TF stamp 진단 — 매 lookup 마다 "사용한 transform 의 stamp 는 now 보다
+        # 얼마나 과거인가" 를 N 초마다 로그. 정상이면 ~50ms, AMCL publish lag /
+        # use_sim_time 오설정 시엔 수백 ms 이상으로 튐 → spiral 의 결정적 단서.
+        # 0 이면 비활성.
+        self.declare_parameter("tf_stamp_log_period", 1.0)    # s
+
+        # 후보 평가 디버그 — 매 N 초마다 best 후보의 (v, w, heading_score,
+        # clearance_score, velocity_score, local_goal) 을 로그. cmd_vel 이
+        # 음수 (후진) 로 튈 때 왜 후방 trajectory 가 1등을 받는지 정량 확인용.
+        # 0 이면 비활성.
+        self.declare_parameter("candidate_log_period", 1.0)   # s
+
         # 파라미터 캐싱
         self._load_params()
 
@@ -418,6 +430,8 @@ class DwaPlannerNode(Node):
         self._state_log_counter = 0     # control_rate cycle 카운터
         self._state_logged_once = False  # 첫 cycle 의 점프(huge) 무시용
         self._reached = False  # goal 도착 플래그 — status 에 REACHED 발행용
+        self._tf_stamp_log_counter = 0    # TF stamp 진단 로그 throttle
+        self._candidate_log_counter = 0   # 후보 평가 디버그 로그 throttle
 
         # -------------------------------------------------------------------
         # TF buffer — 2026-05-25 (SW · 페어): AMCL 통합 후 _state.x/y/theta 가
@@ -521,6 +535,8 @@ class DwaPlannerNode(Node):
         self.p_jump_warn_threshold = gp("jump_warn_threshold").value
         self.p_state_log_period = gp("state_log_period").value
         self.p_tf_lookup_delay = gp("tf_lookup_delay").value
+        self.p_tf_stamp_log_period = gp("tf_stamp_log_period").value
+        self.p_candidate_log_period = gp("candidate_log_period").value
 
     # -----------------------------------------------------------------------
     # 콜백
@@ -809,6 +825,34 @@ class DwaPlannerNode(Node):
         best_cmd, best_traj = candidates[0]
         self._publish_cmd(best_cmd)
 
+        # 10.5. 후보 평가 디버그 (2026-05-25) — best 의 (v, w) 와 local_goal 위치
+        #       cmd_vel 이 -1.0 (max reverse) 로 가는 이유 = local_goal 이 음의
+        #       x 영역 (후방) 으로 매핑되어 heading_score 가 후방 trajectory 를
+        #       1등으로 평가하는 경우 ⇒ _state.theta 가 잘못된 결정적 단서.
+        if self.p_candidate_log_period > 0.0:
+            self._candidate_log_counter += 1
+            target_cycles = int(self.p_control_rate * self.p_candidate_log_period)
+            if self._candidate_log_counter >= max(1, target_cycles):
+                self._candidate_log_counter = 0
+                # best 재평가 (디버그 — 빠르고 가벼움)
+                end_x, end_y, end_theta = best_traj[-1]
+                h_best = heading_score(
+                    end_x, end_y, end_theta, local_goal[0], local_goal[1])
+                c_best = clearance_score(
+                    [(p[0], p[1]) for p in best_traj[2:]] or
+                    [(p[0], p[1]) for p in best_traj],
+                    obstacles_local, self.p_max_clearance)
+                v_best = velocity_score(best_cmd.v, self.p_v_max)
+                # local_goal 방향 (base_link frame) — 양수=전방, 음수=후방
+                lg_dir = "FRONT" if local_goal[0] >= 0 else "REAR"
+                self.get_logger().info(
+                    f"DWA best: v={best_cmd.v:+.2f} w={best_cmd.w:+.2f} "
+                    f"score={best_cmd.score:.2f} "
+                    f"(h={h_best:.2f} c={c_best:.2f} vel={v_best:.2f}) "
+                    f"local_goal=({local_goal[0]:+.2f},{local_goal[1]:+.2f}) {lg_dir} "
+                    f"n_cands={len(candidates)}"
+                )
+
         # 11. 시각화 — 후보들 + best 강조
         self._publish_trajectories([t for _, t in candidates])
         self._publish_best_trajectory(best_traj)
@@ -878,6 +922,25 @@ class DwaPlannerNode(Node):
         siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
         cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
         self._state.theta = math.atan2(siny_cosp, cosy_cosp)
+
+        # ─── TF stamp 진단 (2026-05-25) ───────────────────────────────
+        # "지금 사용한 transform 의 stamp 가 now 보다 얼마나 과거인가."
+        # 정상 (50Hz EKF + 5Hz AMCL) 이면 ~20~200ms 범위.
+        # 1초 넘으면 AMCL publish lag / use_sim_time 오설정 / TF buffer 문제.
+        # 비유: 시계의 분침이 5분 전을 가리키면 약속 시간이 어긋남.
+        if self.p_tf_stamp_log_period > 0.0:
+            self._tf_stamp_log_counter += 1
+            target_cycles = int(self.p_control_rate * self.p_tf_stamp_log_period)
+            if self._tf_stamp_log_counter >= max(1, target_cycles):
+                self._tf_stamp_log_counter = 0
+                stamp_sec = t.header.stamp.sec + t.header.stamp.nanosec * 1e-9
+                now_sec = self._sec_now()
+                age = now_sec - stamp_sec
+                self.get_logger().info(
+                    f"TF stamp: used={stamp_sec:.3f}s now={now_sec:.3f}s "
+                    f"age={age*1000:+.0f}ms (lookup_delay={self.p_tf_lookup_delay}s)"
+                )
+
         # 한 번이라도 성공하면 다음 실패는 다시 WARN 한 번 (디버깅 도움)
         if self._tf_warn_logged:
             self.get_logger().info("map → base_footprint TF lookup 복구")
