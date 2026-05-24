@@ -38,6 +38,9 @@ from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String
 from visualization_msgs.msg import Marker, MarkerArray
 
+import tf2_ros
+from tf2_ros import TransformException
+
 
 # ---------------------------------------------------------------------------
 # 데이터 구조 — ROS 비의존 순수 자료형 (단위 테스트 용이)
@@ -394,6 +397,16 @@ class DwaPlannerNode(Node):
         self._global_path: Optional[Path] = None
         self._latest_scan: Optional[LaserScan] = None
         self._last_odom_time: Optional[float] = None
+        self._tf_warn_logged = False  # TF lookup 첫 실패만 WARN, 이후 throttle
+
+        # -------------------------------------------------------------------
+        # TF buffer — 2026-05-25 (SW · 페어): AMCL 통합 후 _state.x/y/theta 가
+        # odom_filtered frame 좌표라 path(map frame) 와 mixing 되어 EMERGENCY
+        # 무한 루프 발생. _control_loop 시작에서 map → base_footprint TF lookup
+        # 으로 pose 를 덮어쓴다. v/w 는 odom 그대로 사용 (frame 무관).
+        # -------------------------------------------------------------------
+        self._tf_buffer = tf2_ros.Buffer()
+        self._tf_listener = tf2_ros.TransformListener(self._tf_buffer, self)
 
         # -------------------------------------------------------------------
         # QoS — sensor data는 BEST_EFFORT, latched는 TRANSIENT_LOCAL
@@ -620,6 +633,15 @@ class DwaPlannerNode(Node):
             self._stop_robot(reason="odom_timeout")
             return
 
+        # 1.5. 2026-05-25 (SW · 페어): pose 를 map frame TF lookup 으로 갱신.
+        #      EKF /odometry/filtered 는 odom_filtered frame 좌표이므로 그대로
+        #      쓰면 path(map frame) 와 mixing 되어 lookahead/거리 계산이 어긋남.
+        #      → map → base_footprint TF 합성 좌표로 _state.{x,y,theta} 덮어쓰기.
+        #        v/w 는 odom 그대로 (frame 무관한 본체 운동량).
+        if not self._update_pose_from_tf():
+            # TF 아직 준비 안 됨 — 이 cycle skip (안전: 모르는 위치로 움직이지 않음)
+            return
+
         # 2. 전역 경로 점검
         if self._global_path is None or not self._global_path.poses:
             self._stop_robot(reason="no_global_path")
@@ -727,13 +749,11 @@ class DwaPlannerNode(Node):
     def _world_to_local(self, world_xy: Tuple[float, float]) -> Tuple[float, float]:
         """map frame의 점을 base_link 기준 좌표로.
 
-        DWA는 EKF state(map/odom_filtered frame)를 사용한다고 가정하지만,
-        실제로는 EKF가 odom_filtered frame을 발행. 두 frame은 정적 SLAM map과
-        SL-1 단계에서는 거의 일치하므로 같다고 가정 (SL-2 통합 시 TF lookup 필요).
-
-        # TODO(SL-4 후 통합): AMCL이 들어오면 map ≠ odom_filtered 가 되므로
-        #   `tf2_ros`로 (map → base_footprint) 변환을 lookup해서 정확히
-        #   계산해야 한다. 현재는 SL-1 가정에서만 정확.
+        2026-05-25 (SW · 페어): 이 함수는 self._state 가 **map frame 기준 pose**
+        를 가지고 있다고 가정한다. AMCL 통합 후 EKF /odometry/filtered 는
+        odom_filtered frame 이므로 그대로 쓰면 안 됨. _control_loop 가 매 cycle
+        시작에서 _update_pose_from_tf() 로 _state.{x,y,theta} 를 map 좌표로
+        덮어쓴 후 이 함수를 호출하는 것이 전제.
         """
         dx = world_xy[0] - self._state.x
         dy = world_xy[1] - self._state.y
@@ -742,6 +762,46 @@ class DwaPlannerNode(Node):
         local_x = cos_t * dx - sin_t * dy
         local_y = sin_t * dx + cos_t * dy
         return (local_x, local_y)
+
+    # -----------------------------------------------------------------------
+    # TF lookup — map → base_footprint 로 state pose 덮어쓰기 (2026-05-25)
+    # -----------------------------------------------------------------------
+    def _update_pose_from_tf(self) -> bool:
+        """self._state.{x, y, theta} 를 map frame 기준으로 갱신. 성공 시 True.
+
+        실패 시 (TF 아직 준비 안 됨) False 반환 → _control_loop 가 cycle skip.
+        v, w 는 본체 운동량이라 frame 무관 → 건드리지 않음.
+        """
+        if self._state is None:
+            return False
+        try:
+            t = self._tf_buffer.lookup_transform(
+                'map',
+                'base_footprint',
+                rclpy.time.Time(),
+                timeout=rclpy.duration.Duration(seconds=0.05),
+            )
+        except (TransformException, tf2_ros.LookupException,
+                tf2_ros.ExtrapolationException,
+                tf2_ros.ConnectivityException) as e:
+            if not self._tf_warn_logged:
+                self.get_logger().warn(
+                    f"map → base_footprint TF lookup 실패 (이후 throttle): {e}")
+                self._tf_warn_logged = True
+            return False
+
+        # 성공 — pose 덮어쓰기
+        self._state.x = t.transform.translation.x
+        self._state.y = t.transform.translation.y
+        q = t.transform.rotation
+        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
+        cosy_cosp = 1.0 - 2.0 * (q.y * q.y + q.z * q.z)
+        self._state.theta = math.atan2(siny_cosp, cosy_cosp)
+        # 한 번이라도 성공하면 다음 실패는 다시 WARN 한 번 (디버깅 도움)
+        if self._tf_warn_logged:
+            self.get_logger().info("map → base_footprint TF lookup 복구")
+            self._tf_warn_logged = False
+        return True
 
     # -----------------------------------------------------------------------
     # 헬퍼 — 한 번만 로그 출력 (goal 도착 같은 이벤트)

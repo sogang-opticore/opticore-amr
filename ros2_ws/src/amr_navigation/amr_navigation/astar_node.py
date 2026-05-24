@@ -127,6 +127,21 @@ class AstarPlanner(Node):
         start_cell = self._world_to_cell(start_world)
         goal_cell  = self._world_to_cell(goal_world)
 
+        # 2026-05-25 보강(SW · 페어): start 셀이 inflation/점유 영역이면 인근
+        # free 셀로 보정. 좁은 통로에서 로봇이 inflation 안쪽으로 살짝 들어가면
+        # A* 가 첫 노드부터 막혀 "경로 없음" 무한 반복 → DWA STOPPED 무한 루프.
+        # 비유: 발이 진흙에 잠긴 채로는 길 찾기 불가 → 발 먼저 자유 지반으로 옮기기.
+        if not self._is_free_cell(start_cell):
+            snapped = self._snap_to_nearest_free(start_cell)
+            if snapped is None:
+                self.get_logger().warn(
+                    f'Start {start_cell}이 점유/맵-밖이고 인근 자유공간 없음 — 빈 path')
+                self._publish_empty_path()
+                return
+            self.get_logger().info(
+                f'Start 보정: {start_cell} (점유/inflation) → {snapped} (인근 free)')
+            start_cell = snapped
+
         # 2026-05-24 보강(SW, HU 보강-1): goal 셀이 막혔으면 nearest free cell 보정.
         # 비유: 우체부가 "그 주소엔 우체통이 없네요" 라고 그냥 돌아가지 않고
         #       가장 가까운 우체통을 찾아 거기에 두는 것.
@@ -374,16 +389,21 @@ class AstarPlanner(Node):
 
     def _get_robot_position(self) -> tuple | None:
         """
-        TF lookup으로 현재 로봇 위치(map frame 기준) 반환.
+        TF lookup으로 현재 로봇 위치 **(map frame 기준)** 반환.
         실패 시 None 반환.
 
-        # 보강 필요: timeout=0.1s — 시뮬레이션 초기 TF가 느리게
-        # 올라오는 경우 실패할 수 있음. 문제 생기면 늘려볼 것.
-        기존 map → base_footprint TF lookup에서 base_footprint → map으로 변경.(대유상 그는 감히 전설이라고 할 수 있다)
+        2026-05-25 수정 (SW · 페어):
+          기존 `lookup_transform('odom_filtered', 'base_footprint', ...)` 는
+          odom_filtered frame 기준 좌표를 돌려준다. AMCL 통합 후
+          map ≠ odom_filtered 이므로 그 좌표를 map 좌표인 양 _world_to_cell()에
+          넣으면 start_cell이 엉뚱한 위치(범위 밖 또는 점유 셀)로 계산되어
+          A* 가 "경로 없음 — 빈 path" 를 반복 발행한다.
+          → target='map', source='base_footprint' 로 정정. map → odom_filtered →
+            base_footprint 체인을 TF 가 자동으로 합성해 map 기준 좌표를 돌려줌.
         """
         try:
             tf = self.tf_buffer.lookup_transform(
-                'odom_filtered',
+                'map',
                 'base_footprint',
                 rclpy.time.Time(),
                 timeout=rclpy.duration.Duration(seconds=0.1),
