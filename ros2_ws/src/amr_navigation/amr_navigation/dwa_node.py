@@ -400,8 +400,15 @@ class DwaPlannerNode(Node):
         # -------------------------------------------------------------------
         sensor_qos = QoSProfile(depth=10,
                                 reliability=QoSReliabilityPolicy.BEST_EFFORT)
-        path_qos = QoSProfile(depth=1,
-                              durability=QoSDurabilityPolicy.TRANSIENT_LOCAL)
+        # 2026-05-24 통합 패치(SW):
+        #   HU의 astar_node.py는 /global_path 를 기본 QoS(RELIABLE / VOLATILE)
+        #   로 발행한다 → README 계약(TRANSIENT_LOCAL)과 다름.
+        #   매칭 실패로 path를 못 받는 사고를 막기 위해, DWA 구독자는 일단
+        #   VOLATILE + depth=10 으로 폭 넓게 받는다 (HU 노드 출력 호환).
+        #   향후 HU 노드 QoS를 README 계약대로 TRANSIENT_LOCAL로 정정하면
+        #   이쪽도 함께 TRANSIENT_LOCAL로 다시 좁혀야 한다.
+        path_qos = QoSProfile(depth=10,
+                              reliability=QoSReliabilityPolicy.RELIABLE)
 
         # -------------------------------------------------------------------
         # 구독자
@@ -498,13 +505,42 @@ class DwaPlannerNode(Node):
             self._last_odom_time = now
 
     def _on_global_path(self, msg: Path) -> None:
+        # 2026-05-24 통합 패치(SW):
+        #   1) frame_id 검사 — README 계약상 항상 'map'.
+        #   2) 같은 path 반복 수신 시 로그 폭주 방지: poses 개수 + 마지막 점
+        #      좌표가 같으면 INFO 로그 생략(DEBUG로 강등).
+        if msg.header.frame_id and msg.header.frame_id != "map":
+            self.get_logger().warn(
+                f"/global_path frame_id={msg.header.frame_id!r} ≠ 'map' — 무시"
+            )
+            return
+
         if not msg.poses:
-            self.get_logger().warn("빈 /global_path 수신 — 정지")
+            # 빈 path = A* 계획 실패. README 계약대로 즉시 정지.
+            if self._global_path is None or self._global_path.poses:
+                self.get_logger().warn("빈 /global_path 수신 — DWA 정지 모드")
             self._global_path = msg
             return
+
+        # 중복 path 인지 확인
+        last = msg.poses[-1].pose.position
+        prev_last = None
+        if self._global_path is not None and self._global_path.poses:
+            p = self._global_path.poses[-1].pose.position
+            prev_last = (p.x, p.y, len(self._global_path.poses))
+        new_last = (last.x, last.y, len(msg.poses))
+
         self._global_path = msg
-        self.get_logger().info(
-            f"/global_path 수신 — {len(msg.poses)}개 점")
+        if prev_last != new_last:
+            self.get_logger().info(
+                f"/global_path 수신 — {len(msg.poses)}개 점, "
+                f"goal=({last.x:.2f}, {last.y:.2f})"
+            )
+            # 새 path를 받았으면 도착 1회 로그 플래그 리셋
+            if hasattr(self, "_goal_logged"):
+                self._goal_logged = False
+        else:
+            self.get_logger().debug("/global_path 갱신 (변동 없음)")
 
     def _on_scan(self, msg: LaserScan) -> None:
         self._latest_scan = msg
@@ -694,6 +730,10 @@ class DwaPlannerNode(Node):
         DWA는 EKF state(map/odom_filtered frame)를 사용한다고 가정하지만,
         실제로는 EKF가 odom_filtered frame을 발행. 두 frame은 정적 SLAM map과
         SL-1 단계에서는 거의 일치하므로 같다고 가정 (SL-2 통합 시 TF lookup 필요).
+
+        # TODO(SL-4 후 통합): AMCL이 들어오면 map ≠ odom_filtered 가 되므로
+        #   `tf2_ros`로 (map → base_footprint) 변환을 lookup해서 정확히
+        #   계산해야 한다. 현재는 SL-1 가정에서만 정확.
         """
         dx = world_xy[0] - self._state.x
         dy = world_xy[1] - self._state.y

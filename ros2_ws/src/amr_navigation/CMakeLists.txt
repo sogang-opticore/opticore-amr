@@ -40,6 +40,13 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
+# A* 노드 — HU 작업 통합 (2026-05-24): ros2 run amr_navigation astar_planner
+install(PROGRAMS
+  ${PROJECT_NAME}/astar_node.py
+  DESTINATION lib/${PROJECT_NAME}
+  RENAME astar_planner
+)
+
 # ---------------------------------------------------------------------------
 # launch / config 설치
 # ---------------------------------------------------------------------------

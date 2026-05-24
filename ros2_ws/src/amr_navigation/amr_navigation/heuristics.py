@@ -18,6 +18,21 @@ Opticore AMR — A* Global Planner 직접 구현.
     - h(n) = "여기서 목적지까지 직선으로 얼마나 멀어 보이는지" (낙관적 추정치)
     - g(n) = "여기까지 실제로 얼마나 비용 들여 왔는지" (실측치)
     - f(n) = 우선순위 큐 정렬 키 (작을수록 먼저 탐색)
+
+────────────────────────────────────────────────────────────────────────────
+2026-05-24 통합 패치 (SW)
+    HU 작업(opticore-amr-astar)의 astar_node.py가 다음 두 함수를 import한다:
+        from amr_navigation.heuristics import heuristic, movement_cost
+    SW 베이스 모듈은 더 풍부한 API(manhattan_distance / octile_distance / ...)
+    를 제공하지만, HU 노드 호환을 위해 아래 두 wrapper를 추가했다.
+        - heuristic(a, b, mode='octile')  → 단일 디스패처. HU 호출용.
+        - movement_cost(a, b)             → 점유값 미고려 단순 이동 비용.
+    이로써 같은 모듈에서 SW 단위 테스트(21건) + HU 단위 테스트(17건) 모두 통과.
+    좌표 컨벤션:
+        SW의 manhattan_distance / euclidean_distance / octile_distance 는
+        대칭 함수라 (col,row)와 (row,col) 어느 쪽으로 줘도 결과가 같다.
+        movement_cost 도 |dr|+|dc| 만 보므로 컨벤션 무관.
+────────────────────────────────────────────────────────────────────────────
 """
 
 from __future__ import annotations
@@ -113,7 +128,59 @@ def get_heuristic(name: str):
 
 
 # ---------------------------------------------------------------------------
-# 이동 비용 (g(n) 증분)
+# HU astar_node 호환 wrapper (2026-05-24 통합)
+#
+# HU 노드 시그니처:
+#     heuristic(a, b, mode='octile') -> float
+#     movement_cost(a, b)            -> float
+#
+# SW의 풍부한 API는 그대로 두고, 위 두 이름만 별도로 제공한다.
+# (SW 코드가 직접 호출하지는 않으므로, A* 노드만 영향을 받는다)
+# ---------------------------------------------------------------------------
+
+def heuristic(a: GridCoord, b: GridCoord, mode: str = "octile") -> float:
+    """단일 디스패처 — HU astar_node 호환.
+
+    내부적으로 HEURISTIC_REGISTRY 를 그대로 사용한다.
+
+    Args:
+        a, b : 셀 좌표. (row,col) / (col,row) 어느 컨벤션이든 무관(대칭).
+        mode : 'manhattan' / 'euclidean' / 'octile'.
+
+    Raises:
+        ValueError: 등록되지 않은 mode (HU 노드의 기존 예외와 동일 타입).
+    """
+    if mode not in HEURISTIC_REGISTRY:
+        raise ValueError(
+            f"알 수 없는 heuristic mode: {mode!r}. "
+            f"선택지: {list(HEURISTIC_REGISTRY.keys())}"
+        )
+    return HEURISTIC_REGISTRY[mode](a, b)
+
+
+def movement_cost(a: GridCoord, b: GridCoord) -> float:
+    """인접 셀 간 단순 이동 비용 — HU astar_node 호환.
+
+    g(n) 증분 계산용. SW의 step_cost와 달리 점유값은 받지 않으며,
+    inflation 차단은 HU 노드의 `_is_free_cell()`이 별도로 담당한다.
+
+    규칙:
+        - 같은 셀 또는 0거리: 0.0
+        - 대각 이동 (|dr|=|dc|=1): √2
+        - 그 외 (직선·과대 이동 포함): 1.0
+
+    Args:
+        a, b : 인접 셀. 컨벤션 무관(대칭).
+    """
+    dr = abs(a[0] - b[0])
+    dc = abs(a[1] - b[1])
+    if dr + dc == 0:
+        return 0.0
+    return sqrt(2.0) if (dr == 1 and dc == 1) else 1.0
+
+
+# ---------------------------------------------------------------------------
+# 이동 비용 (g(n) 증분) — SW DWA·heuristics 단위 테스트가 사용하는 풀-피처 버전
 # ---------------------------------------------------------------------------
 
 def step_cost(
