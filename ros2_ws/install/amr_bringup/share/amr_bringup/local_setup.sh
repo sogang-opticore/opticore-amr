@@ -1,1 +1,0 @@
-/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_bringup/ament_cmake_environment_hooks/local_setup.sh
