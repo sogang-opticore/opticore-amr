@@ -387,6 +387,21 @@ class DwaPlannerNode(Node):
         self.declare_parameter("scan_topic", "/lidar")
         self.declare_parameter("cmd_vel_topic", "/cmd_vel")
 
+        # 진단·안정화 옵션 (2026-05-25 추가) ─────────────────────────
+        # JUMP 감지 임계 — 한 cycle 안에 이 거리 이상 점프하면 WARN.
+        # control_rate=20Hz 면 50ms 동안 v_max*0.05 = 7.5cm 가 물리적 최대.
+        # 30cm 면 AMCL 보정/TF stale 외엔 설명 안 됨.
+        self.declare_parameter("jump_warn_threshold", 0.30)   # m
+
+        # state 로그 출력 주기 — control_rate 가 20Hz 면 1초당 한 번이 적당.
+        # 0 = 매 cycle (스팸), 0.5 = 0.5초마다, 1.0 = 1초마다.
+        self.declare_parameter("state_log_period", 1.0)       # s
+
+        # TF lookup 시점 — "latest" (rclpy.Time(0)) vs "now − delay"
+        # latest 는 가장 최근 stamp 의 TF (interpolation 안 함, 잘못된 시각 가능)
+        # delay > 0 면 그만큼 과거의 안정된 TF interpolated (stale 위험 낮음)
+        self.declare_parameter("tf_lookup_delay", 0.0)        # s, 0=latest
+
         # 파라미터 캐싱
         self._load_params()
 
@@ -398,6 +413,11 @@ class DwaPlannerNode(Node):
         self._latest_scan: Optional[LaserScan] = None
         self._last_odom_time: Optional[float] = None
         self._tf_warn_logged = False  # TF lookup 첫 실패만 WARN, 이후 throttle
+
+        # 진단용 (2026-05-25)
+        self._state_log_counter = 0     # control_rate cycle 카운터
+        self._state_logged_once = False  # 첫 cycle 의 점프(huge) 무시용
+        self._reached = False  # goal 도착 플래그 — status 에 REACHED 발행용
 
         # -------------------------------------------------------------------
         # TF buffer — 2026-05-25 (SW · 페어): AMCL 통합 후 _state.x/y/theta 가
@@ -497,6 +517,11 @@ class DwaPlannerNode(Node):
         self.p_scan_topic = gp("scan_topic").value
         self.p_cmd_vel_topic = gp("cmd_vel_topic").value
 
+        # 진단·안정화 (2026-05-25)
+        self.p_jump_warn_threshold = gp("jump_warn_threshold").value
+        self.p_state_log_period = gp("state_log_period").value
+        self.p_tf_lookup_delay = gp("tf_lookup_delay").value
+
     # -----------------------------------------------------------------------
     # 콜백
     # -----------------------------------------------------------------------
@@ -549,9 +574,10 @@ class DwaPlannerNode(Node):
                 f"/global_path 수신 — {len(msg.poses)}개 점, "
                 f"goal=({last.x:.2f}, {last.y:.2f})"
             )
-            # 새 path를 받았으면 도착 1회 로그 플래그 리셋
+            # 새 path를 받았으면 도착 1회 로그 플래그 + 도착 플래그 리셋
             if hasattr(self, "_goal_logged"):
                 self._goal_logged = False
+            self._reached = False  # 새 path → 다시 PLANNING 모드
         else:
             self.get_logger().debug("/global_path 갱신 (변동 없음)")
 
@@ -638,9 +664,35 @@ class DwaPlannerNode(Node):
         #      쓰면 path(map frame) 와 mixing 되어 lookahead/거리 계산이 어긋남.
         #      → map → base_footprint TF 합성 좌표로 _state.{x,y,theta} 덮어쓰기.
         #        v/w 는 odom 그대로 (frame 무관한 본체 운동량).
+        #
+        # 2026-05-25 진단 추가: TF lookup 전/후 pose 비교 → AMCL 점프 감지.
+        prev_x, prev_y = self._state.x, self._state.y
         if not self._update_pose_from_tf():
             # TF 아직 준비 안 됨 — 이 cycle skip (안전: 모르는 위치로 움직이지 않음)
             return
+
+        # 1.6. JUMP 감지 — 한 cycle (50ms) 안에 30cm 이상 점프는 비정상
+        #      AMCL 발산 또는 TF stale 의 결정적 단서.
+        #      비유: 한 발자국 사이에 갑자기 30cm 텔레포트하면 사람도 어지러움.
+        dx = self._state.x - prev_x
+        dy = self._state.y - prev_y
+        jump = (dx * dx + dy * dy) ** 0.5
+        if jump > self.p_jump_warn_threshold and self._state_logged_once:
+            self.get_logger().warn(
+                f"⚠ TF JUMP: dx={dx:+.2f}m dy={dy:+.2f}m total={jump:.2f}m "
+                f"(prev=({prev_x:.2f},{prev_y:.2f}) → now=({self._state.x:.2f},{self._state.y:.2f}))"
+            )
+
+        # 1.7. state 로깅 (디버그) — control_rate=20Hz 면 0.5Hz 로 throttle
+        self._state_log_counter += 1
+        if self._state_log_counter >= int(self.p_control_rate * self.p_state_log_period):
+            self._state_log_counter = 0
+            self.get_logger().info(
+                f"DWA state: ({self._state.x:.2f}, {self._state.y:.2f}, "
+                f"yaw={math.degrees(self._state.theta):.1f}°), "
+                f"v={self._state.v:.2f}, w={self._state.w:.2f}"
+            )
+        self._state_logged_once = True
 
         # 2. 전역 경로 점검
         if self._global_path is None or not self._global_path.poses:
@@ -654,8 +706,12 @@ class DwaPlannerNode(Node):
             dist_to_goal = math.hypot(gx - self._state.x, gy - self._state.y)
             if dist_to_goal < self.p_goal_tolerance:
                 self._stop_robot(reason="goal_reached")
+                self._reached = True
                 self._goal_reached_logged_once()
                 return
+            else:
+                # 도착 영역에서 벗어나면 reset — 새 plan 또는 점프 케이스
+                self._reached = False
 
         # 4. Lookahead 점 선택 — DWA가 향할 단기 목표
         lookahead = pick_lookahead_point(
@@ -771,14 +827,25 @@ class DwaPlannerNode(Node):
 
         실패 시 (TF 아직 준비 안 됨) False 반환 → _control_loop 가 cycle skip.
         v, w 는 본체 운동량이라 frame 무관 → 건드리지 않음.
+
+        2026-05-25 추가: `tf_lookup_delay` 파라미터로 lookup 시점 제어.
+          0.0  → rclpy.time.Time(0) = "최신 가용 TF" (기존 동작)
+          >0.0 → now − delay 시점의 안정된 interpolated TF (stale 위험 ↓)
         """
         if self._state is None:
             return False
+        # lookup 시점 결정
+        if self.p_tf_lookup_delay > 0.0:
+            lookup_time = self.get_clock().now() - rclpy.duration.Duration(
+                seconds=self.p_tf_lookup_delay)
+        else:
+            lookup_time = rclpy.time.Time()  # = 0, "최신 가용"
+
         try:
             t = self._tf_buffer.lookup_transform(
                 'map',
                 'base_footprint',
-                rclpy.time.Time(),
+                lookup_time,
                 timeout=rclpy.duration.Duration(seconds=0.05),
             )
         except (TransformException, tf2_ros.LookupException,
@@ -896,9 +963,16 @@ class DwaPlannerNode(Node):
         self._cmd_pub.publish(twist)
 
     def _publish_status(self) -> None:
+        """1Hz 정기 status 발행.
+
+        2026-05-25 갱신: _reached 플래그 추가로 도착 후 'PLANNING' 무한 발행 모순 해결.
+        EMERGENCY 는 _control_loop 에서 별도로 _publish_status_value() 즉시 발행.
+        """
         msg = String()
         if self._state is None:
             msg.data = "WAITING_ODOM"
+        elif self._reached:
+            msg.data = "REACHED"  # 도착 후 정지 상태
         elif self._global_path is None or not self._global_path.poses:
             msg.data = "STOPPED"
         else:
