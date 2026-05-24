@@ -22,5 +22,8 @@ __pycache__/
 # 빌드 로그
 build.log
 
+# Catkin custom files
+CATKIN_IGNORE
+session_dashboard.md
 # ros2_ws 내부 gitignore (불필요)
 ros2_ws/.gitignore
