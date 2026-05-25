@@ -196,32 +196,66 @@ def heading_score(traj_end_x: float, traj_end_y: float, traj_end_theta: float,
 def heading_score_dist(traj_end_x: float, traj_end_y: float,
                        goal_x: float, goal_y: float,
                        max_dist: float = 1.0) -> float:
-    """[2026-05-25 새 정의] trajectory 끝점이 goal 에 얼마나 가까운지 (거리 기반).
-
-    기존 heading_score (yaw 정렬도) 의 한계:
-    - trajectory 끝점 yaw 가 lookahead 방향과 정렬됐는지 평가 → 회전 trajectory 우대.
-    - lookahead 가 자기 옆 (예: ±40°) 일 때, normal DWA 가 회전+전진 trajectory 의
-      heading_score 를 1.0 가까이 평가 → 매 cycle 회전 trajectory 1등 → yaw 누적 회전.
-    - lookahead 가 path 곡선이라 매 cycle 약간 변하면, 자기 yaw 가 그것 따라
-      누적 회전 → 결국 한 바퀴 돌고 align mode 또 진입 → 진동.
-
-    새 정의: trajectory 끝점이 goal (lookahead) 에 얼마나 가까운지 (거리만).
-    yaw 정렬은 align mode 가 큰 각도일 때 별도 처리.
-
-    표준 path follower (Pure Pursuit / Stanley) 의 접근 — 위치 추종 우선.
-
-    Args:
-        traj_end_x, traj_end_y: trajectory 끝점 (base_link frame)
-        goal_x, goal_y: lookahead 점 (base_link frame)
-        max_dist: 정규화 분모 [m]. 끝점이 max_dist 이상 멀면 0.
-
-    Returns:
-        float [0, 1]. 끝점 = goal 이면 1.0, 끝점이 max_dist 이상 멀면 0.
-    """
+    """trajectory 끝점이 goal 에 얼마나 가까운지 (거리 기반)."""
     dx = goal_x - traj_end_x
     dy = goal_y - traj_end_y
     dist = math.sqrt(dx * dx + dy * dy)
     return max(0.0, 1.0 - dist / max_dist)
+
+
+def path_tangent_score(traj_end_theta: float, path_tangent_local: float) -> float:
+    """trajectory 끝점 yaw 가 path 진행 방향 (tangent) 과 정렬됐는지 [0, 1].
+
+    [2026-05-25] 회전 trajectory 누적 문제의 결정타.
+
+    문제: heading_score_dist (위치 정렬) 만으로는 trajectory 가 path 옆길로
+    빠지는 회전 trajectory 를 막을 수 없음. lookahead 위치는 비슷해도 path
+    진행 방향과 안 맞으면 다음 cycle 에 path 와 더 어긋남 → 누적 회전.
+
+    해결: trajectory 끝점 yaw 가 path 진행 방향 (tangent) 과 일치하면 1.0.
+    Pure Pursuit / Stanley controller 의 표준 heading control 항목.
+
+    Args:
+        traj_end_theta: trajectory 끝점 yaw (base_link frame)
+        path_tangent_local: path 진행 방향 (base_link frame, atan2 형식)
+
+    Returns:
+        float [0, 1]. 둘이 정렬되면 1.0, 정반대면 0.
+    """
+    diff = path_tangent_local - traj_end_theta
+    diff = math.atan2(math.sin(diff), math.cos(diff))
+    return 1.0 - abs(diff) / math.pi
+
+
+def compute_path_tangent_local(path_xy: List[Tuple[float, float]],
+                                start_idx: int,
+                                look_ahead: int,
+                                robot_x: float, robot_y: float,
+                                robot_theta: float) -> float:
+    """path 의 start_idx 점에서 look_ahead 점 앞까지의 진행 방향 (base_link frame).
+
+    Args:
+        path_xy: path 점 리스트 (odom_filtered frame, = self._path_local 좌표계)
+        start_idx: 시작 idx (보통 nearest_idx)
+        look_ahead: 몇 점 앞을 볼지 (5~10 권장)
+        robot_x, robot_y, robot_theta: robot pose (odom_filtered frame)
+
+    Returns:
+        path tangent 방향 (base_link frame, [-pi, pi])
+    """
+    if not path_xy or start_idx >= len(path_xy):
+        return 0.0
+    target_idx = min(start_idx + look_ahead, len(path_xy) - 1)
+    if target_idx <= start_idx:
+        return 0.0
+    px1, py1 = path_xy[start_idx]
+    px2, py2 = path_xy[target_idx]
+    # odom_filtered frame 진행 방향
+    path_yaw_world = math.atan2(py2 - py1, px2 - px1)
+    # base_link frame 으로 (yaw 차이)
+    diff = path_yaw_world - robot_theta
+    diff = math.atan2(math.sin(diff), math.cos(diff))
+    return diff
 
 
 def clearance_score(trajectory_xy: List[Tuple[float, float]],
@@ -400,9 +434,15 @@ class DwaPlannerNode(Node):
         self.declare_parameter("control_rate", 20.0)
 
         # 평가함수 가중치
-        self.declare_parameter("weight_heading", 0.6)
+        self.declare_parameter("weight_heading", 0.6)        # heading_score_dist (위치 정렬)
         self.declare_parameter("weight_clearance", 1.2)
         self.declare_parameter("weight_velocity", 0.2)
+        # 2026-05-25 추가: path tangent 정렬 (회전 trajectory 누적 방지)
+        # trajectory 끝점 yaw 가 path 진행 방향과 정렬되면 점수 가산.
+        # Pure Pursuit / Stanley controller 의 heading control 항목.
+        self.declare_parameter("weight_path_tangent", 0.8)
+        # path tangent 계산 시 nearest_idx 부터 몇 점 앞을 볼지
+        self.declare_parameter("path_tangent_lookahead", 10)
 
         # 추종 / 평가 보조
         self.declare_parameter("lookahead_dist", 1.0)
@@ -540,6 +580,8 @@ class DwaPlannerNode(Node):
         self.p_w_heading = gp("weight_heading").value
         self.p_w_clearance = gp("weight_clearance").value
         self.p_w_velocity = gp("weight_velocity").value
+        self.p_w_path_tangent = gp("weight_path_tangent").value
+        self.p_path_tangent_lookahead = gp("path_tangent_lookahead").value
 
         self.p_lookahead_dist = gp("lookahead_dist").value
         self.p_max_clearance = gp("max_clearance").value
@@ -951,6 +993,13 @@ class DwaPlannerNode(Node):
         # 8) 장애물 (base_link frame)
         obstacles_local = self._extract_obstacles_from_scan()
 
+        # 8.5) Path tangent (base_link frame) — Pure Pursuit / Stanley heading control
+        #      trajectory 끝점 yaw 가 이 방향과 정렬되면 path 진행 방향 따라감.
+        path_tangent_local = compute_path_tangent_local(
+            path_xy, nearest_idx, int(self.p_path_tangent_lookahead),
+            self._state.x, self._state.y, self._state.theta,
+        )
+
         # 9) 각 후보 평가
         candidates: List[Tuple[VelocityCommand, List[Tuple[float, float, float]]]] = []
         for v, w in samples:
@@ -966,14 +1015,18 @@ class DwaPlannerNode(Node):
                 continue
 
             end_x, end_y, end_theta = traj[-1]
-            # heading_score_dist: 거리 기반 (2026-05-25 회전 누적 문제 해결)
+            # heading_score_dist: 위치 정렬 (끝점이 lookahead 가까이)
             h = heading_score_dist(end_x, end_y,
                                    local_goal[0], local_goal[1],
                                    max_dist=self.p_max_clearance)
+            # path_tangent_score: 자세 정렬 (끝점 yaw 가 path 진행 방향과)
+            # → 회전 trajectory 가 path 옆길로 빠지는 것 방지
+            t = path_tangent_score(end_theta, path_tangent_local)
             c = clearance_score(traj_xy, obstacles_local, self.p_max_clearance)
             vel_s = velocity_score(v, self.p_v_max)
             score = (
                 self.p_w_heading * h
+                + self.p_w_path_tangent * t
                 + self.p_w_clearance * c
                 + self.p_w_velocity * vel_s
             )

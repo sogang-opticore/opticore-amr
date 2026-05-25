@@ -36,12 +36,21 @@ dwa_planner:
     dt: 0.1                 # s, 적분 step. 0.3/0.1 = 3 step.
     control_rate: 20.0      # Hz
 
-    # ----- 평가함수 가중치 -----
-    # clearance 가중치 1.2 — 좁은 통로에서 부드러운 회피 유도.
-    # heading 0.6 — 직진 고집 약화.
-    weight_heading: 0.6
+    # ----- 평가함수 가중치 (2026-05-25 path_tangent 추가) -----
+    # heading_score_dist: trajectory 끝점이 lookahead 에 가까운지 (위치 정렬)
+    # path_tangent_score: trajectory 끝점 yaw 가 path 진행 방향과 정렬 (자세 정렬)
+    # → Pure Pursuit / Stanley controller 의 표준 평가 분담:
+    #   위치 정렬 + 자세 정렬을 둘 다 평가해야 path 따라 안 어긋남.
+    # path_tangent 없으면 회전 trajectory 가 path 옆길로 빠지는 누적 회전 발생.
+    weight_heading: 0.6        # heading_score_dist (위치 정렬)
+    weight_path_tangent: 0.8   # path_tangent_score (자세 정렬, ↑ 큰 비중)
     weight_clearance: 1.2
     weight_velocity: 0.2
+
+    # path tangent 계산 시 nearest_idx 부터 몇 점 앞을 볼지.
+    # path 점 간격이 ~0.05m 이라 10 점 = 0.5m 정도 앞. 너무 가까우면 noise,
+    # 너무 멀면 곡선의 미래 형태 반영 안 됨.
+    path_tangent_lookahead: 10
 
     # ----- 추종 / 평가 보조 -----
     # lookahead_dist: 가까울수록 부드러운 추종 (작은 yaw 차이), 멀수록 미리 회전.
