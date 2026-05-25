@@ -40,13 +40,24 @@ dwa_planner:
                             # 로 판단 → 1.5 m/s 면 0.75m 늦은 위치 → 0.10m tolerance 로는
                             # 영원히 도착 못 함. 0.20 으로 키워 lookup_delay 와 호환.
 
-    # ----- TF lookup 보정 (2026-05-25 3차 진단 추가) -----
-    # AMCL 이 update_min_d 트리거 시에만 TF publish 함 → 정지/저속에서 TF stamp
-    # freeze (실측: age 가 1.3~4.7초 까지 폭증). DWA 가 latest TF 대신 N 초 과거의
-    # 안정된 interpolated transform 을 사용하도록 강제.
-    # 비유: 늦게 도착하는 실시간 카메라 대신, 1초 전 녹화본을 보는 것 — 영상은 안정
-    # 되지만 반응이 1초 늦음.
-    tf_lookup_delay: 0.5    # s, 0=latest. 0.5s 면 1.5m/s 로 75cm 늦은 위치 결정.
+    # ----- TF lookup 보정 (2026-05-25 3차 진단 추가, 4차 정정) -----
+    # AMCL 이 update_min_d 트리거 시에만 map→odom_filtered TF publish 함 →
+    # 그 사이 chain (map→odom_filtered→base_footprint) 의 latest stamp 는 AMCL
+    # 발행 시점에 freeze. 실측: AMCL 발행 간격 최대 ~0.6초 (lag_diag /amcl_pose n=2~3/s).
+    #
+    # 4차 정정 (2026-05-25): lookup_delay 0.5 로는 AMCL 발행 간격을 못 가려서
+    # "Lookup would require extrapolation into the future" 발생 →
+    # 1.0 으로 키워 안전 marginal 확보. (단점: 1.5 m/s 면 1.5m 늦은 위치로 결정)
+    #
+    # 비유: 늦게 발행되는 위성 신호(AMCL)를 받는데, "1초 늦은 데이터" 까지 인내심
+    # 있게 기다리면 거의 항상 안정된 신호를 받음.
+    tf_lookup_delay: 1.0    # s, 0=latest. 1.0s 면 1.5m/s 로 1.5m 늦은 위치 결정.
+
+    # ----- TF lookup timeout (2026-05-25 4차 추가) -----
+    # lookup_transform 의 timeout. 너무 짧으면 (50ms) "잠깐 발행 안 된" TF 도
+    # 즉시 실패. timeout 안에 새 TF 가 오면 사용. 이건 dwa_node.py:907 에서
+    # 하드코딩된 0.05s. 본 yaml 에서는 declare 만 — 코드 반영은 별도 PR.
+    # tf_lookup_timeout: 0.5
 
     # ----- 안전 -----
     robot_radius: 0.20         # m, URDF width 0.40 / 2 — 외곽 ↔ 중심 보정 (TR-05)
