@@ -36,20 +36,15 @@ dwa_planner:
     dt: 0.1                 # s, 적분 step. 0.3/0.1 = 3 step.
     control_rate: 20.0      # Hz
 
-    # ----- 평가함수 가중치 (2026-05-25 path_tangent 추가) -----
-    # heading_score_dist: trajectory 끝점이 lookahead 에 가까운지 (위치 정렬)
-    # path_tangent_score: trajectory 끝점 yaw 가 path 진행 방향과 정렬 (자세 정렬)
-    # → Pure Pursuit / Stanley controller 의 표준 평가 분담:
-    #   위치 정렬 + 자세 정렬을 둘 다 평가해야 path 따라 안 어긋남.
-    # path_tangent 없으면 회전 trajectory 가 path 옆길로 빠지는 누적 회전 발생.
-    weight_heading: 0.6        # heading_score_dist (위치 정렬)
-    weight_path_tangent: 0.8   # path_tangent_score (자세 정렬, ↑ 큰 비중)
+    # ----- 평가함수 가중치 (2026-05-25 회전 반경 줄이기 위해 재조정) -----
+    # weight_path_tangent 큰 비중: 회전 trajectory 가 path 진행 방향과 안 맞으면
+    # 즉시 큰 페널티 → 직진 + 미세회전 trajectory 만 선호.
+    # weight_heading 작게: 위치 정렬은 path_tangent 와 align mode 가 보장.
+    weight_heading: 0.3        # ↓ 위치 정렬 (heading_score_dist)
+    weight_path_tangent: 2.0   # ↑↑ 자세 정렬 (path_tangent_score) — 결정적
     weight_clearance: 1.2
-    weight_velocity: 0.2
+    weight_velocity: 0.3       # ↑ 직진 우대
 
-    # path tangent 계산 시 nearest_idx 부터 몇 점 앞을 볼지.
-    # path 점 간격이 ~0.05m 이라 10 점 = 0.5m 정도 앞. 너무 가까우면 noise,
-    # 너무 멀면 곡선의 미래 형태 반영 안 됨.
     path_tangent_lookahead: 10
 
     # ----- 추종 / 평가 보조 -----
@@ -62,12 +57,12 @@ dwa_planner:
     max_clearance: 1.0      # m, clearance_score 정규화 분모
     goal_tolerance: 0.20    # m, 도착 판정
 
-    # ----- In-place rotation 모드 (2026-05-25 추가) -----
-    align_angle_thresh: 1.05  # rad ≈ 60°
-    # align_kp: P 제어 gain. 클수록 빠른 회전, 클수록 overshoot.
-    # 2026-05-25 (8차) 1.5 → 1.0: 1.5 면 angle=90° 일 때 w=1.5×1.57=2.35→clamp 1.5 →
-    #   max 회전 → overshoot. 1.0 으로 부드러운 회전.
-    align_kp: 1.0
+    # ----- In-place rotation 모드 -----
+    # align_angle_thresh: 작을수록 작은 차이도 정지 회전. 큰 회전 trajectory 누적 방지.
+    # 2026-05-25 9차: 60° → 45° (π/4). 작은 각도 차이도 정지 회전 → normal DWA 의
+    #   회전 trajectory 가 누적할 기회 자체를 없앰.
+    align_angle_thresh: 0.785  # rad ≈ 45°
+    align_kp: 1.0              # P 제어 gain (부드러운 회전)
 
     # ----- 후진 / Path offset 안전장치 (2026-05-25 추가, CLAUDE.md §0.1 원칙 8) -----
     # 먼 거리 (20m+) 시나리오에서 발견된 두 문제 해결:
