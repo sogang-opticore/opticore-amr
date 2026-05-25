@@ -42,13 +42,21 @@ dwa_planner:
                             # 0.10 으로 줄여도 됨 (보수적으로 0.20 유지).
 
     # ----- In-place rotation 모드 (2026-05-25 추가) -----
-    # lookahead 의 base_link 각도가 이 값 이상이면 v=0 으로 회전만.
-    # DWA 의 1초 horizon 안에 큰 yaw 차이를 못 좁히는 문제 해결.
-    # 비유: 동쪽 보고 있는데 북쪽 가야 함 → "회전만" 한 후 출발.
-    align_angle_thresh: 1.05  # rad ≈ 60° (π/3). 더 크게(예: 1.57=90°) 하면
-                              #   회전 진입이 늦어지고, 더 작게(0.78=45°) 하면
-                              #   미세 회전도 align mode → 추종 느려짐.
-    align_kp: 1.5             # P 제어 gain. w_cmd = align_kp × angle, w_max 클램프.
+    align_angle_thresh: 1.05  # rad ≈ 60°
+    align_kp: 1.5             # P 제어 gain
+
+    # ----- 후진 / Path offset 안전장치 (2026-05-25 추가, CLAUDE.md §0.1 원칙 8) -----
+    # 먼 거리 (20m+) 시나리오에서 발견된 두 문제 해결:
+    #   (a) heading_score 가 후진 trajectory 도 만점 평가 → 모든 전진이 충돌일 때
+    #       후진이 1등 선택. allow_backward=false 로 후진 sample 자체 차단.
+    #       EMERGENCY 가 정직하게 표시되어 A* 재계획 유도.
+    #   (b) path 옆길로 한 번 빠지면 lateral error 누적 → max_path_offset 으로 정지.
+    #       표준 path follower (Pure Pursuit) 의 cross-track error 안전장치.
+    #
+    # v_min=-1.0 운영 정책은 yaml 그대로 유지. allow_backward=true 로 바꾸면
+    # 후진 sample 가능. 정밀 도킹 등 특수 시나리오 전까지 false 권장.
+    allow_backward: false
+    max_path_offset: 2.0   # m, path 와 이 이상 떨어지면 정지 + PATH_LOST status
 
     # ----- 안전 -----
     robot_radius: 0.20             # m, URDF chassis_width 0.40 / 2

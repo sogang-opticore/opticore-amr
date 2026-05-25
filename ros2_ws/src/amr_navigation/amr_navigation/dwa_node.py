@@ -376,11 +376,19 @@ class DwaPlannerNode(Node):
 
         # In-place rotation 모드 (2026-05-25 추가)
         # lookahead 의 base_link 각도가 이 값 이상 차이면 v=0, w 만으로 정렬.
-        # DWA 의 1초 horizon 안에 큰 yaw 차이 (>86° at w_max=1.5) 를 못 좁히는 문제 해결.
-        # 비유: 동쪽 보고 있는데 북쪽 가야 함 → "회전만" 한 후 출발. 회전+전진 동시는
-        #       1초 horizon 안에선 항상 부족해서 누적 오차 발생.
         self.declare_parameter("align_angle_thresh", 1.05)  # rad ≈ 60°
         self.declare_parameter("align_kp", 1.5)             # P 제어 gain
+
+        # 후진 / Path offset 안전장치 (2026-05-25 추가, CLAUDE.md §0.1 원칙 8 발동)
+        # 먼 거리 시나리오 (20m+) 에서 발견된 두 문제:
+        #   (a) heading_score 가 후진 trajectory 도 만점 평가 → 모든 전진이 충돌일 때
+        #       후진이 1등 선택 → path 옆길로 빠짐. allow_backward=false 로 후진 자체
+        #       sample 에서 제외. EMERGENCY 가 정직하게 표시되어 A* 재계획 유도.
+        #   (b) path 옆길로 한 번 빠지면 lookahead 가 멀어지고 lateral error 누적 →
+        #       max_path_offset 으로 안전 정지. 표준 path follower (Pure Pursuit) 의
+        #       cross-track error 안전장치.
+        self.declare_parameter("allow_backward", False)
+        self.declare_parameter("max_path_offset", 2.0)   # m, path 와 이 이상 떨어지면 정지
 
         # 안전
         self.declare_parameter("robot_radius", 0.20)
@@ -494,6 +502,8 @@ class DwaPlannerNode(Node):
         self.p_goal_tolerance = gp("goal_tolerance").value
         self.p_align_angle_thresh = gp("align_angle_thresh").value
         self.p_align_kp = gp("align_kp").value
+        self.p_allow_backward = gp("allow_backward").value
+        self.p_max_path_offset = gp("max_path_offset").value
 
         self.p_robot_radius = gp("robot_radius").value
         self.p_hard_collision_distance = gp("hard_collision_distance").value
@@ -796,6 +806,22 @@ class DwaPlannerNode(Node):
         nearest_idx = find_nearest_idx(
             path_xy, (self._state.x, self._state.y), self._path_progress_idx)
         self._path_progress_idx = nearest_idx   # 단조 증가 갱신
+
+        # 4.1) Path lateral offset 안전장치 (2026-05-25 추가)
+        #      자기와 nearest path 점이 max_path_offset 이상 떨어지면 정지.
+        #      Cross-track error 가 너무 커지면 무리하게 따라가지 않고 A* 재계획 유도.
+        nx, ny = path_xy[nearest_idx]
+        path_offset = math.hypot(nx - self._state.x, ny - self._state.y)
+        if path_offset > self.p_max_path_offset:
+            self._stop_robot("path_offset_too_large")
+            self._publish_status_value("PATH_LOST")
+            self.get_logger().warn(
+                f"path 와 {path_offset:.2f}m 떨어짐 (max={self.p_max_path_offset}m). "
+                f"정지. 새 goal/path 발행 필요.",
+                throttle_duration_sec=2.0
+            )
+            return
+
         lookahead = pick_lookahead_point(
             path_xy, (self._state.x, self._state.y),
             self.p_lookahead_dist, start_idx=nearest_idx)
@@ -848,9 +874,13 @@ class DwaPlannerNode(Node):
             return
 
         # 6) Dynamic Window
+        # allow_backward=False 면 v_min 을 0 으로 강제 — 후진 trajectory 자체 sample 안 함.
+        # heading_score 가 후진 trajectory 도 만점 평가하는 버그 회피.
+        # 모든 전진 trajectory 가 충돌이면 EMERGENCY 가 정직하게 표시 → A* 재계획 유도.
+        effective_v_min = self.p_v_min if self.p_allow_backward else max(self.p_v_min, 0.0)
         window = compute_dynamic_window(
             state=local_state,
-            v_max=self.p_v_max, v_min=self.p_v_min,
+            v_max=self.p_v_max, v_min=effective_v_min,
             w_max=self.p_w_max, a_max=self.p_a_max,
             alpha_max=self.p_alpha_max, dt=self.p_dt,
         )
