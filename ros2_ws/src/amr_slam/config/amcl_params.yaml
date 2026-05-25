@@ -27,23 +27,36 @@ amcl:
     alpha3: 0.2
     alpha4: 0.2
 
-    # 초기 위치 — 스폰 위치(3.0, 15.0)에 맞춤
+    # 초기 위치 — 스폰 위치(world 3.0, 15.0) 를 map frame 으로 변환
+    #
+    # 2026-05-25 (SW · 페어, DWA spiral 진단 2 차) 정정:
+    #   warehouse_map.yaml origin: [-3.09, -15.3, 0]
+    #     → map frame 원점이 world 좌표 (-3.09, -15.3) 에 위치.
+    #   map frame 좌표 = world 좌표 − origin
+    #     x = 3.0  − (−3.09) = 6.09
+    #     y = 15.0 − (−15.3) = 30.3
+    #   이전 값 (0, 0) 은 origin 부호를 빠뜨린 계산 오류였음 (3.0 − 3.09 로 잘못 계산).
+    #   AMCL 이 30 m 어긋난 곳에서 시작 → scan matching 큰 보정 → TF JUMP / lag 의 근본 원인.
     set_initial_pose: true
     initial_pose:
-      x: 0.0   # 3.0 - 3.09 ≈ 0
-      y: 0.0   # 15.0 - 15.3 ≈ 0
+      x: 6.09   # world spawn (3.0)  − map origin (-3.09)
+      y: 30.3   # world spawn (15.0) − map origin (-15.3)
       yaw: 0.0
 
     # 맵 업데이트 — 2026-05-25 (SW · 페어, DWA spiral 진단 결과) 수정
     #
-    # 진단 데이터: TF stamp age 가 이동 중 1248~3600ms 로 측정.
-    # 원인 3종:
+    # 진단 데이터: TF stamp age 가 이동 중 1248~3824ms 로 측정.
+    # 적용된 원인 2종:
     #   1) transform_tolerance: 1.0 → 옛 TF 가 1초간 valid 표시되어
     #      DWA tf_buffer.lookup_transform(Time(0)) 이 1초 묵은 transform 을 반환.
     #   2) update_min_d/a: 0.1 → 로봇이 10cm/0.1rad 움직이기 전엔 pose
     #      재추정 안 함 → 그 사이 robot 은 이동했는데 transform 은 옛 위치.
-    #   3) transform_publish_period 누락 → 일부 nav2_amcl 빌드에서 update
-    #      trigger 됐을 때만 publish. 명시적으로 20Hz 강제.
+    #
+    # 2026-05-25 정정: 이전에 transform_publish_period: 0.05 를 추가했었으나,
+    # ros2 param get 으로 "Parameter not set" 확인 — nav2_amcl (ROS2) 에는 해당
+    # 파라미터가 없음 (ROS1 amcl 유산). 무시되므로 라인 제거. nav2_amcl 의 TF
+    # publish 는 update_min_d/a 트리거 + transform_tolerance 기반 extrapolation
+    # 으로 동작.
     #
     # 비유: GPS 가 10cm 단위로만 갱신되고 위성 신호가 1초까지 유효 표시되면
     #       자율주행 차는 "1초 묵은 10cm 단위" 위치로 계산 → 매번 어긋남.
@@ -51,6 +64,5 @@ amcl:
     update_min_a: 0.05            # 0.05rad ≈ 2.9° 마다 (기존 0.1 → 더 자주)
     resample_interval: 1
     transform_tolerance: 0.1      # 100ms 만 valid (기존 1.0s → 1/10)
-    transform_publish_period: 0.05  # 20Hz publish 강제 (이전 누락 → default 가변)
     recovery_alpha_slow: 0.001
     recovery_alpha_fast: 0.1
