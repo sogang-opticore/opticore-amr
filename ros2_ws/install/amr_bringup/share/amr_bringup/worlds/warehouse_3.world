@@ -111,7 +111,7 @@
         </collision>
         <visual name="v">
           <geometry><plane><normal>0 0 1</normal><size>80 60</size></plane></geometry>
-          <material><ambient>0.32 0.31 0.29 1</ambient><diffuse>0.34 0.33 0.31 1</diffuse></material>
+          <material><ambient>0.55 0.55 0.53 1</ambient><diffuse>0.55 0.55 0.53 1</diffuse></material>
         </visual>
       </link>
     </model>
@@ -122,7 +122,7 @@
       <link name="link">
         <collision name="c"><geometry><box><size>60 0.2 3.0</size></box></geometry></collision>
         <visual name="v"><geometry><box><size>60 0.2 3.0</size></box></geometry>
-          <material><ambient>0.58 0.55 0.48 1</ambient><diffuse>0.60 0.57 0.50 1</diffuse></material>
+          <material><ambient>0.70 0.68 0.63 1</ambient><diffuse>0.70 0.68 0.63 1</diffuse></material>
       </visual></link>
     </model>
     <model name="wall_north">
@@ -130,7 +130,7 @@
       <link name="link">
         <collision name="c"><geometry><box><size>60 0.2 3.0</size></box></geometry></collision>
         <visual name="v"><geometry><box><size>60 0.2 3.0</size></box></geometry>
-          <material><ambient>0.58 0.55 0.48 1</ambient><diffuse>0.60 0.57 0.50 1</diffuse></material>
+          <material><ambient>0.70 0.68 0.63 1</ambient><diffuse>0.70 0.68 0.63 1</diffuse></material>
       </visual></link>
     </model>
     <model name="wall_west">
@@ -138,7 +138,7 @@
       <link name="link">
         <collision name="c"><geometry><box><size>0.2 40 3.0</size></box></geometry></collision>
         <visual name="v"><geometry><box><size>0.2 40 3.0</size></box></geometry>
-          <material><ambient>0.58 0.55 0.48 1</ambient><diffuse>0.60 0.57 0.50 1</diffuse></material>
+          <material><ambient>0.70 0.68 0.63 1</ambient><diffuse>0.70 0.68 0.63 1</diffuse></material>
       </visual></link>
     </model>
     <model name="wall_east">
@@ -146,7 +146,7 @@
       <link name="link">
         <collision name="c"><geometry><box><size>0.2 40 3.0</size></box></geometry></collision>
         <visual name="v"><geometry><box><size>0.2 40 3.0</size></box></geometry>
-          <material><ambient>0.58 0.55 0.48 1</ambient><diffuse>0.60 0.57 0.50 1</diffuse></material>
+          <material><ambient>0.70 0.68 0.63 1</ambient><diffuse>0.70 0.68 0.63 1</diffuse></material>
       </visual></link>
     </model>
 
@@ -249,7 +249,7 @@
       <static>true</static><pose>55 33 0.002 0 0 0</pose>
       <link name="link">
         <visual name="v"><geometry><box><size>10 12 0.002</size></box></geometry>
-          <material><ambient>0.95 0.55 0.70 0.9</ambient><diffuse>1.0 0.60 0.75 0.9</diffuse></material>
+          <material><ambient>0.55 0.15 0.15 0.9</ambient><diffuse>0.65 0.18 0.18 0.9</diffuse></material>
       </visual></link>
     </model>
     <model name="dock_east_backwall">
@@ -291,29 +291,60 @@
       <static>true</static><pose>30 33.5 0.002 0 0 0</pose>
       <link name="link">
         <visual name="v"><geometry><box><size>40 13 0.002</size></box></geometry>
-          <material><ambient>0.75 0.70 0.45 0.9</ambient><diffuse>0.80 0.75 0.48 0.9</diffuse></material>
+          <material><ambient>0.58 0.58 0.56 1</ambient><diffuse>0.60 0.60 0.58 1</diffuse></material>
       </visual></link>
     </model>
 
-    <!-- wall_corridor_south 제거 — corridor 구역 구분 벽 불필요 -->
+    <!-- ==================== MISSING WALLS FIX ==================== -->
+    <!-- Y=27 남쪽 경계: 외부벽(west/east)은 있으나 dock·corridor 남쪽 면 전체 누락 -->
 
-    <!-- ==================== EAST RACK ZONE FLOOR (X=50~60, Y=0~27) ==================== -->
-    <!-- 이 구간은 ground_plane만 있어 회색으로 보임 → 갈색 바닥 추가 -->
-    <model name="floor_east_zone">
-      <static>true</static><pose>55 13.5 0.002 0 0 0</pose>
+    <!-- 서쪽 dock 남쪽 벽 (X=0~10, Y=27) — dock_west_backwall은 X축 후면만 커버 -->
+    <model name="wall_dock_west_south">
+      <static>true</static><pose>5 27 1.25 0 0 0</pose>
       <link name="link">
-        <visual name="v"><geometry><box><size>10 27 0.002</size></box></geometry>
-          <material><ambient>0.48 0.35 0.22 0.9</ambient><diffuse>0.52 0.38 0.24 0.9</diffuse></material>
+        <collision name="c"><geometry><box><size>10 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>10 0.2 2.5</size></box></geometry>
+          <material><ambient>0.35 0.35 0.35 1</ambient><diffuse>0.40 0.40 0.40 1</diffuse></material>
       </visual></link>
     </model>
 
-    <!-- ==================== MAIN RACK ZONE FLOOR (X=10~50, Y=0~27) ==================== -->
-    <!-- rack 구역 전체 바닥 갈색 마킹 -->
-    <model name="floor_rack_zone">
-      <static>true</static><pose>30 13.5 0.002 0 0 0</pose>
+    <!-- Main Corridor 남쪽 벽 (X=10~50, Y=27) -->
+    <model name="wall_corridor_south">
+      <static>true</static><pose>30 27 1.5 0 0 0</pose>
       <link name="link">
-        <visual name="v"><geometry><box><size>40 27 0.002</size></box></geometry>
-          <material><ambient>0.45 0.33 0.20 0.9</ambient><diffuse>0.50 0.37 0.22 0.9</diffuse></material>
+        <collision name="c"><geometry><box><size>40 0.2 3.0</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>40 0.2 3.0</size></box></geometry>
+          <material><ambient>0.70 0.68 0.63 1</ambient><diffuse>0.70 0.68 0.63 1</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- 동쪽 dock 남쪽 벽 (X=50~60, Y=27) -->
+    <model name="wall_dock_east_south">
+      <static>true</static><pose>55 27 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>10 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>10 0.2 2.5</size></box></geometry>
+          <material><ambient>0.35 0.35 0.35 1</ambient><diffuse>0.40 0.40 0.40 1</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- 서쪽 dock 동측 격벽 (X=10, Y=27~40) — corridor와 dock 사이 분리 -->
+    <model name="wall_dock_west_east">
+      <static>true</static><pose>10 33.5 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.2 13 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 13 2.5</size></box></geometry>
+          <material><ambient>0.35 0.35 0.35 1</ambient><diffuse>0.40 0.40 0.40 1</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- 동쪽 dock 서측 격벽 (X=50, Y=27~40) — corridor와 dock 사이 분리 -->
+    <model name="wall_dock_east_west">
+      <static>true</static><pose>50 33.5 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.2 13 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 13 2.5</size></box></geometry>
+          <material><ambient>0.35 0.35 0.35 1</ambient><diffuse>0.40 0.40 0.40 1</diffuse></material>
       </visual></link>
     </model>
 
@@ -718,8 +749,8 @@
         <visual name="v">
           <geometry><box><size>27 40 0.2</size></box></geometry>
           <material>
-            <ambient>0.45 0.43 0.40 1</ambient>
-            <diffuse>0.47 0.45 0.42 1</diffuse>
+            <ambient>0.86 0.86 0.84 1</ambient>
+            <diffuse>0.88 0.88 0.86 1</diffuse>
           </material>
         </visual>
       </link>
@@ -733,8 +764,8 @@
         <visual name="v">
           <geometry><box><size>27 40 0.2</size></box></geometry>
           <material>
-            <ambient>0.45 0.43 0.40 1</ambient>
-            <diffuse>0.47 0.45 0.42 1</diffuse>
+            <ambient>0.86 0.86 0.84 1</ambient>
+            <diffuse>0.88 0.88 0.86 1</diffuse>
           </material>
         </visual>
       </link>
@@ -748,8 +779,8 @@
         <visual name="v">
           <geometry><box><size>6 40 0.2</size></box></geometry>
           <material>
-            <ambient>0.30 0.30 0.28 1</ambient>
-            <diffuse>0.32 0.32 0.30 1</diffuse>
+            <ambient>0.60 0.60 0.58 1</ambient>
+            <diffuse>0.62 0.62 0.60 1</diffuse>
           </material>
         </visual>
       </link>

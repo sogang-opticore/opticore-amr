@@ -111,7 +111,7 @@
         </collision>
         <visual name="v">
           <geometry><plane><normal>0 0 1</normal><size>80 60</size></plane></geometry>
-          <material><ambient>0.32 0.31 0.29 1</ambient><diffuse>0.34 0.33 0.31 1</diffuse></material>
+          <material><ambient>0.55 0.55 0.53 1</ambient><diffuse>0.55 0.55 0.53 1</diffuse></material>
         </visual>
       </link>
     </model>
@@ -122,7 +122,7 @@
       <link name="link">
         <collision name="c"><geometry><box><size>60 0.2 3.0</size></box></geometry></collision>
         <visual name="v"><geometry><box><size>60 0.2 3.0</size></box></geometry>
-          <material><ambient>0.58 0.55 0.48 1</ambient><diffuse>0.60 0.57 0.50 1</diffuse></material>
+          <material><ambient>0.70 0.68 0.63 1</ambient><diffuse>0.70 0.68 0.63 1</diffuse></material>
       </visual></link>
     </model>
     <model name="wall_north">
@@ -130,7 +130,7 @@
       <link name="link">
         <collision name="c"><geometry><box><size>60 0.2 3.0</size></box></geometry></collision>
         <visual name="v"><geometry><box><size>60 0.2 3.0</size></box></geometry>
-          <material><ambient>0.58 0.55 0.48 1</ambient><diffuse>0.60 0.57 0.50 1</diffuse></material>
+          <material><ambient>0.70 0.68 0.63 1</ambient><diffuse>0.70 0.68 0.63 1</diffuse></material>
       </visual></link>
     </model>
     <model name="wall_west">
@@ -138,7 +138,7 @@
       <link name="link">
         <collision name="c"><geometry><box><size>0.2 40 3.0</size></box></geometry></collision>
         <visual name="v"><geometry><box><size>0.2 40 3.0</size></box></geometry>
-          <material><ambient>0.58 0.55 0.48 1</ambient><diffuse>0.60 0.57 0.50 1</diffuse></material>
+          <material><ambient>0.70 0.68 0.63 1</ambient><diffuse>0.70 0.68 0.63 1</diffuse></material>
       </visual></link>
     </model>
     <model name="wall_east">
@@ -146,7 +146,7 @@
       <link name="link">
         <collision name="c"><geometry><box><size>0.2 40 3.0</size></box></geometry></collision>
         <visual name="v"><geometry><box><size>0.2 40 3.0</size></box></geometry>
-          <material><ambient>0.58 0.55 0.48 1</ambient><diffuse>0.60 0.57 0.50 1</diffuse></material>
+          <material><ambient>0.70 0.68 0.63 1</ambient><diffuse>0.70 0.68 0.63 1</diffuse></material>
       </visual></link>
     </model>
 
@@ -249,7 +249,7 @@
       <static>true</static><pose>55 33 0.002 0 0 0</pose>
       <link name="link">
         <visual name="v"><geometry><box><size>10 12 0.002</size></box></geometry>
-          <material><ambient>0.95 0.55 0.70 0.9</ambient><diffuse>1.0 0.60 0.75 0.9</diffuse></material>
+          <material><ambient>0.55 0.15 0.15 0.9</ambient><diffuse>0.65 0.18 0.18 0.9</diffuse></material>
       </visual></link>
     </model>
     <model name="dock_east_backwall">
@@ -282,38 +282,6 @@
         <collision name="c"><geometry><box><size>0.06 0.8 0.5</size></box></geometry></collision>
         <visual name="v"><geometry><box><size>0.06 0.8 0.5</size></box></geometry>
           <material><ambient>0.55 0.1 0.1 1</ambient><diffuse>0.65 0.1 0.1 1</diffuse></material>
-      </visual></link>
-    </model>
-
-    <!-- ==================== MAIN CORRIDOR FLOOR (X=10~50, Y=27~40) ==================== -->
-    <!-- loading/unloading floor는 X=0~10, X=50~60만 커버 → 가운데 바닥 마킹 누락 수정 -->
-    <model name="corridor_floor">
-      <static>true</static><pose>30 33.5 0.002 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><box><size>40 13 0.002</size></box></geometry>
-          <material><ambient>0.75 0.70 0.45 0.9</ambient><diffuse>0.80 0.75 0.48 0.9</diffuse></material>
-      </visual></link>
-    </model>
-
-    <!-- wall_corridor_south 제거 — corridor 구역 구분 벽 불필요 -->
-
-    <!-- ==================== EAST RACK ZONE FLOOR (X=50~60, Y=0~27) ==================== -->
-    <!-- 이 구간은 ground_plane만 있어 회색으로 보임 → 갈색 바닥 추가 -->
-    <model name="floor_east_zone">
-      <static>true</static><pose>55 13.5 0.002 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><box><size>10 27 0.002</size></box></geometry>
-          <material><ambient>0.48 0.35 0.22 0.9</ambient><diffuse>0.52 0.38 0.24 0.9</diffuse></material>
-      </visual></link>
-    </model>
-
-    <!-- ==================== MAIN RACK ZONE FLOOR (X=10~50, Y=0~27) ==================== -->
-    <!-- rack 구역 전체 바닥 갈색 마킹 -->
-    <model name="floor_rack_zone">
-      <static>true</static><pose>30 13.5 0.002 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><box><size>40 27 0.002</size></box></geometry>
-          <material><ambient>0.45 0.33 0.20 0.9</ambient><diffuse>0.50 0.37 0.22 0.9</diffuse></material>
       </visual></link>
     </model>
 
@@ -693,7 +661,7 @@
 
     <!-- ==================== DYNAMIC OBSTACLES ==================== -->
     <!-- 초기 스폰 위치만 설정 — 이동 경로는 dynamic_obstacle_mover.py 담당 -->
-    <!-- <include>
+    <include>
       <uri>model://standing_person</uri>
       <name>person_1</name>
       <pose>14.0 18.0 0.0 0 0 0</pose>
@@ -703,7 +671,7 @@
       <uri>model://pickup</uri>
       <name>forklift_1</name>
       <pose>10.0 30.0 0.0 0 0 0</pose>
-    </include> -->
+    </include>
 
     <!-- ==================== CEILING (60m × 40m) ==================== -->
     <!--  벽 높이 3.0m에 맞춰 천장 슬래브 Z=3.1 (두께 0.2m)            -->
@@ -718,8 +686,8 @@
         <visual name="v">
           <geometry><box><size>27 40 0.2</size></box></geometry>
           <material>
-            <ambient>0.45 0.43 0.40 1</ambient>
-            <diffuse>0.47 0.45 0.42 1</diffuse>
+            <ambient>0.86 0.86 0.84 1</ambient>
+            <diffuse>0.88 0.88 0.86 1</diffuse>
           </material>
         </visual>
       </link>
@@ -733,8 +701,8 @@
         <visual name="v">
           <geometry><box><size>27 40 0.2</size></box></geometry>
           <material>
-            <ambient>0.45 0.43 0.40 1</ambient>
-            <diffuse>0.47 0.45 0.42 1</diffuse>
+            <ambient>0.86 0.86 0.84 1</ambient>
+            <diffuse>0.88 0.88 0.86 1</diffuse>
           </material>
         </visual>
       </link>
@@ -748,8 +716,8 @@
         <visual name="v">
           <geometry><box><size>6 40 0.2</size></box></geometry>
           <material>
-            <ambient>0.30 0.30 0.28 1</ambient>
-            <diffuse>0.32 0.32 0.30 1</diffuse>
+            <ambient>0.60 0.60 0.58 1</ambient>
+            <diffuse>0.62 0.62 0.60 1</diffuse>
           </material>
         </visual>
       </link>

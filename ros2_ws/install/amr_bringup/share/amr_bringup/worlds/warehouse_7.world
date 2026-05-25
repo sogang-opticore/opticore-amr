@@ -295,25 +295,15 @@
       </visual></link>
     </model>
 
-    <!-- wall_corridor_south 제거 — corridor 구역 구분 벽 불필요 -->
-
-    <!-- ==================== EAST RACK ZONE FLOOR (X=50~60, Y=0~27) ==================== -->
-    <!-- 이 구간은 ground_plane만 있어 회색으로 보임 → 갈색 바닥 추가 -->
-    <model name="floor_east_zone">
-      <static>true</static><pose>55 13.5 0.002 0 0 0</pose>
+    <!-- ==================== CORRIDOR SOUTH WALL ==================== -->
+    <!-- Main Corridor 남쪽 벽만 유지 (X=10~50, Y=27) -->
+    <!-- dock 서쪽(X=0~10) / 동쪽(X=50~60) 진입로는 열어둠 -->
+    <model name="wall_corridor_south">
+      <static>true</static><pose>30 27 1.5 0 0 0</pose>
       <link name="link">
-        <visual name="v"><geometry><box><size>10 27 0.002</size></box></geometry>
-          <material><ambient>0.48 0.35 0.22 0.9</ambient><diffuse>0.52 0.38 0.24 0.9</diffuse></material>
-      </visual></link>
-    </model>
-
-    <!-- ==================== MAIN RACK ZONE FLOOR (X=10~50, Y=0~27) ==================== -->
-    <!-- rack 구역 전체 바닥 갈색 마킹 -->
-    <model name="floor_rack_zone">
-      <static>true</static><pose>30 13.5 0.002 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><box><size>40 27 0.002</size></box></geometry>
-          <material><ambient>0.45 0.33 0.20 0.9</ambient><diffuse>0.50 0.37 0.22 0.9</diffuse></material>
+        <collision name="c"><geometry><box><size>40 0.2 3.0</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>40 0.2 3.0</size></box></geometry>
+          <material><ambient>0.58 0.55 0.48 1</ambient><diffuse>0.60 0.57 0.50 1</diffuse></material>
       </visual></link>
     </model>
 
