@@ -7,9 +7,15 @@ astar_planner:
     # 대각 이동 허용 여부 (true = 8-connected)
     allow_diagonal: true
 
-    # inflation 반경 [m] — 로봇 폭 0.40m + 여유 0.10m
+    # inflation 반경 [m] — 로봇 폭 0.40m + 여유
     # 좁은 통로에서 경로가 막히면 줄여볼 것
-    inflation_radius: 0.30
+    #
+    # 18차 (2026-05-25, 무한 recovery loop 진단): 0.30 → 0.40
+    #   robot_radius=0.20, inflation=0.30 → 마진 0.10m. 표준은 0.15~0.20m.
+    #   마진 부족 시 A* path 가 벽 가까이 만들어져 DWA fwd_clr=0.3m 부근
+    #   stuck → backup → 같은 path → 같은 stuck 무한 반복.
+    #   0.40 = robot_radius 0.20 + 마진 0.20 (Nav2 표준).
+    inflation_radius: 0.40
 
     # 경로 스무딩: none / catmull_rom / bezier
     smoothing: "catmull_rom"

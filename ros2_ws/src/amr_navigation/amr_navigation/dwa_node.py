@@ -484,8 +484,12 @@ class DwaPlannerNode(Node):
         # 후방 clearance 체크 후 backup_duration 동안 backup_velocity 로 후진.
         # allow_backward 와 별개 (recovery 는 항상 가능).
         self.declare_parameter("stuck_recovery_sec", 1.5)   # s, stuck 판정 시간
-        self.declare_parameter("backup_velocity", -0.2)     # m/s, 후진 속도 (음수)
-        self.declare_parameter("backup_duration", 1.0)      # s, 후진 지속 시간
+        self.declare_parameter("backup_velocity", -0.25)    # m/s, 후진 속도 (음수)
+        self.declare_parameter("backup_duration", 1.5)      # s, 후진 지속 시간
+        # 18차 추가: backup 완료 후 stuck 재판정 안 하는 시간.
+        # A* 1Hz 재계획 + PP 새 path 시도 + adaptive lookahead 안정화 시간 확보.
+        # 비유: 막다른 골목 후진 후 "내비 재탐색" 기다림. 바로 또 박지 말 것.
+        self.declare_parameter("recovery_cooldown", 3.0)    # s, recovery 완료 후 cooldown
 
         # 안전
         self.declare_parameter("robot_radius", 0.20)
@@ -555,6 +559,10 @@ class DwaPlannerNode(Node):
         #   stuck 시 후방 free 면 후진 N초 → A* 재계획 자동 수신 → 새 path 재시도.
         #   0 = backup 비활성. > 0 = sim_time 기준 backup 종료 시각.
         self._backup_until = 0.0
+
+        # 18차 (무한 recovery loop 차단): backup 완료 후 stuck 재판정 안 하는 시간.
+        # A* 재계획 + PP 새 path 시도 + adaptive lookahead 안정화 시간.
+        self._recovery_cooldown_until = 0.0
 
         # ── TF buffer (path 변환에만 사용) ──────────────────────────
         self._tf_buffer = tf2_ros.Buffer()
@@ -638,6 +646,7 @@ class DwaPlannerNode(Node):
         self.p_stuck_recovery_sec = gp("stuck_recovery_sec").value
         self.p_backup_velocity = gp("backup_velocity").value
         self.p_backup_duration = gp("backup_duration").value
+        self.p_recovery_cooldown = gp("recovery_cooldown").value
         self.p_lidar_offset_x = gp("lidar_offset_x").value
         self.p_lidar_offset_y = gp("lidar_offset_y").value
 
@@ -994,8 +1003,13 @@ class DwaPlannerNode(Node):
                 # backup 만료 → 다음 cycle 부터 정상 동작
                 self._backup_until = 0.0
                 self._stuck_counter = 0
+                # 18차: cooldown 시작. 이 시간 동안 stuck 재판정 안 함 →
+                # A* 재계획 1Hz × cooldown 횟수만큼 새 path 시도 가능.
+                self._recovery_cooldown_until = (self._sec_now()
+                                                 + self.p_recovery_cooldown)
                 self.get_logger().info(
-                    "backup recovery 완료 — path 재시도 (A* 재계획 대기)"
+                    f"backup recovery 완료 — cooldown {self.p_recovery_cooldown}s "
+                    f"동안 path 재시도 (A* 재계획 대기)"
                 )
 
         # ── 2) path 검증 ───────────────────────────────────────────
@@ -1178,9 +1192,12 @@ class DwaPlannerNode(Node):
         # 16차: stuck 판정 — collision 또는 v_clear cap 으로 정지 trap
         # Pure Pursuit w=κ·v 가 v=0 이면 w=0. 회전조차 못해 무한 정지.
         # 이걸 collision 과 같은 stuck 으로 잡아 recovery 발동.
+        # 18차: recovery cooldown 중이면 stuck 판정 무시 (무한 backup loop 차단).
         is_velocity_blocked = (abs(v_cmd) < 0.02 and
                                 fwd_clear < self.p_safety_distance)
-        is_stuck = collision_imminent or is_velocity_blocked
+        in_recovery_cooldown = (self._sec_now() < self._recovery_cooldown_until)
+        is_stuck = ((collision_imminent or is_velocity_blocked)
+                    and not in_recovery_cooldown)
 
         if is_stuck:
             # 정지 명령 + status 발행

@@ -128,9 +128,14 @@ dwa_planner:
     #
     # 비유: 차가 막다른 골목에 코박았으면 운전자가 후진 후 다른 길 찾기.
     #       allow_backward 와 별개 — recovery 는 항상 가능 (안전 우선).
-    stuck_recovery_sec: 1.5   # s, stuck 판정 시간
-    backup_velocity: -0.2     # m/s, 후진 속도 (음수)
-    backup_duration: 1.0      # s, 후진 지속 시간 (= 0.2 × 1.0 ≈ 0.2m 이동)
+    stuck_recovery_sec: 1.5    # s, stuck 판정 시간
+    backup_velocity: -0.25     # m/s, 후진 속도 (음수) [18차: -0.2 → -0.25]
+    backup_duration: 1.5       # s, 후진 지속 시간 [18차: 1.0→1.5, 0.375m 이동]
+    # 18차 추가: backup 완료 후 stuck 재판정 안 하는 시간.
+    # 무한 backup loop 차단. A* 1Hz × 3회 재계획 + PP 새 path 시도 시간 확보.
+    # 이전 (17차 후): 같은 위치 backup→stuck→backup 무한 반복.
+    # 비유: 막다른 골목 후진 후 "내비 재탐색" 기다림. 바로 또 박지 말 것.
+    recovery_cooldown: 3.0     # s, recovery 후 cooldown
 
     # ----- 안전 -----
     robot_radius: 0.20             # m, URDF chassis_width 0.40 / 2
