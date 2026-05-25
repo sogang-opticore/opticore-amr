@@ -178,7 +178,11 @@ def forward_simulate(
 
 def heading_score(traj_end_x: float, traj_end_y: float, traj_end_theta: float,
                   goal_x: float, goal_y: float) -> float:
-    """trajectory 끝점에서 goal 방향 정렬도 [0, 1]."""
+    """[기존] trajectory 끝점 yaw 와 goal 방향 정렬도 [0, 1].
+
+    ⚠ DEPRECATED for DWA — test_dwa.py 호환을 위해 유지.
+    회전 trajectory 우대 → 큰 회전 누적 문제. heading_score_dist 사용 권장.
+    """
     dx = goal_x - traj_end_x
     dy = goal_y - traj_end_y
     if dx == 0.0 and dy == 0.0:
@@ -187,6 +191,37 @@ def heading_score(traj_end_x: float, traj_end_y: float, traj_end_theta: float,
     diff = angle_to_goal - traj_end_theta
     diff = math.atan2(math.sin(diff), math.cos(diff))
     return 1.0 - abs(diff) / math.pi
+
+
+def heading_score_dist(traj_end_x: float, traj_end_y: float,
+                       goal_x: float, goal_y: float,
+                       max_dist: float = 1.0) -> float:
+    """[2026-05-25 새 정의] trajectory 끝점이 goal 에 얼마나 가까운지 (거리 기반).
+
+    기존 heading_score (yaw 정렬도) 의 한계:
+    - trajectory 끝점 yaw 가 lookahead 방향과 정렬됐는지 평가 → 회전 trajectory 우대.
+    - lookahead 가 자기 옆 (예: ±40°) 일 때, normal DWA 가 회전+전진 trajectory 의
+      heading_score 를 1.0 가까이 평가 → 매 cycle 회전 trajectory 1등 → yaw 누적 회전.
+    - lookahead 가 path 곡선이라 매 cycle 약간 변하면, 자기 yaw 가 그것 따라
+      누적 회전 → 결국 한 바퀴 돌고 align mode 또 진입 → 진동.
+
+    새 정의: trajectory 끝점이 goal (lookahead) 에 얼마나 가까운지 (거리만).
+    yaw 정렬은 align mode 가 큰 각도일 때 별도 처리.
+
+    표준 path follower (Pure Pursuit / Stanley) 의 접근 — 위치 추종 우선.
+
+    Args:
+        traj_end_x, traj_end_y: trajectory 끝점 (base_link frame)
+        goal_x, goal_y: lookahead 점 (base_link frame)
+        max_dist: 정규화 분모 [m]. 끝점이 max_dist 이상 멀면 0.
+
+    Returns:
+        float [0, 1]. 끝점 = goal 이면 1.0, 끝점이 max_dist 이상 멀면 0.
+    """
+    dx = goal_x - traj_end_x
+    dy = goal_y - traj_end_y
+    dist = math.sqrt(dx * dx + dy * dy)
+    return max(0.0, 1.0 - dist / max_dist)
 
 
 def clearance_score(trajectory_xy: List[Tuple[float, float]],
@@ -931,8 +966,10 @@ class DwaPlannerNode(Node):
                 continue
 
             end_x, end_y, end_theta = traj[-1]
-            h = heading_score(end_x, end_y, end_theta,
-                              local_goal[0], local_goal[1])
+            # heading_score_dist: 거리 기반 (2026-05-25 회전 누적 문제 해결)
+            h = heading_score_dist(end_x, end_y,
+                                   local_goal[0], local_goal[1],
+                                   max_dist=self.p_max_clearance)
             c = clearance_score(traj_xy, obstacles_local, self.p_max_clearance)
             vel_s = velocity_score(v, self.p_v_max)
             score = (
@@ -994,8 +1031,9 @@ class DwaPlannerNode(Node):
             return
         self._candidate_log_counter = 0
         end_x, end_y, end_theta = best_traj[-1]
-        h_best = heading_score(end_x, end_y, end_theta,
-                               local_goal[0], local_goal[1])
+        h_best = heading_score_dist(end_x, end_y,
+                                    local_goal[0], local_goal[1],
+                                    max_dist=self.p_max_clearance)
         c_best = clearance_score(
             [(p[0], p[1]) for p in best_traj[2:]] or
             [(p[0], p[1]) for p in best_traj],
