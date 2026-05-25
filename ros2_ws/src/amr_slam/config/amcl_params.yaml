@@ -27,20 +27,23 @@ amcl:
     alpha3: 0.2
     alpha4: 0.2
 
-    # 초기 위치 — 스폰 위치(world 3.0, 15.0) 를 map frame 으로 변환
+    # 초기 위치 — SLAM 으로 만든 맵 기준 map frame 좌표
     #
-    # 2026-05-25 (SW · 페어, DWA spiral 진단 2 차) 정정:
-    #   warehouse_map.yaml origin: [-3.09, -15.3, 0]
-    #     → map frame 원점이 world 좌표 (-3.09, -15.3) 에 위치.
-    #   map frame 좌표 = world 좌표 − origin
-    #     x = 3.0  − (−3.09) = 6.09
-    #     y = 15.0 − (−15.3) = 30.3
-    #   이전 값 (0, 0) 은 origin 부호를 빠뜨린 계산 오류였음 (3.0 − 3.09 로 잘못 계산).
-    #   AMCL 이 30 m 어긋난 곳에서 시작 → scan matching 큰 보정 → TF JUMP / lag 의 근본 원인.
+    # 2026-05-25 (SW · 페어, DWA spiral 진단 3 차) 재확인:
+    #   slam_toolbox 가 매핑 시작 시점 로봇 위치를 map frame (0, 0) 으로 잡음.
+    #   매번 같은 world (3.0, 15.0) 에 스폰하면 → map frame 으로 (0, 0) 이 정답.
+    #   warehouse_map.yaml 의 origin: [-3.09, -15.3, 0] 은 매핑 결과 좌하단으로
+    #   3.09m / 15.3m 만큼 확장된 결과 (= map 픽셀 (0,0) 의 map frame 좌표).
+    #   world frame ≠ map frame — 두 frame 의 translation 차이는 매핑 시작 시
+    #   로봇 위치(world (3,15))를 map frame 원점으로 잡았기 때문에 발생.
+    #
+    #   ⚠ 한 차례 (6.09, 30.30) 으로 잘못 정정했었음 — world≠map 관계를 잘못 모델링.
+    #   그 좌표는 맵 픽셀 (911, 183) 으로 변환되는데, 맵 크기 800×600 픽셀
+    #   (40×30m / 0.05) 밖 → A* "Start 점유/맵-밖" 에러 → 본 (0, 0) 복원.
     set_initial_pose: true
     initial_pose:
-      x: 6.09   # world spawn (3.0)  − map origin (-3.09)
-      y: 30.3   # world spawn (15.0) − map origin (-15.3)
+      x: 0.0    # map frame: SLAM 시작 위치 = 스폰 위치
+      y: 0.0
       yaw: 0.0
 
     # 맵 업데이트 — 2026-05-25 (SW · 페어, DWA spiral 진단 결과) 수정
