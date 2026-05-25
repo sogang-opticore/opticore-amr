@@ -42,7 +42,7 @@ def generate_launch_description():
 
     # ── 3. Spawn robot (Gazebo 초기화 3초 대기 후) ──
     spawn_robot = TimerAction(
-        period=3.0,
+        period=8.0,
         actions=[
             Node(
                 package='ros_gz_sim',
@@ -60,7 +60,7 @@ def generate_launch_description():
 
     # ── 4. ros_gz_bridge (Gazebo + 로봇 스폰 안정화 5초 대기 후) ──
     bridge = TimerAction(
-        period=5.0,
+        period=12.0,
         actions=[
             Node(
                 package='ros_gz_bridge',

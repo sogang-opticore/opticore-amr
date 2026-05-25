@@ -285,6 +285,69 @@
       </visual></link>
     </model>
 
+    <!-- ==================== MAIN CORRIDOR FLOOR (X=10~50, Y=27~40) ==================== -->
+    <!-- loading/unloading floor는 X=0~10, X=50~60만 커버 → 가운데 바닥 마킹 누락 수정 -->
+    <model name="corridor_floor">
+      <static>true</static><pose>30 33.5 0.002 0 0 0</pose>
+      <link name="link">
+        <visual name="v"><geometry><box><size>40 13 0.002</size></box></geometry>
+          <material><ambient>0.58 0.58 0.56 1</ambient><diffuse>0.60 0.60 0.58 1</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- ==================== MISSING WALLS FIX ==================== -->
+    <!-- Y=27 남쪽 경계: 외부벽(west/east)은 있으나 dock·corridor 남쪽 면 전체 누락 -->
+
+    <!-- 서쪽 dock 남쪽 벽 (X=0~10, Y=27) — dock_west_backwall은 X축 후면만 커버 -->
+    <model name="wall_dock_west_south">
+      <static>true</static><pose>5 27 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>10 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>10 0.2 2.5</size></box></geometry>
+          <material><ambient>0.35 0.35 0.35 1</ambient><diffuse>0.40 0.40 0.40 1</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- Main Corridor 남쪽 벽 (X=10~50, Y=27) -->
+    <model name="wall_corridor_south">
+      <static>true</static><pose>30 27 1.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>40 0.2 3.0</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>40 0.2 3.0</size></box></geometry>
+          <material><ambient>0.70 0.68 0.63 1</ambient><diffuse>0.70 0.68 0.63 1</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- 동쪽 dock 남쪽 벽 (X=50~60, Y=27) -->
+    <model name="wall_dock_east_south">
+      <static>true</static><pose>55 27 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>10 0.2 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>10 0.2 2.5</size></box></geometry>
+          <material><ambient>0.35 0.35 0.35 1</ambient><diffuse>0.40 0.40 0.40 1</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- 서쪽 dock 동측 격벽 (X=10, Y=27~40) — corridor와 dock 사이 분리 -->
+    <model name="wall_dock_west_east">
+      <static>true</static><pose>10 33.5 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.2 13 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 13 2.5</size></box></geometry>
+          <material><ambient>0.35 0.35 0.35 1</ambient><diffuse>0.40 0.40 0.40 1</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- 동쪽 dock 서측 격벽 (X=50, Y=27~40) — corridor와 dock 사이 분리 -->
+    <model name="wall_dock_east_west">
+      <static>true</static><pose>50 33.5 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.2 13 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 13 2.5</size></box></geometry>
+          <material><ambient>0.35 0.35 0.35 1</ambient><diffuse>0.40 0.40 0.40 1</diffuse></material>
+      </visual></link>
+    </model>
+
     <!-- ==================== STORAGE RACKS (3 Row × 7 Col) ==================== -->
     <!-- Col X: 11,18,25,32,39,46,53 (pitch 7m, 선반 5m×1m×2.5m) -->
     <!-- Row A y=21, Row B y=15, Row C y=9                          -->
@@ -661,7 +724,7 @@
 
     <!-- ==================== DYNAMIC OBSTACLES ==================== -->
     <!-- 초기 스폰 위치만 설정 — 이동 경로는 dynamic_obstacle_mover.py 담당 -->
-    <include>
+    <!-- <include>
       <uri>model://standing_person</uri>
       <name>person_1</name>
       <pose>14.0 18.0 0.0 0 0 0</pose>
@@ -671,7 +734,7 @@
       <uri>model://pickup</uri>
       <name>forklift_1</name>
       <pose>10.0 30.0 0.0 0 0 0</pose>
-    </include>
+    </include> -->
 
     <!-- ==================== CEILING (60m × 40m) ==================== -->
     <!--  벽 높이 3.0m에 맞춰 천장 슬래브 Z=3.1 (두께 0.2m)            -->

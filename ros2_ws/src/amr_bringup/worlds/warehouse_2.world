@@ -673,55 +673,5 @@
       <pose>10.0 30.0 0.0 0 0 0</pose>
     </include>
 
-    <!-- ==================== CEILING (60m × 40m) ==================== -->
-    <!--  벽 높이 3.0m에 맞춰 천장 슬래브 Z=3.1 (두께 0.2m)            -->
-    <!--  collision 없음 — LiDAR 간섭 방지, AMR 동작에 영향 없음        -->
-    <!--  X방향 3패널 + 중앙 조명 슬롯으로 분할                         -->
-
-    <!-- 서측 패널 (X=0~27) -->
-    <model name="ceiling_west">
-      <static>true</static>
-      <pose>13.5 20 3.1 0 0 0</pose>
-      <link name="link">
-        <visual name="v">
-          <geometry><box><size>27 40 0.2</size></box></geometry>
-          <material>
-            <ambient>0.86 0.86 0.84 1</ambient>
-            <diffuse>0.88 0.88 0.86 1</diffuse>
-          </material>
-        </visual>
-      </link>
-    </model>
-
-    <!-- 동측 패널 (X=33~60) -->
-    <model name="ceiling_east">
-      <static>true</static>
-      <pose>46.5 20 3.1 0 0 0</pose>
-      <link name="link">
-        <visual name="v">
-          <geometry><box><size>27 40 0.2</size></box></geometry>
-          <material>
-            <ambient>0.86 0.86 0.84 1</ambient>
-            <diffuse>0.88 0.88 0.86 1</diffuse>
-          </material>
-        </visual>
-      </link>
-    </model>
-
-    <!-- 중앙 조명 슬롯 (X=27~33) — 약간 어두운 색으로 조명 홈 표현 -->
-    <model name="ceiling_light_slot">
-      <static>true</static>
-      <pose>30 20 3.1 0 0 0</pose>
-      <link name="link">
-        <visual name="v">
-          <geometry><box><size>6 40 0.2</size></box></geometry>
-          <material>
-            <ambient>0.60 0.60 0.58 1</ambient>
-            <diffuse>0.62 0.62 0.60 1</diffuse>
-          </material>
-        </visual>
-      </link>
-    </model>
-
   </world>
 </sdf>

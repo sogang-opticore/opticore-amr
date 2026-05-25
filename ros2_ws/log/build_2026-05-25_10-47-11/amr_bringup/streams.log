@@ -1,0 +1,21 @@
+[0.100s] Invoking command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_bringup': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_bringup -- -j10 -l10
+[0.601s] Invoked command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_bringup' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_bringup -- -j10 -l10
+[0.650s] Invoking command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_bringup': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_bringup
+[0.707s] -- Install configuration: ""
+[0.754s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//urdf
+[0.770s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//worlds
+[0.777s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//worlds/warehouse_1.world
+[0.780s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//launch
+[0.783s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//launch/__pycache__
+[0.786s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//launch/__pycache__/warehouse.launch.cpython-310.pyc
+[0.788s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//config
+[0.793s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//config/install
+[0.795s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//config/log
+[0.797s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//config/log/build_2026-04-29_07-42-02
+[0.799s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//config/log/latest_build
+[0.821s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//config/log/latest
+[0.823s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//config/log/build_2026-04-29_07-39-30
+[0.837s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup//maps
+[0.838s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_bringup/lib/amr_bringup/dynamic_obstacle_mover.py
+[0.846s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_bringup/share/amr_bringup/package.dsv
+[0.945s] Invoked command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_bringup' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_bringup

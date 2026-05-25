@@ -1,0 +1,28 @@
+[0.336s] Invoking command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_slam': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_slam -- -j10 -l10
+[0.559s] Invoked command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_slam' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --build /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_slam -- -j10 -l10
+[0.563s] Invoking command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_slam': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_slam
+[0.609s] -- Install configuration: ""
+[0.613s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/lib/amr_slam/odom_covariance_injector.py
+[0.613s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/lib/amr_slam/imu_covariance_injector.py
+[0.614s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/config
+[0.615s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/config/amcl_params.yaml
+[0.616s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/config/.gitkeep
+[0.616s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/config/slam_params.yaml
+[0.617s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/launch
+[0.618s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/launch/.gitkeep
+[0.618s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/launch/slam.launch.py
+[0.619s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/launch/localization.launch.py
+[0.620s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/ament_index/resource_index/package_run_dependencies/amr_slam
+[0.620s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/ament_index/resource_index/parent_prefix_path/amr_slam
+[0.621s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/environment/ament_prefix_path.dsv
+[0.622s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/environment/path.dsv
+[0.622s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.bash
+[0.622s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.sh
+[0.623s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.zsh
+[0.623s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/local_setup.dsv
+[0.624s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.dsv
+[0.632s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/ament_index/resource_index/packages/amr_slam
+[0.633s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/cmake/amr_slamConfig.cmake
+[0.633s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/cmake/amr_slamConfig-version.cmake
+[0.634s] -- Up-to-date: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_slam/share/amr_slam/package.xml
+[0.641s] Invoked command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_slam' returned '0': CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}:/ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_perception:/opt/ros/humble /usr/bin/cmake --install /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_slam
