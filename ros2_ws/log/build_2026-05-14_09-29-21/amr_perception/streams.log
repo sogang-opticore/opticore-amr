@@ -1,0 +1,34 @@
+[1.008s] Invoking command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/src/amr_perception': PYTHONPATH=/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_perception/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/amr_perception build --build-base /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_perception/build install --record /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_perception/install.log --single-version-externally-managed install_data
+[1.265s] running egg_info
+[1.267s] creating ../../build/amr_perception/amr_perception.egg-info
+[1.267s] writing ../../build/amr_perception/amr_perception.egg-info/PKG-INFO
+[1.268s] writing dependency_links to ../../build/amr_perception/amr_perception.egg-info/dependency_links.txt
+[1.269s] writing entry points to ../../build/amr_perception/amr_perception.egg-info/entry_points.txt
+[1.270s] writing requirements to ../../build/amr_perception/amr_perception.egg-info/requires.txt
+[1.271s] writing top-level names to ../../build/amr_perception/amr_perception.egg-info/top_level.txt
+[1.272s] writing manifest file '../../build/amr_perception/amr_perception.egg-info/SOURCES.txt'
+[1.277s] reading manifest file '../../build/amr_perception/amr_perception.egg-info/SOURCES.txt'
+[1.279s] writing manifest file '../../build/amr_perception/amr_perception.egg-info/SOURCES.txt'
+[1.280s] running build
+[1.282s] running build_py
+[1.283s] creating /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_perception/build
+[1.284s] creating /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_perception/build/lib
+[1.284s] creating /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_perception/build/lib/amr_perception
+[1.285s] copying amr_perception/object_tracker.py -> /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_perception/build/lib/amr_perception
+[1.286s] copying amr_perception/__init__.py -> /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_perception/build/lib/amr_perception
+[1.288s] copying amr_perception/yolo_detector.py -> /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_perception/build/lib/amr_perception
+[1.290s] running install
+[1.291s] running install_lib
+[1.299s] creating /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages/amr_perception
+[1.302s] copying /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_perception/build/lib/amr_perception/object_tracker.py -> /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages/amr_perception
+[1.304s] copying /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_perception/build/lib/amr_perception/__init__.py -> /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages/amr_perception
+[1.307s] copying /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_perception/build/lib/amr_perception/yolo_detector.py -> /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages/amr_perception
+[1.311s] byte-compiling /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages/amr_perception/object_tracker.py to object_tracker.cpython-310.pyc
+[1.316s] byte-compiling /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages/amr_perception/__init__.py to __init__.cpython-310.pyc
+[1.318s] byte-compiling /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages/amr_perception/yolo_detector.py to yolo_detector.cpython-310.pyc
+[1.320s] running install_data
+[1.321s] running install_egg_info
+[1.326s] Copying ../../build/amr_perception/amr_perception.egg-info to /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages/amr_perception-0.0.0-py3.10.egg-info
+[1.335s] running install_scripts
+[1.359s] writing list of installed files to '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_perception/install.log'
+[1.385s] Invoked command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/src/amr_perception' returned '0': PYTHONPATH=/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_perception/prefix_override:/usr/lib/python3/dist-packages/colcon_core/task/python/colcon_distutils_commands:/ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_perception/lib/python3.10/site-packages:${PYTHONPATH} /usr/bin/python3 -W ignore:setup.py install is deprecated -W ignore:easy_install command is deprecated setup.py egg_info --egg-base ../../build/amr_perception build --build-base /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_perception/build install --record /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_perception/install.log --single-version-externally-managed install_data

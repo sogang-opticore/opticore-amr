@@ -1,0 +1,66 @@
+[0.091s] Invoking command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_navigation': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /ros2_ws/opticore-amr/opticore-amr/ros2_ws/src/amr_navigation -DCMAKE_INSTALL_PREFIX=/ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_navigation
+[0.594s] -- The C compiler identification is GNU 11.4.0
+[1.128s] -- The CXX compiler identification is GNU 11.4.0
+[1.178s] -- Detecting C compiler ABI info
+[1.739s] -- Detecting C compiler ABI info - done
+[1.765s] -- Check for working C compiler: /usr/bin/cc - skipped
+[1.766s] -- Detecting C compile features
+[1.767s] -- Detecting C compile features - done
+[1.782s] -- Detecting CXX compiler ABI info
+[2.419s] -- Detecting CXX compiler ABI info - done
+[2.450s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[2.451s] -- Detecting CXX compile features
+[2.452s] -- Detecting CXX compile features - done
+[2.461s] -- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)
+[3.215s] -- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+[3.502s] -- Found rclcpp: 16.0.19 (/opt/ros/humble/share/rclcpp/cmake)
+[3.550s] -- Found rosidl_generator_c: 3.1.8 (/opt/ros/humble/share/rosidl_generator_c/cmake)
+[3.555s] -- Found rosidl_adapter: 3.1.8 (/opt/ros/humble/share/rosidl_adapter/cmake)
+[3.561s] -- Found rosidl_generator_cpp: 3.1.8 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)
+[3.576s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[3.603s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[3.646s] -- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)
+[3.649s] -- Found rmw_fastrtps_cpp: 6.2.10 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)
+[4.199s] -- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.2")  
+[4.303s] -- Found FastRTPS: /opt/ros/humble/include  
+[4.455s] -- Using RMW implementation 'rmw_fastrtps_cpp' as default
+[4.524s] -- Looking for pthread.h
+[5.271s] -- Looking for pthread.h - found
+[5.272s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+[5.831s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+[5.833s] -- Found Threads: TRUE  
+[5.891s] -- Found nav_msgs: 4.9.1 (/opt/ros/humble/share/nav_msgs/cmake)
+[5.920s] -- Found sensor_msgs: 4.9.1 (/opt/ros/humble/share/sensor_msgs/cmake)
+[5.934s] -- Found tf2_ros: 0.25.20 (/opt/ros/humble/share/tf2_ros/cmake)
+[6.011s] -- Found ament_lint_auto: 0.12.15 (/opt/ros/humble/share/ament_lint_auto/cmake)
+[6.243s] -- Added test 'cppcheck' to perform static code analysis on C / C++ code
+[6.244s] -- Configured cppcheck include dirs: 
+[6.246s] -- Configured cppcheck exclude dirs and/or files: 
+[6.251s] -- Added test 'lint_cmake' to check CMake code style
+[6.276s] -- Added test 'uncrustify' to check C / C++ code style
+[6.277s] -- Configured uncrustify additional arguments: 
+[6.278s] -- Added test 'xmllint' to check XML markup files
+[6.291s] -- Configuring done
+[6.330s] -- Generating done
+[6.363s] -- Build files have been written to: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_navigation
+[6.371s] Invoked command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_navigation' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /ros2_ws/opticore-amr/opticore-amr/ros2_ws/src/amr_navigation -DCMAKE_INSTALL_PREFIX=/ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_navigation
+[6.378s] Invoking command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_navigation': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_navigation -- -j10 -l10
+[6.633s] Invoked command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_navigation' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_navigation -- -j10 -l10
+[6.643s] Invoking command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_navigation': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_navigation
+[6.697s] -- Install configuration: ""
+[6.699s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_navigation/share/ament_index/resource_index/package_run_dependencies/amr_navigation
+[6.701s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_navigation/share/ament_index/resource_index/parent_prefix_path/amr_navigation
+[6.702s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/environment/ament_prefix_path.sh
+[6.703s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/environment/ament_prefix_path.dsv
+[6.704s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/environment/path.sh
+[6.706s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/environment/path.dsv
+[6.707s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/local_setup.bash
+[6.708s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/local_setup.sh
+[6.709s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/local_setup.zsh
+[6.711s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/local_setup.dsv
+[6.712s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/package.dsv
+[6.713s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_navigation/share/ament_index/resource_index/packages/amr_navigation
+[6.714s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/cmake/amr_navigationConfig.cmake
+[6.714s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/cmake/amr_navigationConfig-version.cmake
+[6.715s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_navigation/share/amr_navigation/package.xml
+[6.722s] Invoked command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_navigation' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_navigation

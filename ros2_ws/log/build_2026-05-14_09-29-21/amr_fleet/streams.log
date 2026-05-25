@@ -1,0 +1,60 @@
+[0.059s] Invoking command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_fleet': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /ros2_ws/opticore-amr/opticore-amr/ros2_ws/src/amr_fleet -DCMAKE_INSTALL_PREFIX=/ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet
+[0.553s] -- The C compiler identification is GNU 11.4.0
+[1.143s] -- The CXX compiler identification is GNU 11.4.0
+[1.184s] -- Detecting C compiler ABI info
+[1.785s] -- Detecting C compiler ABI info - done
+[1.815s] -- Check for working C compiler: /usr/bin/cc - skipped
+[1.816s] -- Detecting C compile features
+[1.817s] -- Detecting C compile features - done
+[1.826s] -- Detecting CXX compiler ABI info
+[2.487s] -- Detecting CXX compiler ABI info - done
+[2.513s] -- Check for working CXX compiler: /usr/bin/c++ - skipped
+[2.514s] -- Detecting CXX compile features
+[2.516s] -- Detecting CXX compile features - done
+[2.532s] -- Found ament_cmake: 1.3.14 (/opt/ros/humble/share/ament_cmake/cmake)
+[3.231s] -- Found Python3: /usr/bin/python3 (found version "3.10.12") found components: Interpreter 
+[3.555s] -- Found rclcpp: 16.0.19 (/opt/ros/humble/share/rclcpp/cmake)
+[3.601s] -- Found rosidl_generator_c: 3.1.8 (/opt/ros/humble/share/rosidl_generator_c/cmake)
+[3.608s] -- Found rosidl_adapter: 3.1.8 (/opt/ros/humble/share/rosidl_adapter/cmake)
+[3.613s] -- Found rosidl_generator_cpp: 3.1.8 (/opt/ros/humble/share/rosidl_generator_cpp/cmake)
+[3.627s] -- Using all available rosidl_typesupport_c: rosidl_typesupport_fastrtps_c;rosidl_typesupport_introspection_c
+[3.646s] -- Using all available rosidl_typesupport_cpp: rosidl_typesupport_fastrtps_cpp;rosidl_typesupport_introspection_cpp
+[3.678s] -- Found rmw_implementation_cmake: 6.1.2 (/opt/ros/humble/share/rmw_implementation_cmake/cmake)
+[3.680s] -- Found rmw_fastrtps_cpp: 6.2.10 (/opt/ros/humble/share/rmw_fastrtps_cpp/cmake)
+[4.232s] -- Found OpenSSL: /usr/lib/x86_64-linux-gnu/libcrypto.so (found version "3.0.2")  
+[4.320s] -- Found FastRTPS: /opt/ros/humble/include  
+[4.552s] -- Using RMW implementation 'rmw_fastrtps_cpp' as default
+[4.574s] -- Looking for pthread.h
+[5.339s] -- Looking for pthread.h - found
+[5.340s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+[5.894s] -- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+[5.896s] -- Found Threads: TRUE  
+[5.948s] -- Found geometry_msgs: 4.9.1 (/opt/ros/humble/share/geometry_msgs/cmake)
+[5.963s] -- Found nav_msgs: 4.9.1 (/opt/ros/humble/share/nav_msgs/cmake)
+[5.981s] -- Found ament_lint_auto: 0.12.15 (/opt/ros/humble/share/ament_lint_auto/cmake)
+[6.165s] -- Added test 'lint_cmake' to check CMake code style
+[6.172s] -- Added test 'xmllint' to check XML markup files
+[6.185s] -- Configuring done
+[6.260s] -- Generating done
+[6.295s] -- Build files have been written to: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_fleet
+[6.305s] Invoked command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_fleet' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake /ros2_ws/opticore-amr/opticore-amr/ros2_ws/src/amr_fleet -DCMAKE_INSTALL_PREFIX=/ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet
+[6.312s] Invoking command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_fleet': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_fleet -- -j10 -l10
+[6.564s] Invoked command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_fleet' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --build /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_fleet -- -j10 -l10
+[6.581s] Invoking command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_fleet': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_fleet
+[6.623s] -- Install configuration: ""
+[6.625s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/ament_index/resource_index/package_run_dependencies/amr_fleet
+[6.630s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/ament_index/resource_index/parent_prefix_path/amr_fleet
+[6.633s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/environment/ament_prefix_path.sh
+[6.635s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/environment/ament_prefix_path.dsv
+[6.639s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/environment/path.sh
+[6.651s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/environment/path.dsv
+[6.652s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/local_setup.bash
+[6.653s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/local_setup.sh
+[6.654s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/local_setup.zsh
+[6.655s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/local_setup.dsv
+[6.657s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/package.dsv
+[6.664s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/ament_index/resource_index/packages/amr_fleet
+[6.665s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/cmake/amr_fleetConfig.cmake
+[6.666s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/cmake/amr_fleetConfig-version.cmake
+[6.668s] -- Installing: /ros2_ws/opticore-amr/opticore-amr/ros2_ws/install/amr_fleet/share/amr_fleet/package.xml
+[6.676s] Invoked command in '/ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_fleet' returned '0': CMAKE_PREFIX_PATH=/opt/ros/humble /usr/bin/cmake --install /ros2_ws/opticore-amr/opticore-amr/ros2_ws/build/amr_fleet
