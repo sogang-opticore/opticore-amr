@@ -449,10 +449,13 @@ class DwaPlannerNode(Node):
         self.declare_parameter("max_clearance", 1.0)
         self.declare_parameter("goal_tolerance", 0.20)
 
-        # In-place rotation 모드 (2026-05-25 추가)
+        # In-place rotation 모드 (2026-05-25 추가, 11차 PD 제어로 진화)
         # lookahead 의 base_link 각도가 이 값 이상 차이면 v=0, w 만으로 정렬.
+        # P 제어만 쓰면 overshoot (회전 관성으로 lookahead 지나침 → 반대 회전 → 진동).
+        # PD 제어 (P × angle - D × w_current) 로 critical damping 달성.
         self.declare_parameter("align_angle_thresh", 1.05)  # rad ≈ 60°
         self.declare_parameter("align_kp", 1.5)             # P 제어 gain
+        self.declare_parameter("align_kd", 0.5)             # D 제어 gain (관성 잡기)
 
         # 후진 / Path offset 안전장치 (2026-05-25 추가, CLAUDE.md §0.1 원칙 8 발동)
         # 먼 거리 시나리오 (20m+) 에서 발견된 두 문제:
@@ -588,6 +591,7 @@ class DwaPlannerNode(Node):
         self.p_goal_tolerance = gp("goal_tolerance").value
         self.p_align_angle_thresh = gp("align_angle_thresh").value
         self.p_align_kp = gp("align_kp").value
+        self.p_align_kd = gp("align_kd").value
         self.p_allow_backward = gp("allow_backward").value
         self.p_max_path_offset = gp("max_path_offset").value
         self.p_lidar_offset_x = gp("lidar_offset_x").value
@@ -946,7 +950,12 @@ class DwaPlannerNode(Node):
         align_safe_dist = self.p_goal_tolerance * 1.5
         if dist_to_goal > align_safe_dist and \
            abs(local_goal_angle) > self.p_align_angle_thresh:
-            w_cmd = self.p_align_kp * local_goal_angle
+            # PD 제어 (2026-05-25 11차): P × angle - D × w_current
+            # P 항만 쓰면 overshoot (회전 관성). D 항이 자기 현재 w 에 비례한 brake.
+            # angle 작아질수록 P 항 줄고 D 항이 상대적으로 강해져 자연스러운 감속.
+            # 비유: 운전대 돌릴 때 각도 만큼 (P) + 이미 돌고 있는 속도 만큼 (D) 잡아주기.
+            w_cmd = (self.p_align_kp * local_goal_angle
+                     - self.p_align_kd * self._state.w)
             # w_max 클램프
             w_cmd = max(-self.p_w_max, min(self.p_w_max, w_cmd))
             # 가속도 한계 (이전 w 에서 alpha_max * dt 만큼만 변경 가능)

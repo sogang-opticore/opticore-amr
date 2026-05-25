@@ -57,12 +57,14 @@ dwa_planner:
     max_clearance: 1.0      # m, clearance_score 정규화 분모
     goal_tolerance: 0.20    # m, 도착 판정
 
-    # ----- In-place rotation 모드 -----
-    # align_angle_thresh: 작을수록 작은 차이도 정지 회전. 큰 회전 trajectory 누적 방지.
-    # 2026-05-25 9차: 60° → 45° (π/4). 작은 각도 차이도 정지 회전 → normal DWA 의
-    #   회전 trajectory 가 누적할 기회 자체를 없앰.
+    # ----- In-place rotation 모드 (PD 제어, 2026-05-25 11차) -----
+    # P 제어만으로 overshoot 발생 (회전 관성으로 lookahead 통과 → 반대 회전 → 진동).
+    # PD 제어: w_cmd = P × angle - D × w_current
+    #   D 항은 자기 현재 회전 속도에 비례한 brake. angle 작아질수록 D 가 P 를 이김.
+    # 비유: 운전대 각도(P) + 손으로 잡아주기(D). 손이 없으면 관성으로 못 멈춤.
     align_angle_thresh: 0.785  # rad ≈ 45°
-    align_kp: 1.0              # P 제어 gain (부드러운 회전)
+    align_kp: 1.5              # P gain. PD 면 더 적극적이어도 OK (D 가 damping).
+    align_kd: 0.5              # D gain. 0.3~0.7 권장. 너무 크면 sluggish.
 
     # ----- 후진 / Path offset 안전장치 (2026-05-25 추가, CLAUDE.md §0.1 원칙 8) -----
     # 먼 거리 (20m+) 시나리오에서 발견된 두 문제 해결:
