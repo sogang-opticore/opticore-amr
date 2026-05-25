@@ -19,5 +19,12 @@ astar_planner:
     # (예: Loading zone (3,15)이 맵 가장자리라 BLOCK → 인근 (3,14.5)로 자동 이동)
     goal_snap_radius: 0.6
 
+    # 2026-05-25 추가 (SW · 페어, DWA stuck/벗어남 자동 복구):
+    # 주기적 재계획 — 로봇이 path 벗어났을 때 현재 위치에서 goal 까지 새 path.
+    # 0 = 비활성 (goal 받을 때만 1회), 1.0 = 1초마다 자동 재계획.
+    # 표준 Nav2 의 controller_server 가 1Hz 정도 replan 하는 것과 동일.
+    # 비유: GPS 가 한 번만 길 안내 안 하고, 잘못 빠지면 "재탐색" 자동 수행.
+    replan_period: 1.0
+
     # 시뮬레이션 시간 사용 (Ignition Gazebo 필수)
     use_sim_time: true

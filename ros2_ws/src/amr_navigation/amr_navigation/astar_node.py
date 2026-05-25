@@ -36,13 +36,19 @@ class AstarPlanner(Node):
         #   goal 셀이 inflation/점유로 막혔을 때 nearest free cell로 자동 보정.
         #   BFS 반경 [cell] = goal_snap_radius / resolution.
         self.declare_parameter('goal_snap_radius', 0.6)   # m, 0 이면 비활성
-        # self.declare_parameter('use_sim_time', True)
+
+        # 2026-05-25 추가 (SW · 페어, DWA stuck/벗어남 문제 해결):
+        # 주기적 재계획 — 로봇이 path 벗어났을 때 현재 위치에서 goal 까지 새 path.
+        # 0 = 비활성 (goal 받을 때만 1회), >0 = 그 주기로 자동 재계획.
+        # 비유: GPS 내비가 한 번만 길 안내하지 않고, 잘못 빠지면 "재탐색" 하는 것.
+        self.declare_parameter('replan_period', 1.0)   # s, 0=비활성
 
         self.heuristic_type   = self.get_parameter('heuristic').value
         self.allow_diagonal   = self.get_parameter('allow_diagonal').value
         self.inflation_radius = self.get_parameter('inflation_radius').value
         self.smoothing        = self.get_parameter('smoothing').value
         self.goal_snap_radius = self.get_parameter('goal_snap_radius').value
+        self.replan_period    = self.get_parameter('replan_period').value
 
         # ── 내부 상태 ──────────────────────────────────────────────
         self.map_data: OccupancyGrid | None = None
@@ -73,7 +79,40 @@ class AstarPlanner(Node):
         # ── 발행 ───────────────────────────────────────────────────
         self.path_pub = self.create_publisher(Path, '/global_path', 10)
 
+        # ── 주기적 재계획 타이머 (2026-05-25 추가) ─────────────────
+        # replan_period > 0 이면 그 주기로 _plan() 자동 호출. goal 이 있을 때만 동작.
+        if self.replan_period > 0.0:
+            self.create_timer(self.replan_period, self._replan_timer)
+            self.get_logger().info(
+                f'AstarPlanner 주기적 재계획 활성 — {self.replan_period}s 마다')
+
         self.get_logger().info('AstarPlanner 노드 시작 — 맵과 goal 대기 중')
+
+    # ══════════════════════════════════════════════════════════════
+    # 주기적 재계획 (2026-05-25 추가)
+    # ══════════════════════════════════════════════════════════════
+    def _replan_timer(self):
+        """주기적 재계획 — DWA stuck / path 벗어남 자동 복구.
+
+        조건:
+            (1) goal 없음 / 맵 없음 → skip
+            (2) 자기 위치가 goal 근처 (0.30m) → skip (DWA REACHED 상태 유지)
+            (3) 그 외 → _plan() 호출 (= 새 path 발행)
+        """
+        if self.goal is None or self.map_data is None:
+            return
+
+        # 자기 위치가 goal 근처면 replan skip — DWA 의 REACHED 상태 보존.
+        # 그렇지 않으면 새 path 가 self._reached 를 False 로 리셋하고 다시 추종 시작.
+        start_world = self._get_robot_position()
+        if start_world is not None:
+            gx = self.goal.pose.position.x
+            gy = self.goal.pose.position.y
+            dist_to_goal = math.hypot(gx - start_world[0], gy - start_world[1])
+            if dist_to_goal < 0.30:   # DWA goal_tolerance(0.20) + 마진
+                return
+
+        self._plan()
 
     # ══════════════════════════════════════════════════════════════
     # 콜백

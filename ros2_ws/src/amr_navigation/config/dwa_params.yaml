@@ -36,14 +36,21 @@ dwa_planner:
     weight_velocity: 0.2
 
     # ----- 추종 / 평가 보조 -----
-    lookahead_dist: 1.0     # m, A* path 위 어디를 향할지 (DWA 의 단기 goal)
+    # lookahead_dist: 가까울수록 부드러운 추종 (작은 yaw 차이), 멀수록 미리 회전.
+    # 2026-05-25 (8차 진단) 1.0 → 0.5:
+    #   1.0m 면 path 곡선의 1m 앞 점이 자기 yaw 와 ±90° 차이까지 가능 → align mode
+    #   자주 진입 + 큰 회전. 0.5m 면 가까운 점 추종 → 작은 회전 + normal DWA 안에서
+    #   회전+전진 자연스럽게 처리.
+    lookahead_dist: 0.5
     max_clearance: 1.0      # m, clearance_score 정규화 분모
-    goal_tolerance: 0.20    # m, 도착 판정. 재설계 후엔 EKF 가 안정적이라
-                            # 0.10 으로 줄여도 됨 (보수적으로 0.20 유지).
+    goal_tolerance: 0.20    # m, 도착 판정
 
     # ----- In-place rotation 모드 (2026-05-25 추가) -----
     align_angle_thresh: 1.05  # rad ≈ 60°
-    align_kp: 1.5             # P 제어 gain
+    # align_kp: P 제어 gain. 클수록 빠른 회전, 클수록 overshoot.
+    # 2026-05-25 (8차) 1.5 → 1.0: 1.5 면 angle=90° 일 때 w=1.5×1.57=2.35→clamp 1.5 →
+    #   max 회전 → overshoot. 1.0 으로 부드러운 회전.
+    align_kp: 1.0
 
     # ----- 후진 / Path offset 안전장치 (2026-05-25 추가, CLAUDE.md §0.1 원칙 8) -----
     # 먼 거리 (20m+) 시나리오에서 발견된 두 문제 해결:
