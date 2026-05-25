@@ -155,21 +155,21 @@
     <!-- 상단열: (10,24)(30,24)(50,24) — 선반A(y=21)와 입출고존(y=27~) 사이 통로 -->
     <!-- 겹침 검증: 충전존X=1~9,Y=1~7 / 대기존X=51~59,Y=1~7 / 선반C,y=9,t=1m / 선반A,y=21,t=1m -->
 
-    <model name="col_s1"><static>true</static><pose>10 6 1.5 0 0 0</pose>
+    <model name="col_s1"><static>true</static><pose>10 8 1.5 0 0 0</pose>
       <link name="link">
         <collision name="c"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry></collision>
         <visual name="v"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry>
           <material><ambient>0.60 0.62 0.70 1</ambient><diffuse>0.65 0.67 0.75 1</diffuse></material>
       </visual></link>
     </model>
-    <model name="col_s2"><static>true</static><pose>30 6 1.5 0 0 0</pose>
+    <model name="col_s2"><static>true</static><pose>30 8 1.5 0 0 0</pose>
       <link name="link">
         <collision name="c"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry></collision>
         <visual name="v"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry>
           <material><ambient>0.60 0.62 0.70 1</ambient><diffuse>0.65 0.67 0.75 1</diffuse></material>
       </visual></link>
     </model>
-    <model name="col_s3"><static>true</static><pose>50 6 1.5 0 0 0</pose>
+    <model name="col_s3"><static>true</static><pose>50 8 1.5 0 0 0</pose>
       <link name="link">
         <collision name="c"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry></collision>
         <visual name="v"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry>
@@ -415,7 +415,7 @@
     <!-- ==================== CHARGING ZONE SW (X=1~9, Y=1~7) ==================== -->
     <!-- 바닥 마킹 -->
     <model name="charging_floor">
-      <static>true</static><pose>5 5 0.002 0 0 0</pose>
+      <static>true</static><pose>5 5 0.005 0 0 0</pose>
       <link name="link">
         <visual name="v"><geometry><box><size>8 6 0.002</size></box></geometry>
           <material><ambient>0.18 0.18 0.65 0.9</ambient><diffuse>0.20 0.20 0.75 0.9</diffuse></material>
@@ -490,7 +490,7 @@
     <!-- ==================== WAITING ZONE SE (X=51~59, Y=1~7) ==================== -->
     <!-- 바닥 마킹 -->
     <model name="waiting_floor">
-      <static>true</static><pose>55 5 0.002 0 0 0</pose>
+      <static>true</static><pose>55 5 0.005 0 0 0</pose>
       <link name="link">
         <visual name="v"><geometry><box><size>8 6 0.002</size></box></geometry>
           <material><ambient>0.55 0.45 0.08 0.9</ambient><diffuse>0.65 0.55 0.10 0.9</diffuse></material>
