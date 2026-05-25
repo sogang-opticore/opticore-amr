@@ -234,23 +234,53 @@ def min_clearance_distance(trajectory_xy: List[Tuple[float, float]],
     return math.sqrt(best) if best != float("inf") else float("inf")
 
 
-def pick_lookahead_point(
+def find_nearest_idx(
     path_xy: List[Tuple[float, float]],
     robot_xy: Tuple[float, float],
-    lookahead_dist: float,
-) -> Optional[Tuple[float, float]]:
-    """Path 에서 lookahead_dist 만큼 앞쪽 점을 선택."""
-    if not path_xy:
-        return None
+    start_idx: int = 0,
+) -> int:
+    """robot_xy 와 가장 가까운 path 점의 idx. start_idx 이전 점은 검색 제외.
 
+    monotonic forward progress 컨벤션: 한 번 지나간 path 점은 nearest 후보 X.
+    이게 없으면 catmull-rom smoothing 또는 우회로 path 에서 자기 뒤 점이
+    더 가까워지는 순간 lookahead 가 뒤로 점프 → REAR 매핑 → spiral.
+
+    비유: 등산 가이드가 "지나온 길은 빼고, 앞으로 갈 길에서 제일 가까운 점이 어디?" 라고 묻는 것.
+    """
+    if not path_xy:
+        return 0
+    s = max(0, min(start_idx, len(path_xy) - 1))
     rx, ry = robot_xy
-    nearest_idx = 0
+    nearest_idx = s
     nearest_d_sq = float("inf")
-    for i, (px, py) in enumerate(path_xy):
+    for i in range(s, len(path_xy)):
+        px, py = path_xy[i]
         d_sq = (px - rx) * (px - rx) + (py - ry) * (py - ry)
         if d_sq < nearest_d_sq:
             nearest_d_sq = d_sq
             nearest_idx = i
+    return nearest_idx
+
+
+def pick_lookahead_point(
+    path_xy: List[Tuple[float, float]],
+    robot_xy: Tuple[float, float],
+    lookahead_dist: float,
+    start_idx: int = 0,
+) -> Optional[Tuple[float, float]]:
+    """Path 에서 lookahead_dist 만큼 앞쪽 점을 선택.
+
+    Args:
+        start_idx: 이 idx 이전 점은 nearest 후보에서 제외 (forward progress).
+                   기본 0 — 기존 호출자(테스트) 호환.
+
+    Returns:
+        lookahead (x, y) 또는 None.
+    """
+    if not path_xy:
+        return None
+
+    nearest_idx = find_nearest_idx(path_xy, robot_xy, start_idx)
 
     cumulative = 0.0
     prev_x, prev_y = path_xy[nearest_idx]
@@ -381,6 +411,11 @@ class DwaPlannerNode(Node):
         self._state_log_counter = 0
         self._candidate_log_counter = 0
         self._path_warn_logged = False
+
+        # path following monotonic forward progress
+        # 매 cycle 의 nearest_idx 가 이 값 이전으로 안 가도록.
+        # 새 path 받으면 0 으로 리셋.
+        self._path_progress_idx = 0
 
         # ── TF buffer (path 변환에만 사용) ──────────────────────────
         self._tf_buffer = tf2_ros.Buffer()
@@ -556,6 +591,7 @@ class DwaPlannerNode(Node):
             # 이미 LOCAL_FRAME 이면 그대로 캐싱
             self._path_local = msg
             self._reached = False
+            self._path_progress_idx = 0   # 새 path 받을 때 progress 리셋
             last = msg.poses[-1].pose.position
             self.get_logger().info(
                 f"/global_path 수신 ({src_frame}, 변환 불필요) — "
@@ -577,6 +613,7 @@ class DwaPlannerNode(Node):
 
         self._path_local = transformed
         self._reached = False
+        self._path_progress_idx = 0   # 새 path 받을 때 progress 리셋
         last = transformed.poses[-1].pose.position
         self.get_logger().info(
             f"/global_path 수신 ({src_frame} → {self.LOCAL_FRAME} 변환) — "
@@ -731,8 +768,14 @@ class DwaPlannerNode(Node):
             self._reached = False
 
         # 4) lookahead 점 선택 (LOCAL_FRAME)
+        #    monotonic forward progress: 이전 nearest_idx 이전 점은 후보 제외.
+        #    catmull-rom / 우회로 path 에서 자기 뒤 점이 nearest 로 잡혀 REAR 매핑 되는 것 차단.
+        nearest_idx = find_nearest_idx(
+            path_xy, (self._state.x, self._state.y), self._path_progress_idx)
+        self._path_progress_idx = nearest_idx   # 단조 증가 갱신
         lookahead = pick_lookahead_point(
-            path_xy, (self._state.x, self._state.y), self.p_lookahead_dist)
+            path_xy, (self._state.x, self._state.y),
+            self.p_lookahead_dist, start_idx=nearest_idx)
         if lookahead is None:
             self._stop_robot("no_lookahead")
             return
