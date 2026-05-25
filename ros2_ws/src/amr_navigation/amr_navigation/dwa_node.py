@@ -766,16 +766,29 @@ class DwaPlannerNode(Node):
 
         path_xy = self._path_xy(self._path_local)
 
-        # 3) 도착 판정 (LOCAL_FRAME 안에서)
+        # 3) 도착 판정 (LOCAL_FRAME 안에서) + hysteresis
+        #
+        # 2026-05-25 (5차 진단) — REACHED state hold:
+        #   이전 코드는 dist_to_goal jitter (관성 + EKF noise) 로 reached 가
+        #   깜빡거려, 도착 직후 path[-1] 이 자기 뒤로 매핑 → align mode 무한 회전.
+        #   해결: 한 번 reached 가 True 면 새 path 도착할 때까지 stop hold.
+        #         새 path 받으면 _on_global_path 에서 self._reached=False 리셋.
+        #
+        # 비유: 식당 도착했으면 새 약속 잡기 전까진 자리 유지. 0.2m 지나쳤다고
+        #       또 돌아오느라 빙빙 돌지 말 것.
         gx, gy = path_xy[-1]
         dist_to_goal = math.hypot(gx - self._state.x, gy - self._state.y)
+
+        if self._reached:
+            # REACHED hold — 새 path 가 self._reached 를 False 로 리셋할 때까지 정지
+            self._stop_robot("reached_hold")
+            return
+
         if dist_to_goal < self.p_goal_tolerance:
             self._stop_robot("goal_reached")
             self._reached = True
             self._goal_reached_logged_once()
             return
-        else:
-            self._reached = False
 
         # 4) lookahead 점 선택 (LOCAL_FRAME)
         #    monotonic forward progress: 이전 nearest_idx 이전 점은 후보 제외.
@@ -798,12 +811,17 @@ class DwaPlannerNode(Node):
         )
         local_goal = world_to_local(lookahead, self._state)
 
-        # 5.5) In-place rotation 모드 (2026-05-25 추가)
+        # 5.5) In-place rotation 모드 (2026-05-25 추가, 5차 진단에서 안전장치 추가)
         #      lookahead 가 ±60° 이상 빗나가 있으면 DWA 의 1초 horizon 안에 못 잡힘.
         #      회전+전진 trade-off 에 의해 매 cycle 부분 회전 누적 → path 와 어긋남.
         #      → v=0 으로 회전만 (P 제어). 정렬되면 normal DWA 재개.
+        #
+        #      안전장치: 도착 영역 (1.5 × tolerance) 안에선 align mode 비활성.
+        #      도착 직후 jitter 로 lookahead 가 자기 뒤를 가리킬 때 무한 회전 방지.
         local_goal_angle = math.atan2(local_goal[1], local_goal[0])
-        if abs(local_goal_angle) > self.p_align_angle_thresh:
+        align_safe_dist = self.p_goal_tolerance * 1.5
+        if dist_to_goal > align_safe_dist and \
+           abs(local_goal_angle) > self.p_align_angle_thresh:
             w_cmd = self.p_align_kp * local_goal_angle
             # w_max 클램프
             w_cmd = max(-self.p_w_max, min(self.p_w_max, w_cmd))
