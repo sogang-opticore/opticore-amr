@@ -72,6 +72,12 @@ dwa_planner:
     odom_timeout: 0.5              # s, EKF timeout 시 /odom fallback
     scan_range_max: 25.0           # m, LaserScan 유효 max range (명세 §4.1)
 
+    # ----- LiDAR mount offset (2026-05-25 추가) -----
+    # URDF: lidar_link 가 base_link 의 (+0.25, 0) 에 yaw=0 으로 mount.
+    # 미반영 시 장애물이 실제보다 0.25m 가깝게 인식 → trajectory reject 보수적 → stuck.
+    lidar_offset_x: 0.25
+    lidar_offset_y: 0.0
+
     # ----- 토픽명 (README 계약과 일치) -----
     odom_topic: "/odometry/filtered"
     odom_fallback_topic: "/odom"

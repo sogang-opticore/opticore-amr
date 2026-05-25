@@ -397,6 +397,15 @@ class DwaPlannerNode(Node):
         self.declare_parameter("odom_timeout", 0.5)
         self.declare_parameter("scan_range_max", 25.0)
 
+        # LiDAR mount offset (URDF lidar_link → base_link, 2026-05-25 추가)
+        # URDF: lidar_link 가 base_link 의 (+0.25, 0, +h) 에 yaw=0 으로 mount.
+        # _extract_obstacles_from_scan() 이 lidar frame 점을 base_link frame 으로
+        # 변환하려면 +x 평행이동 필요. 미반영 시 장애물이 실제보다 0.25m 가깝게
+        # 인식되어 trajectory reject 가 너무 보수적 → stuck.
+        # 비유: 자(尺) 길이를 잘못 알고 있어 1m 벽을 0.5m 라고 착각하는 운전자.
+        self.declare_parameter("lidar_offset_x", 0.25)   # m, URDF lidar_x 와 일치
+        self.declare_parameter("lidar_offset_y", 0.0)    # m, lidar y 오프셋 (=0)
+
         # 토픽명
         self.declare_parameter("odom_topic", "/odometry/filtered")
         self.declare_parameter("odom_fallback_topic", "/odom")
@@ -504,6 +513,8 @@ class DwaPlannerNode(Node):
         self.p_align_kp = gp("align_kp").value
         self.p_allow_backward = gp("allow_backward").value
         self.p_max_path_offset = gp("max_path_offset").value
+        self.p_lidar_offset_x = gp("lidar_offset_x").value
+        self.p_lidar_offset_y = gp("lidar_offset_y").value
 
         self.p_robot_radius = gp("robot_radius").value
         self.p_hard_collision_distance = gp("hard_collision_distance").value
@@ -731,9 +742,15 @@ class DwaPlannerNode(Node):
     def _extract_obstacles_from_scan(self) -> List[Tuple[float, float]]:
         """LaserScan → base_link 기준 (x, y) 점 리스트.
 
-        URDF: lidar_link 가 base_link 의 +x=0.25 m 에 mount. 회전은 0.
-        엄밀히는 lidar_link → base_link TF 변환 필요하지만, 단순화로 lidar 점들이
-        base_link 기준이라고 가정 (offset 0.25m 는 robot_radius 0.20m 안이라 무시 가능).
+        URDF: lidar_link 가 base_link 의 +0.25m (lidar_offset_x) 에 yaw=0 으로 mount.
+        lidar frame 의 점을 base_link frame 으로 변환:
+            base_link_x = lidar_x + lidar_offset_x
+            base_link_y = lidar_y + lidar_offset_y
+        (yaw=0 이라 회전 변환 불필요)
+
+        ★ 2026-05-25 정정 (CLAUDE.md §0.1 원칙 8 발동):
+        이전 코드는 offset 미반영. lidar 가 1m 앞 점 잡으면 코드가 "base_link 1m 앞"
+        으로 해석 — 실제는 1.25m 앞. → trajectory reject 가 보수적 → stuck.
         """
         scan = self._latest_scan
         if scan is None:
@@ -751,9 +768,13 @@ class DwaPlannerNode(Node):
             if r != r or r < effective_min or r > range_max:
                 angle += increment
                 continue
-            x = r * math.cos(angle)
-            y = r * math.sin(angle)
-            points.append((x, y))
+            # lidar frame 의 점
+            lx = r * math.cos(angle)
+            ly = r * math.sin(angle)
+            # base_link frame 으로 변환 (lidar 가 base_link 의 +offset 에 yaw=0 mount)
+            bx = lx + self.p_lidar_offset_x
+            by = ly + self.p_lidar_offset_y
+            points.append((bx, by))
             angle += increment
         return points
 
