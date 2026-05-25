@@ -374,6 +374,14 @@ class DwaPlannerNode(Node):
         self.declare_parameter("max_clearance", 1.0)
         self.declare_parameter("goal_tolerance", 0.20)
 
+        # In-place rotation 모드 (2026-05-25 추가)
+        # lookahead 의 base_link 각도가 이 값 이상 차이면 v=0, w 만으로 정렬.
+        # DWA 의 1초 horizon 안에 큰 yaw 차이 (>86° at w_max=1.5) 를 못 좁히는 문제 해결.
+        # 비유: 동쪽 보고 있는데 북쪽 가야 함 → "회전만" 한 후 출발. 회전+전진 동시는
+        #       1초 horizon 안에선 항상 부족해서 누적 오차 발생.
+        self.declare_parameter("align_angle_thresh", 1.05)  # rad ≈ 60°
+        self.declare_parameter("align_kp", 1.5)             # P 제어 gain
+
         # 안전
         self.declare_parameter("robot_radius", 0.20)
         self.declare_parameter("hard_collision_distance", 0.05)
@@ -484,6 +492,8 @@ class DwaPlannerNode(Node):
         self.p_lookahead_dist = gp("lookahead_dist").value
         self.p_max_clearance = gp("max_clearance").value
         self.p_goal_tolerance = gp("goal_tolerance").value
+        self.p_align_angle_thresh = gp("align_angle_thresh").value
+        self.p_align_kp = gp("align_kp").value
 
         self.p_robot_radius = gp("robot_radius").value
         self.p_hard_collision_distance = gp("hard_collision_distance").value
@@ -787,6 +797,37 @@ class DwaPlannerNode(Node):
             v=self._state.v, w=self._state.w,
         )
         local_goal = world_to_local(lookahead, self._state)
+
+        # 5.5) In-place rotation 모드 (2026-05-25 추가)
+        #      lookahead 가 ±60° 이상 빗나가 있으면 DWA 의 1초 horizon 안에 못 잡힘.
+        #      회전+전진 trade-off 에 의해 매 cycle 부분 회전 누적 → path 와 어긋남.
+        #      → v=0 으로 회전만 (P 제어). 정렬되면 normal DWA 재개.
+        local_goal_angle = math.atan2(local_goal[1], local_goal[0])
+        if abs(local_goal_angle) > self.p_align_angle_thresh:
+            w_cmd = self.p_align_kp * local_goal_angle
+            # w_max 클램프
+            w_cmd = max(-self.p_w_max, min(self.p_w_max, w_cmd))
+            # 가속도 한계 (이전 w 에서 alpha_max * dt 만큼만 변경 가능)
+            dw_max = self.p_alpha_max * (1.0 / max(self.p_control_rate, 1.0))
+            w_cmd = max(self._state.w - dw_max,
+                        min(self._state.w + dw_max, w_cmd))
+            self._publish_cmd(VelocityCommand(v=0.0, w=w_cmd))
+
+            # 진단 로그 throttle
+            self._candidate_log_counter += 1
+            target = int(self.p_control_rate * self.p_candidate_log_period)
+            if self.p_candidate_log_period > 0.0 and \
+               self._candidate_log_counter >= max(1, target):
+                self._candidate_log_counter = 0
+                self.get_logger().info(
+                    f"DWA align mode: goal_angle={math.degrees(local_goal_angle):+.1f}° "
+                    f"→ v=0.00 w={w_cmd:+.2f} "
+                    f"(thresh={math.degrees(self.p_align_angle_thresh):.0f}°)"
+                )
+            # state 로그도 같이
+            self._log_state_throttled()
+            # 시각화는 normal DWA 모드 때만
+            return
 
         # 6) Dynamic Window
         window = compute_dynamic_window(
