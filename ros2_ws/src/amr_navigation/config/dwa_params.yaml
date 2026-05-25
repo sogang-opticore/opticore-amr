@@ -1,20 +1,24 @@
-# DWA Local Planner 파라미터 (Notion 명세 §4.1 + sw_context.md + 디스코드 N-2 반영)
+# DWA Local Planner 파라미터 (2026-05-25 재설계 반영)
 #
 # CLAUDE.md 6.1: 모든 튜닝 값은 YAML로. 코드 안 하드코딩 금지.
 # 변경 시 README.md §4 표와 동기화.
+#
+# 재설계 핵심 (2026-05-25 SW):
+#   DWA 의 cycle 안 TF lookup 0번. EKF /odometry/filtered pose+twist 를 직접 사용.
+#   global_path 받을 때 한 번만 map → odom_filtered 변환·캐싱.
+#   → AMCL TF freeze / 보정 점프 의 영향 cycle 단위로 차단.
+#   → 이전 spiral bug 의 근본 원인 제거.
 
 dwa_planner:
   ros__parameters:
     use_sim_time: true
 
     # ----- 로봇 동역학 한계 (Notion 명세 §4.1) -----
-    # TODO(디스코드 N-2): v_max는 팀 합의 전까지 임시값 1.5 m/s 사용.
-    #                    명세는 2.0 m/s. 안전 마진 + 가속도 동기화 필요.
-    #                    최대 속도 확정 후 v_max / a_max 같이 갱신 필수.
+    # TODO(디스코드 N-2): v_max 1.5 임시값. 명세 = 2.0. 팀 합의 후 갱신.
     v_max: 1.5          # m/s, ⚠ 임시값 (명세 §4.1: 2.0)
     v_min: -1.0         # m/s, 후진 운영 정책
     w_max: 1.5          # rad/s, 명세 §4.1
-    a_max: 1.0          # m/s², 명세 §4.1 (v_max 갱신 시 같이)
+    a_max: 1.0          # m/s², 명세 §4.1
     alpha_max: 1.5      # rad/s², ⚠ 명세 미명시 — 시뮬 측정 후 갱신
 
     # ----- 샘플링 / 시뮬레이션 -----
@@ -25,46 +29,24 @@ dwa_planner:
     control_rate: 20.0      # Hz
 
     # ----- 평가함수 가중치 -----
-    # TR-05: clearance 가중치를 높여서 좁은 통로에서 부드러운 회피 유도.
-    # heading은 살짝 낮춰 직진 고집 약화. velocity는 유지.
+    # clearance 가중치 1.2 — 좁은 통로에서 부드러운 회피 유도.
+    # heading 0.6 — 직진 고집 약화.
     weight_heading: 0.6
     weight_clearance: 1.2
     weight_velocity: 0.2
 
     # ----- 추종 / 평가 보조 -----
-    lookahead_dist: 1.0     # m, A* path 위 어디를 향할지 (DWA가 보는 단기 goal)
+    lookahead_dist: 1.0     # m, A* path 위 어디를 향할지 (DWA 의 단기 goal)
     max_clearance: 1.0      # m, clearance_score 정규화 분모
-    goal_tolerance: 0.20    # m, 도착 판정 거리
-                            # 2026-05-25 (3차 진단) 0.10 → 0.20:
-                            # tf_lookup_delay 0.5s 적용으로 DWA 가 "0.5초 과거의 위치"
-                            # 로 판단 → 1.5 m/s 면 0.75m 늦은 위치 → 0.10m tolerance 로는
-                            # 영원히 도착 못 함. 0.20 으로 키워 lookup_delay 와 호환.
-
-    # ----- TF lookup 보정 (2026-05-25 3차 진단 추가, 4차 정정) -----
-    # AMCL 이 update_min_d 트리거 시에만 map→odom_filtered TF publish 함 →
-    # 그 사이 chain (map→odom_filtered→base_footprint) 의 latest stamp 는 AMCL
-    # 발행 시점에 freeze. 실측: AMCL 발행 간격 최대 ~0.6초 (lag_diag /amcl_pose n=2~3/s).
-    #
-    # 4차 정정 (2026-05-25): lookup_delay 0.5 로는 AMCL 발행 간격을 못 가려서
-    # "Lookup would require extrapolation into the future" 발생 →
-    # 1.0 으로 키워 안전 marginal 확보. (단점: 1.5 m/s 면 1.5m 늦은 위치로 결정)
-    #
-    # 비유: 늦게 발행되는 위성 신호(AMCL)를 받는데, "1초 늦은 데이터" 까지 인내심
-    # 있게 기다리면 거의 항상 안정된 신호를 받음.
-    tf_lookup_delay: 1.0    # s, 0=latest. 1.0s 면 1.5m/s 로 1.5m 늦은 위치 결정.
-
-    # ----- TF lookup timeout (2026-05-25 4차 추가) -----
-    # lookup_transform 의 timeout. 너무 짧으면 (50ms) "잠깐 발행 안 된" TF 도
-    # 즉시 실패. timeout 안에 새 TF 가 오면 사용. 이건 dwa_node.py:907 에서
-    # 하드코딩된 0.05s. 본 yaml 에서는 declare 만 — 코드 반영은 별도 PR.
-    # tf_lookup_timeout: 0.5
+    goal_tolerance: 0.20    # m, 도착 판정. 재설계 후엔 EKF 가 안정적이라
+                            # 0.10 으로 줄여도 됨 (보수적으로 0.20 유지).
 
     # ----- 안전 -----
-    robot_radius: 0.20         # m, URDF width 0.40 / 2 — 외곽 ↔ 중심 보정 (TR-05)
-    hard_collision_distance: 0.05  # m, 거부 게이트 — 진짜 충돌 직전 (TR-05)
-    safety_distance: 0.30      # m, 명세 §7 — clearance_score 정규화·시각화 의미
-    odom_timeout: 0.5          # s, EKF timeout 시 /odom fallback
-    scan_range_max: 25.0       # m, LaserScan 유효 max range (명세 §4.1 = 25m)
+    robot_radius: 0.20             # m, URDF chassis_width 0.40 / 2
+    hard_collision_distance: 0.05  # m, 거부 게이트 — 진짜 충돌 직전
+    safety_distance: 0.30          # m, 명세 §7 — clearance_score 정규화 기준
+    odom_timeout: 0.5              # s, EKF timeout 시 /odom fallback
+    scan_range_max: 25.0           # m, LaserScan 유효 max range (명세 §4.1)
 
     # ----- 토픽명 (README 계약과 일치) -----
     odom_topic: "/odometry/filtered"
@@ -72,3 +54,14 @@ dwa_planner:
     global_path_topic: "/global_path"
     scan_topic: "/lidar"
     cmd_vel_topic: "/cmd_vel"
+
+    # ----- 진단 로그 throttle (s) -----
+    # 0 = 비활성. control_rate=20Hz 기준 1.0s = 1초당 1회.
+    state_log_period: 1.0       # _state.x/y/yaw/v/w 로그
+    candidate_log_period: 1.0   # best 후보 (v, w, score, local_goal) 로그
+
+    # ----- path 변환 TF lookup timeout (s) -----
+    # 매 cycle 이 아닌 global_path 받을 때 한 번만 사용.
+    # AMCL publish 가 가끔 0.5~1.0s 지연돼도 OK 하도록 1.0s 권장.
+    # 이 시간 안에 새 TF 가 오면 사용, 아니면 이전 path 캐싱본 유지.
+    path_tf_timeout: 1.0
