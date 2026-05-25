@@ -109,6 +109,21 @@ dwa_planner:
     allow_backward: false
     max_path_offset: 2.0   # m, path 와 이 이상 떨어지면 정지 + PATH_LOST status
 
+    # ----- Stuck Recovery (16차, 표준 Nav2 BackUp 패턴) -----
+    # Pure Pursuit 의 w=κ·v 공식은 v=0 이면 w=0 → 벽 inflation 안에서 trap.
+    # (0,5) 시나리오에서 robot 이 (-1.01, 1.35) 에 25초+ 멈춤 → 16차 추가.
+    #
+    # 작동: v ≈ 0 + fwd_clear < safety 가 stuck_recovery_sec 이상 지속되면
+    #       후방 clearance 확인 → 후방 free 면 backup_duration 동안 후진 →
+    #       A* 의 1Hz 재계획이 새 path 발행 → 자동 재시도.
+    #       후방도 막힘이면 정지 유지 (사람 개입 대기).
+    #
+    # 비유: 차가 막다른 골목에 코박았으면 운전자가 후진 후 다른 길 찾기.
+    #       allow_backward 와 별개 — recovery 는 항상 가능 (안전 우선).
+    stuck_recovery_sec: 1.5   # s, stuck 판정 시간
+    backup_velocity: -0.2     # m/s, 후진 속도 (음수)
+    backup_duration: 1.0      # s, 후진 지속 시간 (= 0.2 × 1.0 ≈ 0.2m 이동)
+
     # ----- 안전 -----
     robot_radius: 0.20             # m, URDF chassis_width 0.40 / 2
     hard_collision_distance: 0.05  # m, 거부 게이트 — 진짜 충돌 직전

@@ -474,6 +474,14 @@ class DwaPlannerNode(Node):
         self.declare_parameter("allow_backward", False)
         self.declare_parameter("max_path_offset", 2.0)   # m, path 와 이 이상 떨어지면 정지
 
+        # Stuck recovery (16차, 표준 Nav2 BackUp 패턴)
+        # v ≈ 0 + fwd_clear < safety 가 stuck_recovery_sec 이상 지속되면
+        # 후방 clearance 체크 후 backup_duration 동안 backup_velocity 로 후진.
+        # allow_backward 와 별개 (recovery 는 항상 가능).
+        self.declare_parameter("stuck_recovery_sec", 1.5)   # s, stuck 판정 시간
+        self.declare_parameter("backup_velocity", -0.2)     # m/s, 후진 속도 (음수)
+        self.declare_parameter("backup_duration", 1.0)      # s, 후진 지속 시간
+
         # 안전
         self.declare_parameter("robot_radius", 0.20)
         self.declare_parameter("hard_collision_distance", 0.05)
@@ -535,8 +543,13 @@ class DwaPlannerNode(Node):
 
         # 14차 (Pure Pursuit 전환): stuck recovery 카운터
         # control_loop 가 collision imminent 로 정지할 때마다 +1, 정상 cmd 발행 시 0 리셋.
-        # stuck_recovery_cycles 이상 누적되면 EMERGENCY status → A* 재계획 유도.
+        # stuck_recovery_cycles 이상 누적되면 backup recovery 발동.
         self._stuck_counter = 0
+
+        # 16차 (벽 stuck 탈출, 표준 Nav2 Backup 패턴):
+        #   stuck 시 후방 free 면 후진 N초 → A* 재계획 자동 수신 → 새 path 재시도.
+        #   0 = backup 비활성. > 0 = sim_time 기준 backup 종료 시각.
+        self._backup_until = 0.0
 
         # ── TF buffer (path 변환에만 사용) ──────────────────────────
         self._tf_buffer = tf2_ros.Buffer()
@@ -616,6 +629,9 @@ class DwaPlannerNode(Node):
         self.p_align_cooldown = gp("align_cooldown").value
         self.p_allow_backward = gp("allow_backward").value
         self.p_max_path_offset = gp("max_path_offset").value
+        self.p_stuck_recovery_sec = gp("stuck_recovery_sec").value
+        self.p_backup_velocity = gp("backup_velocity").value
+        self.p_backup_duration = gp("backup_duration").value
         self.p_lidar_offset_x = gp("lidar_offset_x").value
         self.p_lidar_offset_y = gp("lidar_offset_y").value
 
@@ -938,6 +954,44 @@ class DwaPlannerNode(Node):
             self._stop_robot("odom_timeout")
             return
 
+        # ── 1.5) Backup Recovery 처리 (다른 모든 로직 우선) ───────
+        # 16차 추가. stuck recovery 활성 중이면 다른 모든 로직 무시하고 후진.
+        # backup 완료 후 A* 의 1Hz 재계획이 새 path 발행 → 자동 재시도.
+        # 비유: 막다른 골목에 코박았을 때 운전자가 다른 모든 결정 무시하고 후진하는 것.
+        if self._backup_until > 0.0:
+            if self._sec_now() < self._backup_until:
+                # 후진 중 — 후방 collision check 도 계속
+                obstacles_local_bk = self._extract_obstacles_from_scan()
+                bwd_clear = self._backward_clearance_inline(obstacles_local_bk)
+                if bwd_clear < self.p_safety_distance / 2.0:
+                    # 후방 위험 → backup 즉시 중단
+                    self._backup_until = 0.0
+                    self._stuck_counter = 0
+                    self._publish_cmd(VelocityCommand(v=0.0, w=0.0))
+                    self._publish_status_value("EMERGENCY")
+                    self.get_logger().warn(
+                        f"backup 중단: 후방 가까워짐 (bwd_clear={bwd_clear:.2f}m)",
+                        throttle_duration_sec=2.0
+                    )
+                    return
+                # 후진 명령 (가속도 한계)
+                period = 1.0 / max(self.p_control_rate, 1.0)
+                dv_max = self.p_a_max * period
+                v_cmd_bk = max(self._state.v - dv_max,
+                               min(self._state.v + dv_max,
+                                   self.p_backup_velocity))
+                self._publish_cmd(VelocityCommand(v=v_cmd_bk, w=0.0))
+                self._publish_status_value("RECOVERY")
+                self._log_state_throttled()
+                return
+            else:
+                # backup 만료 → 다음 cycle 부터 정상 동작
+                self._backup_until = 0.0
+                self._stuck_counter = 0
+                self.get_logger().info(
+                    "backup recovery 완료 — path 재시도 (A* 재계획 대기)"
+                )
+
         # ── 2) path 검증 ───────────────────────────────────────────
         if self._path_local is None or not self._path_local.poses:
             self._stop_robot("no_global_path")
@@ -1108,25 +1162,51 @@ class DwaPlannerNode(Node):
         collision_imminent = min_d < (self.p_hard_collision_distance +
                                        self.p_robot_radius)
 
-        if collision_imminent:
-            # 정지 명령 발행 + EMERGENCY + stuck counter 증가
+        # 16차: stuck 판정 — collision 또는 v_clear cap 으로 정지 trap
+        # Pure Pursuit w=κ·v 가 v=0 이면 w=0. 회전조차 못해 무한 정지.
+        # 이걸 collision 과 같은 stuck 으로 잡아 recovery 발동.
+        is_velocity_blocked = (abs(v_cmd) < 0.02 and
+                                fwd_clear < self.p_safety_distance)
+        is_stuck = collision_imminent or is_velocity_blocked
+
+        if is_stuck:
+            # 정지 명령 + status 발행
             self._publish_cmd(VelocityCommand(v=0.0, w=0.0))
-            self._publish_status_value("EMERGENCY")
+            if collision_imminent:
+                self._publish_status_value("EMERGENCY")
+            else:
+                self._publish_status_value("STOPPED_NEAR_WALL")
             self._stuck_counter += 1
-            # 1초 이상 stuck → A* 재계획 신호 (astar_node 가 1Hz 로 replan)
-            if self._stuck_counter > int(self.p_control_rate * 1.0):
-                self.get_logger().warn(
-                    f"stuck {self._stuck_counter} cycle "
-                    f"(min_d={min_d:.2f}m). A* replan 대기.",
-                    throttle_duration_sec=2.0
-                )
+
+            # Backup recovery 진입 (stuck_recovery_sec 이상 지속 시)
+            stuck_threshold = int(self.p_control_rate *
+                                   self.p_stuck_recovery_sec)
+            if self._stuck_counter > stuck_threshold:
+                bwd_clear = self._backward_clearance_inline(obstacles_local)
+                if bwd_clear > self.p_safety_distance:
+                    # 후방 free → backup 시작
+                    self._backup_until = (self._sec_now()
+                                          + self.p_backup_duration)
+                    self._stuck_counter = 0
+                    self.get_logger().warn(
+                        f"stuck {self.p_stuck_recovery_sec}s 초과 → "
+                        f"backup {self.p_backup_duration}s 시작 "
+                        f"(bwd_clear={bwd_clear:.2f}m, "
+                        f"fwd_clear={fwd_clear:.2f}m, min_d={min_d:.2f}m)"
+                    )
+                else:
+                    # 후방도 막힘 → 사람 개입 대기
+                    self.get_logger().warn(
+                        f"stuck + 후방 막힘 (bwd_clear={bwd_clear:.2f}m). "
+                        f"A* 재계획/사람 개입 대기.",
+                        throttle_duration_sec=2.0
+                    )
             self._log_state_throttled()
-            # 시각화는 의도된 (collision 적발된) trajectory
             if sim_traj:
                 self._publish_best_trajectory(sim_traj)
             return
 
-        # collision 안전 → stuck counter 리셋
+        # stuck 안 → counter 리셋
         self._stuck_counter = 0
 
         # ── 10) cmd_vel 발행 ─────────────────────────────────────
@@ -1185,6 +1265,42 @@ class DwaPlannerNode(Node):
                 continue
             d = math.hypot(ox, oy)
             # 로봇 반경 빼서 "여유 거리" 로 환산
+            d_eff = max(0.0, d - self.p_robot_radius)
+            if d_eff < best:
+                best = d_eff
+        return best
+
+    # ───────────────────────────────────────────────────────────────
+    # Backward clearance — Backup Recovery 안전 판단용 (16차)
+    # ───────────────────────────────────────────────────────────────
+    def _backward_clearance_inline(
+        self,
+        obstacles_local: List[Tuple[float, float]],
+        half_angle: float = math.pi / 3.0,   # ±60° 후방 부채꼴
+    ) -> float:
+        """base_link 후방 (±half_angle) 부채꼴 안의 최단 장애물 거리.
+
+        Backup recovery 진입 전 안전 체크. 후방이 막혔으면 recovery 못 함.
+
+        Args:
+            obstacles_local: base_link frame 의 (x, y) 점들 (ox<0 이 후방)
+            half_angle: 부채꼴 반각 [rad]
+
+        Returns:
+            최단 거리 [m]. 부채꼴 안 점 없으면 +inf.
+        """
+        if not obstacles_local:
+            return float("inf")
+        best = float("inf")
+        for ox, oy in obstacles_local:
+            # 자기 앞 점은 무시 (후방 부채꼴)
+            if ox > 0.0:
+                continue
+            # ox < 0: 후방. -ox 로 후방 정면 각도 계산
+            ang = math.atan2(oy, -ox)
+            if abs(ang) > half_angle:
+                continue
+            d = math.hypot(ox, oy)
             d_eff = max(0.0, d - self.p_robot_radius)
             if d_eff < best:
                 best = d_eff
