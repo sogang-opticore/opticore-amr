@@ -34,7 +34,19 @@ dwa_planner:
     # ----- 추종 / 평가 보조 -----
     lookahead_dist: 1.0     # m, A* path 위 어디를 향할지 (DWA가 보는 단기 goal)
     max_clearance: 1.0      # m, clearance_score 정규화 분모
-    goal_tolerance: 0.10    # m, 도착 판정 거리
+    goal_tolerance: 0.20    # m, 도착 판정 거리
+                            # 2026-05-25 (3차 진단) 0.10 → 0.20:
+                            # tf_lookup_delay 0.5s 적용으로 DWA 가 "0.5초 과거의 위치"
+                            # 로 판단 → 1.5 m/s 면 0.75m 늦은 위치 → 0.10m tolerance 로는
+                            # 영원히 도착 못 함. 0.20 으로 키워 lookup_delay 와 호환.
+
+    # ----- TF lookup 보정 (2026-05-25 3차 진단 추가) -----
+    # AMCL 이 update_min_d 트리거 시에만 TF publish 함 → 정지/저속에서 TF stamp
+    # freeze (실측: age 가 1.3~4.7초 까지 폭증). DWA 가 latest TF 대신 N 초 과거의
+    # 안정된 interpolated transform 을 사용하도록 강제.
+    # 비유: 늦게 도착하는 실시간 카메라 대신, 1초 전 녹화본을 보는 것 — 영상은 안정
+    # 되지만 반응이 1초 늦음.
+    tf_lookup_delay: 0.5    # s, 0=latest. 0.5s 면 1.5m/s 로 75cm 늦은 위치 결정.
 
     # ----- 안전 -----
     robot_radius: 0.20         # m, URDF width 0.40 / 2 — 외곽 ↔ 중심 보정 (TR-05)

@@ -54,6 +54,13 @@ install(PROGRAMS
   DESTINATION lib/${PROJECT_NAME}
 )
 
+# Lag 진단 노드 — DWA spiral bug 추적 (2026-05-25 SW)
+# /lidar /odom /imu /odometry/filtered /amcl_pose /tf 의 stamp 와 sim_time 동시 비교.
+install(PROGRAMS
+  ${PROJECT_NAME}/lag_diag.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 # ---------------------------------------------------------------------------
 # launch / config 설치
 # ---------------------------------------------------------------------------
