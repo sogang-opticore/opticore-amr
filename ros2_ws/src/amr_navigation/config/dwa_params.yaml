@@ -75,7 +75,11 @@ dwa_planner:
     align_angle_exit: 0.262    # rad ≈ 15° (종료, hysteresis)
     align_kp: 1.5              # PD 의 P gain
     align_kd: 0.5              # PD 의 D gain (관성 잡기)
-    align_v_blend_max: 0.5     # m/s, blending v 상한 (angle=exit 시점의 v)
+    align_v_blend_max: 0.3     # m/s, blending v 상한 (사용자: 너무 컸음 0.5→0.3)
+    # 13차 추가 (사용자 요구 "정렬되면 둘 다 멈추기"):
+    # align mode 종료 후 이 시간 동안 재진입 금지 → normal DWA 가 직진 안정화.
+    # 또한 PD 출력 부호가 angle 반대 = overshoot 시작 = 즉시 v=0,w=0 stop.
+    align_cooldown: 1.0        # s, align mode 재진입 금지 시간
 
     # ----- 후진 / Path offset 안전장치 (2026-05-25 추가, CLAUDE.md §0.1 원칙 8) -----
     # 먼 거리 (20m+) 시나리오에서 발견된 두 문제 해결:

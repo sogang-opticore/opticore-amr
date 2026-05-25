@@ -449,16 +449,16 @@ class DwaPlannerNode(Node):
         self.declare_parameter("max_clearance", 1.0)
         self.declare_parameter("goal_tolerance", 0.20)
 
-        # In-place rotation 모드 (2026-05-25, 12차 hysteresis + velocity blending)
-        # lookahead 각도가 thresh 이상이면 정지 회전, 작아지면 점진적 전진 가속.
-        # 표준 Pure Pursuit 의 forward velocity ramp + heading deadband.
+        # In-place rotation 모드 (2026-05-25, 13차 overshoot stop + cooldown)
+        # 표준 Pure Pursuit 의 forward velocity ramp + heading deadband + overshoot stop.
         self.declare_parameter("align_angle_thresh", 0.785)  # rad ≈ 45° (진입)
         self.declare_parameter("align_angle_exit", 0.262)    # rad ≈ 15° (종료, hysteresis)
         self.declare_parameter("align_kp", 1.5)              # P gain
         self.declare_parameter("align_kd", 0.5)              # D gain
-        # angle 이 thresh → exit 로 줄어드는 동안 v 가 0 → align_v_blend_max 까지 증가.
-        # 매끄러운 정지→전진 전환. 큰 angle 일 땐 v=0 (안전 회전).
-        self.declare_parameter("align_v_blend_max", 0.5)     # m/s, blending v 상한
+        self.declare_parameter("align_v_blend_max", 0.3)     # m/s, blending v 상한
+        # Cooldown: align mode 종료 후 이 시간 동안 재진입 금지.
+        # normal DWA 가 직진 trajectory 안정적으로 선택할 시간 확보 → 진동 차단.
+        self.declare_parameter("align_cooldown", 1.0)        # s
 
         # 후진 / Path offset 안전장치 (2026-05-25 추가, CLAUDE.md §0.1 원칙 8 발동)
         # 먼 거리 시나리오 (20m+) 에서 발견된 두 문제:
@@ -525,6 +525,8 @@ class DwaPlannerNode(Node):
 
         # align mode 의 hysteresis 상태 — 한 번 진입하면 exit_thresh 까지 유지
         self._in_align_mode = False
+        # align mode 종료 후 cooldown 만료 시각 (sim_time)
+        self._align_cooldown_until = 0.0
 
         # ── TF buffer (path 변환에만 사용) ──────────────────────────
         self._tf_buffer = tf2_ros.Buffer()
@@ -600,6 +602,7 @@ class DwaPlannerNode(Node):
         self.p_align_kp = gp("align_kp").value
         self.p_align_kd = gp("align_kd").value
         self.p_align_v_blend_max = gp("align_v_blend_max").value
+        self.p_align_cooldown = gp("align_cooldown").value
         self.p_allow_backward = gp("allow_backward").value
         self.p_max_path_offset = gp("max_path_offset").value
         self.p_lidar_offset_x = gp("lidar_offset_x").value
@@ -962,31 +965,61 @@ class DwaPlannerNode(Node):
         angle_abs = abs(local_goal_angle)
         align_safe_dist = self.p_goal_tolerance * 1.5
 
+        now = self._sec_now()
+        in_cooldown = (now < self._align_cooldown_until)
+
         if dist_to_goal <= align_safe_dist:
-            # 도착 근처 — align mode 비활성
             self._in_align_mode = False
         elif self._in_align_mode:
-            # 종료 조건: angle 이 exit 이하면 mode 종료 → normal DWA
+            # 종료: angle 이 exit 이하면 mode 종료 + cooldown 시작
             if angle_abs < self.p_align_angle_exit:
                 self._in_align_mode = False
+                self._align_cooldown_until = now + self.p_align_cooldown
         else:
-            # 진입 조건: angle 이 thresh 이상이면 mode 진입
-            if angle_abs > self.p_align_angle_thresh:
+            # 진입: thresh 이상 + cooldown 만료
+            if angle_abs > self.p_align_angle_thresh and not in_cooldown:
                 self._in_align_mode = True
 
         if self._in_align_mode:
             # PD 제어
-            w_cmd = (self.p_align_kp * local_goal_angle
-                     - self.p_align_kd * self._state.w)
-            w_cmd = max(-self.p_w_max, min(self.p_w_max, w_cmd))
-            # 가속도 한계
+            w_cmd_raw = (self.p_align_kp * local_goal_angle
+                         - self.p_align_kd * self._state.w)
+
+            # ★ Overshoot stop: PD 출력 부호가 angle 과 반대면 (이미 정렬됨 + 관성)
+            #   → 즉시 v=0, w=0 으로 stop, mode 종료, cooldown 시작.
+            #   사용자 요구 "경로와 마주했을 때 회전과 전진 둘 다 멈춤" 직접 구현.
+            if local_goal_angle * w_cmd_raw < 0.0:
+                self._in_align_mode = False
+                self._align_cooldown_until = now + self.p_align_cooldown
+                # 부드러운 감속 (가속도 한계)
+                dw_max = self.p_alpha_max * (1.0 / max(self.p_control_rate, 1.0))
+                dv_max = self.p_a_max * (1.0 / max(self.p_control_rate, 1.0))
+                w_stop = max(self._state.w - dw_max,
+                             min(self._state.w + dw_max, 0.0))
+                v_stop = max(self._state.v - dv_max,
+                             min(self._state.v + dv_max, 0.0))
+                self._publish_cmd(VelocityCommand(v=v_stop, w=w_stop))
+                # 진단
+                self._candidate_log_counter += 1
+                target = int(self.p_control_rate * self.p_candidate_log_period)
+                if self.p_candidate_log_period > 0.0 and \
+                   self._candidate_log_counter >= max(1, target):
+                    self._candidate_log_counter = 0
+                    self.get_logger().info(
+                        f"DWA align overshoot stop: angle={math.degrees(local_goal_angle):+.1f}° "
+                        f"→ v={v_stop:.2f} w={w_stop:+.2f} "
+                        f"cooldown {self.p_align_cooldown}s"
+                    )
+                self._log_state_throttled()
+                return
+
+            # 정상 PD 출력 적용 (overshoot 아님)
+            w_cmd = max(-self.p_w_max, min(self.p_w_max, w_cmd_raw))
             dw_max = self.p_alpha_max * (1.0 / max(self.p_control_rate, 1.0))
             w_cmd = max(self._state.w - dw_max,
                         min(self._state.w + dw_max, w_cmd))
 
-            # v blending: angle 이 thresh → exit 으로 줄어들수록 v 증가
-            #   angle=thresh: v=0 (정지 회전)
-            #   angle=exit:   v=v_blend_max (종료 직전, normal DWA 가 인계)
+            # v blending
             if angle_abs >= self.p_align_angle_thresh:
                 v_cmd = 0.0
             else:
@@ -994,7 +1027,6 @@ class DwaPlannerNode(Node):
                               max(self.p_align_angle_thresh - self.p_align_angle_exit, 1e-3)
                 blend_ratio = max(0.0, min(1.0, blend_ratio))
                 v_cmd = self.p_align_v_blend_max * blend_ratio
-            # v 가속도 한계
             dv_max = self.p_a_max * (1.0 / max(self.p_control_rate, 1.0))
             v_cmd = max(self._state.v - dv_max,
                         min(self._state.v + dv_max, v_cmd))
