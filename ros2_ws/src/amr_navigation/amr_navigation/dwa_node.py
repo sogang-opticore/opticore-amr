@@ -892,28 +892,53 @@ class DwaPlannerNode(Node):
         """
         if self._state is None:
             return False
-        # lookup 시점 결정
+
+        # 2026-05-25 (5차 진단) — lookup 2 단계 fallback:
+        #   1차: now − tf_lookup_delay 시점의 interpolated transform (안정 선호)
+        #   2차: latest available — 1차가 "extrapolation into the future" 거부 시
+        #
+        # 왜 1차가 실패하나? AMCL 이 update_min_d 트리거 시에만 map→odom_filtered
+        # TF publish → AMCL 발행이 1.0s 넘게 끊기면 chain latest 가 (now−delay) 보다
+        # 옛것 → 거부. 그땐 latest 사용 (stale 일 수 있어도 cycle skip 보단 나음).
+        #
+        # 비유: 0.5초 전 안정된 영상을 보려는데 카메라가 끊겼으면, 일단 있는 가장
+        #       최근 프레임으로 진행.
+        t = None
+        err_1 = None
         if self.p_tf_lookup_delay > 0.0:
             lookup_time = self.get_clock().now() - rclpy.duration.Duration(
                 seconds=self.p_tf_lookup_delay)
-        else:
-            lookup_time = rclpy.time.Time()  # = 0, "최신 가용"
+            try:
+                t = self._tf_buffer.lookup_transform(
+                    'map', 'base_footprint', lookup_time,
+                    timeout=rclpy.duration.Duration(seconds=0.05),
+                )
+            except (TransformException, tf2_ros.LookupException,
+                    tf2_ros.ExtrapolationException,
+                    tf2_ros.ConnectivityException) as e:
+                err_1 = e
 
-        try:
-            t = self._tf_buffer.lookup_transform(
-                'map',
-                'base_footprint',
-                lookup_time,
-                timeout=rclpy.duration.Duration(seconds=0.05),
-            )
-        except (TransformException, tf2_ros.LookupException,
-                tf2_ros.ExtrapolationException,
-                tf2_ros.ConnectivityException) as e:
-            if not self._tf_warn_logged:
-                self.get_logger().warn(
-                    f"map → base_footprint TF lookup 실패 (이후 throttle): {e}")
-                self._tf_warn_logged = True
-            return False
+        if t is None:
+            try:
+                t = self._tf_buffer.lookup_transform(
+                    'map', 'base_footprint', rclpy.time.Time(),
+                    timeout=rclpy.duration.Duration(seconds=0.05),
+                )
+                if err_1 is not None and not self._tf_warn_logged:
+                    self.get_logger().info(
+                        f"TF lookup delay 시점 실패 → latest fallback ({err_1})"
+                    )
+                    self._tf_warn_logged = True
+            except (TransformException, tf2_ros.LookupException,
+                    tf2_ros.ExtrapolationException,
+                    tf2_ros.ConnectivityException) as e:
+                if not self._tf_warn_logged:
+                    self.get_logger().warn(
+                        f"map → base_footprint TF lookup 모두 실패 "
+                        f"(1차={err_1}, latest={e})"
+                    )
+                    self._tf_warn_logged = True
+                return False
 
         # 성공 — pose 덮어쓰기
         self._state.x = t.transform.translation.x
