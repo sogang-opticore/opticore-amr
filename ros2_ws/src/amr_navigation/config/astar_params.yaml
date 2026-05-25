@@ -10,12 +10,16 @@ astar_planner:
     # inflation 반경 [m] — 로봇 폭 0.40m + 여유
     # 좁은 통로에서 경로가 막히면 줄여볼 것
     #
-    # 18차 (2026-05-25, 무한 recovery loop 진단): 0.30 → 0.40
-    #   robot_radius=0.20, inflation=0.30 → 마진 0.10m. 표준은 0.15~0.20m.
-    #   마진 부족 시 A* path 가 벽 가까이 만들어져 DWA fwd_clr=0.3m 부근
-    #   stuck → backup → 같은 path → 같은 stuck 무한 반복.
-    #   0.40 = robot_radius 0.20 + 마진 0.20 (Nav2 표준).
-    inflation_radius: 0.40
+    # 변경 이력:
+    # - 17차 이전: 0.30 (마진 0.10m — 부족, 무한 backup loop 발생)
+    # - 18차: 0.40 (마진 0.20m — Nav2 보수적 표준)
+    #   효과: 무한 loop 해결 ✅
+    #   부작용: 좁은 통로에서 path 보수적 → robot v=0.15m/s 매우 천천히.
+    #           (0,-10) 시나리오 2분, (20,5) 35→43초.
+    # - 19차: 0.40 → 0.35 (마진 0.15m — 균형)
+    #   무한 loop 차단의 주역은 recovery_cooldown (3s) 이지 inflation 키움이 아님.
+    #   0.35 면 마진 충분 (15cm) + 좁은 통로 더 잘 통과.
+    inflation_radius: 0.35
 
     # 경로 스무딩: none / catmull_rom / bezier
     smoothing: "catmull_rom"
