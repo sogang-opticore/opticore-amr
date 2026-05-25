@@ -67,14 +67,22 @@ dwa_planner:
     path_tangent_lookahead: 10
 
     # ----- 추종 / 평가 보조 -----
-    # 14차 (Pure Pursuit): lookahead_dist 가 곡률 안정성의 핵심 파라미터.
-    #   너무 작음 (< 0.3m): high-frequency 진동 (자전거 핸들 휙휙).
-    #   너무 큼 (> 1.5m): corner cutting (코너 미리 자르고 들어감).
-    #   v_max 의 0.5~1.0 배가 표준. 1.5m/s × 0.5s = 0.75m → 0.7m 출발점.
-    # 추후 시뮬 보고 0.5~1.0 사이 fine-tune.
-    lookahead_dist: 0.7
-    max_clearance: 1.0      # m, [unused] 호환 위해 유지
-    goal_tolerance: 0.20    # m, 도착 판정
+    # 17차 (Adaptive Lookahead, 표준 Pure Pursuit 확장):
+    #   L = max(lookahead_dist, lookahead_time · |v|)
+    #   정지 = lookahead_dist (정확한 회전)
+    #   v=1.5m/s = max(0.7, 0.7·1.5) = 1.05m (path 평균 방향)
+    #
+    # 16차 결과 분석으로 추가 (사용자: "여전히 느려"):
+    #   고정 0.7m 는 v_max 1.5m/s 에 너무 짧음.
+    #   path 의 catmull-rom 곡선 단기 변동이 α 폭주 (>±90°) 만들어
+    #   ROTATE/PP 잦은 전환 → v=0 손실 누적 → (20,0) 55초 (효율 23%).
+    #
+    # Nav2 의 regulated_pure_pursuit_controller 표준 패턴.
+    # 비유: 고속도로일수록 멀리 봐야 잔 굴곡에 핸들 휙휙 안 함.
+    lookahead_dist: 0.7      # m, 최소 lookahead (정지/저속)
+    lookahead_time: 0.7      # s, adaptive k. v_max=1.5 → L=1.05m
+    max_clearance: 1.0       # m, [unused] 호환 위해 유지
+    goal_tolerance: 0.20     # m, 도착 판정
 
     # ----- In-place rotation (큰 heading 오차 전용) -----
     # 15차 (2026-05-25, 시나리오 (0,5) 진단 후): PD + hysteresis 보강.

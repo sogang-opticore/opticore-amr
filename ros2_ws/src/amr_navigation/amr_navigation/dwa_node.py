@@ -449,6 +449,11 @@ class DwaPlannerNode(Node):
 
         # 추종 / 평가 보조
         self.declare_parameter("lookahead_dist", 1.0)
+        # 17차 (Adaptive Lookahead, 표준 Pure Pursuit 확장 — Nav2 regulated PP 패턴):
+        # L = max(lookahead_dist, lookahead_time · |v|)
+        # 정지 = L_min, 직진 1.5m/s = 0.7·1.5 = 1.05m → path 평균 방향 따라감.
+        # 비유: 고속도로일수록 멀리 봐야 함. 잔 굴곡에 핸들 휙휙 안 함.
+        self.declare_parameter("lookahead_time", 0.7)   # s, k = 시간 상수
         self.declare_parameter("max_clearance", 1.0)
         self.declare_parameter("goal_tolerance", 0.20)
 
@@ -619,6 +624,7 @@ class DwaPlannerNode(Node):
         self.p_path_tangent_lookahead = gp("path_tangent_lookahead").value
 
         self.p_lookahead_dist = gp("lookahead_dist").value
+        self.p_lookahead_time = gp("lookahead_time").value
         self.p_max_clearance = gp("max_clearance").value
         self.p_goal_tolerance = gp("goal_tolerance").value
         self.p_align_angle_thresh = gp("align_angle_thresh").value
@@ -1034,9 +1040,16 @@ class DwaPlannerNode(Node):
             return
 
         # ── 5) Lookahead 점 선택 + base_link frame 변환 ───────────
+        # 17차: Adaptive Lookahead (표준 Pure Pursuit 확장)
+        #   L = max(L_min, k·|v|). v 빠르면 멀리 봐서 path 평균 방향 따라감.
+        #   Nav2 의 regulated_pure_pursuit_controller 표준 패턴.
+        effective_lookahead = max(
+            self.p_lookahead_dist,
+            self.p_lookahead_time * abs(self._state.v)
+        )
         lookahead = pick_lookahead_point(
             path_xy, (self._state.x, self._state.y),
-            self.p_lookahead_dist, start_idx=nearest_idx)
+            effective_lookahead, start_idx=nearest_idx)
         if lookahead is None:
             self._stop_robot("no_lookahead")
             return
@@ -1222,7 +1235,8 @@ class DwaPlannerNode(Node):
             mode = "ROTATE" if (abs(alpha) > self.p_align_angle_thresh
                                  and L > 0.1) else "PP"
             self.get_logger().info(
-                f"PP[{mode}]: la=({lx:+.2f},{ly:+.2f}) L={L:.2f} "
+                f"PP[{mode}]: la=({lx:+.2f},{ly:+.2f}) "
+                f"L={L:.2f}(eff={effective_lookahead:.2f}) "
                 f"α={math.degrees(alpha):+.1f}° κ={kappa_dbg:+.2f} "
                 f"v={v_cmd:+.2f}/{v_target:.2f} w={w_cmd:+.2f}/{w_target:+.2f} "
                 f"fwd_clr={fwd_clear:.2f} d_goal={dist_to_goal:.2f}"
