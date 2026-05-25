@@ -1,13 +1,31 @@
-# DWA Local Planner 파라미터 (2026-05-25 재설계 반영)
+# DWA Local Planner 파라미터 (2026-05-25 14차 — Pure Pursuit 전환)
 #
 # CLAUDE.md 6.1: 모든 튜닝 값은 YAML로. 코드 안 하드코딩 금지.
 # 변경 시 README.md §4 표와 동기화.
 #
-# 재설계 핵심 (2026-05-25 SW):
-#   DWA 의 cycle 안 TF lookup 0번. EKF /odometry/filtered pose+twist 를 직접 사용.
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║ 14차 (2026-05-25): Pure Pursuit + Adaptive Velocity 로 완전 전환  ║
+# ╚══════════════════════════════════════════════════════════════════╝
+# 1~13차 patch chain (DWA score-tuning, align mode PD, hysteresis,
+# overshoot stop, cooldown) 가 모두 같은 증상을 다른 각도에서 패치하다
+# 진동·과회전·wall stuck 만들었다 (CLAUDE.md §0.1 원칙 8 발동 2회째).
+#
+# 산업 표준 컨트롤러 단일 구조로 통일 (Coulter 1992, 이후 모든 AMR 표준):
+#   κ = 2y / L²                    Pure Pursuit 곡률
+#   v = min(v_max, v_curve,        횡가속 한계
+#           v_clearance,           장애물 비례 감속
+#           v_goal,                √(2·a·d) 제동거리
+#           v_heading)             cos(α) heading factor
+#   w = κ · v                      ω 자동 계산 (y=0 → w=0 자동)
+#
+# 결정적 효과:
+#   - lateral error 0 인 순간 w=0 (= "정렬되면 회전 멈춤" 알고리즘 내재)
+#   - 직선 풀가속 / 코너·장애물·도착 자동 감속 (= "최대한 빠르게 도달")
+#   - DWA collision check + stuck counter (= "wall stuck 방지")
+#
+# 재설계 핵심 (10차 이전 그대로 유지):
+#   DWA 의 cycle 안 TF lookup 0번. EKF /odometry/filtered pose+twist 직접 사용.
 #   global_path 받을 때 한 번만 map → odom_filtered 변환·캐싱.
-#   → AMCL TF freeze / 보정 점프 의 영향 cycle 단위로 차단.
-#   → 이전 spiral bug 의 근본 원인 제거.
 
 dwa_planner:
   ros__parameters:
@@ -22,64 +40,52 @@ dwa_planner:
     alpha_max: 1.5      # rad/s², ⚠ 명세 미명시 — 시뮬 측정 후 갱신
 
     # ----- 샘플링 / 시뮬레이션 -----
+    # 14차 (Pure Pursuit) 부터 sample_v_n / sample_w_n / weight_* 들은 unused.
+    # 코드는 곡률 공식으로 단일 (v, w) 명령 계산. DWA grid search 안 함.
+    # 호환 위해 yaml 키는 유지 (test_dwa.py 가 declare_parameter 참조).
     sample_v_n: 11
     sample_w_n: 21
-    # predict_horizon × v_max ≈ lookahead_dist 여야 heading_score 가 의미 있음.
-    # 1.0 → 0.3 (2026-05-25, CLAUDE.md §0.1 원칙 8 발동 후 발견):
-    #   1.0s × 1.5m/s = 1.5m trajectory 가 lookahead 0.5m 를 항상 지나친 상태로 끝남.
-    #   끝점에서 lookahead 방향 = 180° → heading_score=0. 모든 직진 trajectory 가 0점
-    #   → 정지(v=0) trajectory 가 score 1등 → stuck.
-    #   0.3s 면 trajectory 끝점 = 0.45m (lookahead 0.5m 직전) → 정상.
-    # 비유: 300m 앞 우회전 안내인데 시뮬은 1km 앞까지 봐서 "우회전 지점이 뒤에 있네?
-    #       돌아가야겠다" 라고 잘못 판단해 멈춰버림.
-    predict_horizon: 0.3
-    dt: 0.1                 # s, 적분 step. 0.3/0.1 = 3 step.
+    # 14차 (Pure Pursuit): predict_horizon 은 "최종 collision check 적분 시간".
+    # cmd 결정 후 (v_cmd, w_cmd) 로 이 시간만큼 적분 trajectory 만들어
+    # hard collision 검사 (DWA-style safety net).
+    # 0.5s × 1.5m/s = 0.75m 앞까지 충돌 예측 → 가속도 한계 안에서 정지 가능.
+    predict_horizon: 0.5
+    dt: 0.1                 # s, 적분 step. 0.5/0.1 = 5 step.
     control_rate: 20.0      # Hz
 
-    # ----- 평가함수 가중치 (2026-05-25 회전 반경 줄이기 위해 재조정) -----
-    # weight_path_tangent 큰 비중: 회전 trajectory 가 path 진행 방향과 안 맞으면
-    # 즉시 큰 페널티 → 직진 + 미세회전 trajectory 만 선호.
-    # weight_heading 작게: 위치 정렬은 path_tangent 와 align mode 가 보장.
-    weight_heading: 0.3        # ↓ 위치 정렬 (heading_score_dist)
-    weight_path_tangent: 2.0   # ↑↑ 자세 정렬 (path_tangent_score) — 결정적
+    # ----- 평가함수 가중치 (14차 부터 unused, 호환 위해 유지) -----
+    # Pure Pursuit + Adaptive Velocity 가 모든 결정을 단일 공식으로 처리.
+    # DWA score 합산 안 함. yaml 키는 declare_parameter 호환 위해 잔존.
+    weight_heading: 0.3
+    weight_path_tangent: 2.0
     weight_clearance: 1.2
-    weight_velocity: 0.3       # ↑ 직진 우대
-
+    weight_velocity: 0.3
     path_tangent_lookahead: 10
 
     # ----- 추종 / 평가 보조 -----
-    # lookahead_dist: 가까울수록 부드러운 추종 (작은 yaw 차이), 멀수록 미리 회전.
-    # 2026-05-25 (8차 진단) 1.0 → 0.5:
-    #   1.0m 면 path 곡선의 1m 앞 점이 자기 yaw 와 ±90° 차이까지 가능 → align mode
-    #   자주 진입 + 큰 회전. 0.5m 면 가까운 점 추종 → 작은 회전 + normal DWA 안에서
-    #   회전+전진 자연스럽게 처리.
-    lookahead_dist: 0.5
-    max_clearance: 1.0      # m, clearance_score 정규화 분모
+    # 14차 (Pure Pursuit): lookahead_dist 가 곡률 안정성의 핵심 파라미터.
+    #   너무 작음 (< 0.3m): high-frequency 진동 (자전거 핸들 휙휙).
+    #   너무 큼 (> 1.5m): corner cutting (코너 미리 자르고 들어감).
+    #   v_max 의 0.5~1.0 배가 표준. 1.5m/s × 0.5s = 0.75m → 0.7m 출발점.
+    # 추후 시뮬 보고 0.5~1.0 사이 fine-tune.
+    lookahead_dist: 0.7
+    max_clearance: 1.0      # m, [unused] 호환 위해 유지
     goal_tolerance: 0.20    # m, 도착 판정
 
-    # ----- In-place rotation 모드 (PD + hysteresis + v blending, 12차) -----
-    # 표준 Pure Pursuit 의 forward velocity ramp + heading deadband:
+    # ----- In-place rotation (큰 heading 오차 전용) -----
+    # 14차 (Pure Pursuit): align_angle_thresh 만 사용. 나머지 align_* 는 unused.
     #
-    # 1) Hysteresis: 진입 thresh (45°) > 종료 exit (15°). 진동 방지.
-    #    mode 진입 후 angle 이 exit 이하 되어야 종료. 중간 영역에선 mode 유지.
+    # |α| > thresh (45°) 면 Pure Pursuit 곡률 공식이 unstable 영역 (|y| 크고
+    # |x| 작음 → κ 폭주). 이 영역에서만 정지+P 회전. 그 외는 모두 PP.
     #
-    # 2) PD 제어: w_cmd = P × angle - D × w_current
-    #    D 항이 회전 관성 잡음. overshoot 없음.
-    #
-    # 3) v blending: angle 이 thresh → exit 로 줄어들면 v 도 0 → v_blend_max 로 증가.
-    #    매끄러운 정지→전진 전환. align mode 종료 후 normal DWA 가 가속 인계.
-    #
-    # 비유: 자전거에서 큰 회전은 멈추고 핸들 돌리지만, 거의 정렬됐으면 페달 밟으면서
-    #       미세조정. 굳이 완전히 멈출 필요 없음.
-    align_angle_thresh: 0.785  # rad ≈ 45° (진입)
-    align_angle_exit: 0.262    # rad ≈ 15° (종료, hysteresis)
-    align_kp: 1.5              # PD 의 P gain
-    align_kd: 0.5              # PD 의 D gain (관성 잡기)
-    align_v_blend_max: 0.3     # m/s, blending v 상한 (사용자: 너무 컸음 0.5→0.3)
-    # 13차 추가 (사용자 요구 "정렬되면 둘 다 멈추기"):
-    # align mode 종료 후 이 시간 동안 재진입 금지 → normal DWA 가 직진 안정화.
-    # 또한 PD 출력 부호가 angle 반대 = overshoot 시작 = 즉시 v=0,w=0 stop.
-    align_cooldown: 1.0        # s, align mode 재진입 금지 시간
+    # align_kp 만 in-place rotation 의 P gain 으로 재사용:
+    #   w = clamp(kp · α, ±w_max · 0.7)
+    align_angle_thresh: 0.785  # rad ≈ 45°, PP/회전 분기점
+    align_angle_exit: 0.262    # [unused, 14차]
+    align_kp: 1.5              # in-place P gain (재사용)
+    align_kd: 0.5              # [unused, 14차]
+    align_v_blend_max: 0.3     # [unused, 14차]
+    align_cooldown: 1.0        # [unused, 14차]
 
     # ----- 후진 / Path offset 안전장치 (2026-05-25 추가, CLAUDE.md §0.1 원칙 8) -----
     # 먼 거리 (20m+) 시나리오에서 발견된 두 문제 해결:

@@ -524,9 +524,16 @@ class DwaPlannerNode(Node):
         self._path_progress_idx = 0
 
         # align mode 의 hysteresis 상태 — 한 번 진입하면 exit_thresh 까지 유지
+        # ⚠ 14차 (2026-05-25, Pure Pursuit 전환) 이후 unused — 호환 위해 잔존.
+        #   Pure Pursuit 의 곡률 공식 κ=2y/L² 가 lateral error 0 일 때 w=0 자동 보장.
         self._in_align_mode = False
         # align mode 종료 후 cooldown 만료 시각 (sim_time)
         self._align_cooldown_until = 0.0
+
+        # 14차 (Pure Pursuit 전환): stuck recovery 카운터
+        # control_loop 가 collision imminent 로 정지할 때마다 +1, 정상 cmd 발행 시 0 리셋.
+        # stuck_recovery_cycles 이상 누적되면 EMERGENCY status → A* 재계획 유도.
+        self._stuck_counter = 0
 
         # ── TF buffer (path 변환에만 사용) ──────────────────────────
         self._tf_buffer = tf2_ros.Buffer()
@@ -873,10 +880,53 @@ class DwaPlannerNode(Node):
         return points
 
     # ───────────────────────────────────────────────────────────────
-    # 메인 제어 루프 — cycle 안 TF lookup 0번
+    # 메인 제어 루프 — Pure Pursuit + Adaptive Velocity Profile
+    # (2026-05-25 14차, 표준 modern AMR 컨트롤러로 완전 전환)
+    # ───────────────────────────────────────────────────────────────
+    #
+    # ╔══════════════════════════════════════════════════════════════╗
+    # ║ 왜 이 컨트롤러로 바꿨나                                       ║
+    # ╚══════════════════════════════════════════════════════════════╝
+    # 1~13차 patch chain (DWA score-tuning, align mode PD, hysteresis,
+    # overshoot stop, cooldown) 가 모두 같은 증상을 다른 각도에서 패치하다
+    # 진동·과회전·wall stuck 를 만들었다 (CLAUDE.md §0.1 원칙 8 발동 2회째).
+    #
+    # 표준 AMR motion controller (Coulter 1992, 이후 ROS Nav1/Nav2,
+    # autoware, Stanley 등 모든 산업 구현의 뼈대) 의 단일 구조로 통일:
+    #
+    #     w = κ · v         (Pure Pursuit 곡률 추종)
+    #     κ = 2y / L²       (표준 공식)
+    #     v = min(v_max, v_curve, v_clearance, v_goal, v_heading)
+    #
+    # 이 구조의 결정적 장점 — 사용자 3개 요구가 알고리즘 자체에 내재:
+    #
+    # 1) "정렬되면 회전 자동 정지":
+    #    lookahead 의 lateral error y → 0 이면 κ → 0 이고 w = κ·v = 0.
+    #    PD/hysteresis/overshoot/cooldown 같은 "정지 시키는 로직" 불필요.
+    #    수학적으로 y=0 인 순간 w=0 보장.
+    #
+    # 2) "최대한 빠르게 경로 도달":
+    #    v 는 직선 구간에선 v_max, 코너에선 횡가속 한계로 자동 감속,
+    #    장애물 가까이엔 clearance 비례 감속, goal 가까이엔 정확한
+    #    제동거리 공식 (v = √(2·a·d)) 으로 감속.
+    #    "필요한 만큼만 늦추고 나머지는 풀가속" — 표준 velocity profile.
+    #
+    # 3) "벽 부딪혀 stuck":
+    #    forward clearance scaling 으로 벽 가까이에서 v 자동 감속,
+    #    DWA-style 적분 collision check 로 임박한 충돌 정지,
+    #    stuck_counter 누적 시 EMERGENCY status → A* 재계획 유도.
+    #
+    # ╔══════════════════════════════════════════════════════════════╗
+    # ║ 비유                                                          ║
+    # ╚══════════════════════════════════════════════════════════════╝
+    # 자동차 운전자:
+    #   - 핸들 = Pure Pursuit (멀리 점 보고 그쪽으로 자동 조향)
+    #   - 액셀 = adaptive v (직선 풀가속, 코너 감속, 도착 감속)
+    #   - 브레이크 = collision check (충돌 직전 무조건 정지)
+    #   - 후진/탈출 = stuck recovery (막다른 길에서 A* 재계획 요청)
     # ───────────────────────────────────────────────────────────────
     def _control_loop(self) -> None:
-        # 1) state 검증
+        # ── 1) state 검증 ──────────────────────────────────────────
         if self._state is None:
             return
         if (self._last_odom_time is None or
@@ -884,28 +934,21 @@ class DwaPlannerNode(Node):
             self._stop_robot("odom_timeout")
             return
 
-        # 2) path 검증
+        # ── 2) path 검증 ───────────────────────────────────────────
         if self._path_local is None or not self._path_local.poses:
             self._stop_robot("no_global_path")
             return
 
         path_xy = self._path_xy(self._path_local)
 
-        # 3) 도착 판정 (LOCAL_FRAME 안에서) + hysteresis
-        #
-        # 2026-05-25 (5차 진단) — REACHED state hold:
-        #   이전 코드는 dist_to_goal jitter (관성 + EKF noise) 로 reached 가
-        #   깜빡거려, 도착 직후 path[-1] 이 자기 뒤로 매핑 → align mode 무한 회전.
-        #   해결: 한 번 reached 가 True 면 새 path 도착할 때까지 stop hold.
-        #         새 path 받으면 _on_global_path 에서 self._reached=False 리셋.
-        #
-        # 비유: 식당 도착했으면 새 약속 잡기 전까진 자리 유지. 0.2m 지나쳤다고
-        #       또 돌아오느라 빙빙 돌지 말 것.
+        # ── 3) 도착 판정 + REACHED hold ───────────────────────────
+        # dist_to_goal jitter (관성+EKF noise) 로 reached 가 깜빡거리면
+        # path[-1] 이 자기 뒤로 매핑돼 다시 회전 → 한 번 reached 면 새 path
+        # 도착 전까지 stop hold. (5차 진단 결과 유지)
         gx, gy = path_xy[-1]
         dist_to_goal = math.hypot(gx - self._state.x, gy - self._state.y)
 
         if self._reached:
-            # REACHED hold — 새 path 가 self._reached 를 False 로 리셋할 때까지 정지
             self._stop_robot("reached_hold")
             return
 
@@ -915,16 +958,11 @@ class DwaPlannerNode(Node):
             self._goal_reached_logged_once()
             return
 
-        # 4) lookahead 점 선택 (LOCAL_FRAME)
-        #    monotonic forward progress: 이전 nearest_idx 이전 점은 후보 제외.
-        #    catmull-rom / 우회로 path 에서 자기 뒤 점이 nearest 로 잡혀 REAR 매핑 되는 것 차단.
+        # ── 4) nearest_idx (monotonic) + path lateral offset 안전 ─
         nearest_idx = find_nearest_idx(
             path_xy, (self._state.x, self._state.y), self._path_progress_idx)
-        self._path_progress_idx = nearest_idx   # 단조 증가 갱신
+        self._path_progress_idx = nearest_idx
 
-        # 4.1) Path lateral offset 안전장치 (2026-05-25 추가)
-        #      자기와 nearest path 점이 max_path_offset 이상 떨어지면 정지.
-        #      Cross-track error 가 너무 커지면 무리하게 따라가지 않고 A* 재계획 유도.
         nx, ny = path_xy[nearest_idx]
         path_offset = math.hypot(nx - self._state.x, ny - self._state.y)
         if path_offset > self.p_max_path_offset:
@@ -937,6 +975,7 @@ class DwaPlannerNode(Node):
             )
             return
 
+        # ── 5) Lookahead 점 선택 + base_link frame 변환 ───────────
         lookahead = pick_lookahead_point(
             path_xy, (self._state.x, self._state.y),
             self.p_lookahead_dist, start_idx=nearest_idx)
@@ -944,190 +983,186 @@ class DwaPlannerNode(Node):
             self._stop_robot("no_lookahead")
             return
 
-        # 5) base_link frame 변환 — 단순 회전+평행이동 (TF lookup 불필요)
-        #    DWA 내부 trajectory 평가는 base_link 안에서 (가상 (0,0,0) 시작).
-        local_state = RobotState(
-            x=0.0, y=0.0, theta=0.0,
-            v=self._state.v, w=self._state.w,
-        )
-        local_goal = world_to_local(lookahead, self._state)
+        lx, ly = world_to_local(lookahead, self._state)
+        L = math.hypot(lx, ly)
+        alpha = math.atan2(ly, lx)   # lookahead 방위각 [-π, π]
 
-        # 5.5) In-place rotation 모드 (2026-05-25, 12차 hysteresis + v blending)
-        #
-        # 표준 path follower 의 forward velocity ramp + heading deadband:
-        # - |angle| > thresh (45°) 면 align mode 진입
-        # - 진입 후 |angle| < exit (15°) 까지 mode 유지 (hysteresis — 진동 방지)
-        # - PD 제어 (P × angle - D × w) 로 critical damping
-        # - v 는 angle 에 따라 0 ~ v_blend_max 로 blending (정지→전진 부드러운 전환)
-        # - exit 이후엔 normal DWA 가 인계
-        # - 도착 영역 (1.5 × tolerance) 안에선 align mode 비활성
-        local_goal_angle = math.atan2(local_goal[1], local_goal[0])
-        angle_abs = abs(local_goal_angle)
-        align_safe_dist = self.p_goal_tolerance * 1.5
+        # ── 6) 장애물 + forward clearance ─────────────────────────
+        obstacles_local = self._extract_obstacles_from_scan()
+        fwd_clear = self._forward_clearance_inline(obstacles_local)
 
-        now = self._sec_now()
-        in_cooldown = (now < self._align_cooldown_until)
+        # ── 7) 제어 분기 ──────────────────────────────────────────
+        # 큰 heading 오차 (|α| > thresh) 면 Pure Pursuit 부적합 →
+        # 정지하고 in-place 회전. thresh 이내면 표준 Pure Pursuit.
+        period = 1.0 / max(self.p_control_rate, 1.0)
+        dv_max = self.p_a_max * period
+        dw_max = self.p_alpha_max * period
 
-        if dist_to_goal <= align_safe_dist:
-            self._in_align_mode = False
-        elif self._in_align_mode:
-            # 종료: angle 이 exit 이하면 mode 종료 + cooldown 시작
-            if angle_abs < self.p_align_angle_exit:
-                self._in_align_mode = False
-                self._align_cooldown_until = now + self.p_align_cooldown
+        if abs(alpha) > self.p_align_angle_thresh and L > 0.1:
+            # ── 7a) In-place rotation (큰 오차) ───────────────────
+            # P 제어 단일항. cosine 가 음수 → 후방인 경우만 발동.
+            # Pure Pursuit κ 공식이 |y| 크고 |x| 작을 때 unstable 하므로
+            # 안전을 위해 이 영역만 회전 전담.
+            v_target = 0.0
+            # 회전 속도는 α 에 비례, w_max 의 0.7 cap
+            w_target = max(-self.p_w_max * 0.7,
+                           min(self.p_w_max * 0.7,
+                               self.p_align_kp * alpha))
+            kappa_dbg = 0.0
         else:
-            # 진입: thresh 이상 + cooldown 만료
-            if angle_abs > self.p_align_angle_thresh and not in_cooldown:
-                self._in_align_mode = True
-
-        if self._in_align_mode:
-            # PD 제어
-            w_cmd_raw = (self.p_align_kp * local_goal_angle
-                         - self.p_align_kd * self._state.w)
-
-            # ★ Overshoot stop: PD 출력 부호가 angle 과 반대면 (이미 정렬됨 + 관성)
-            #   → 즉시 v=0, w=0 으로 stop, mode 종료, cooldown 시작.
-            #   사용자 요구 "경로와 마주했을 때 회전과 전진 둘 다 멈춤" 직접 구현.
-            if local_goal_angle * w_cmd_raw < 0.0:
-                self._in_align_mode = False
-                self._align_cooldown_until = now + self.p_align_cooldown
-                # 부드러운 감속 (가속도 한계)
-                dw_max = self.p_alpha_max * (1.0 / max(self.p_control_rate, 1.0))
-                dv_max = self.p_a_max * (1.0 / max(self.p_control_rate, 1.0))
-                w_stop = max(self._state.w - dw_max,
-                             min(self._state.w + dw_max, 0.0))
-                v_stop = max(self._state.v - dv_max,
-                             min(self._state.v + dv_max, 0.0))
-                self._publish_cmd(VelocityCommand(v=v_stop, w=w_stop))
-                # 진단
-                self._candidate_log_counter += 1
-                target = int(self.p_control_rate * self.p_candidate_log_period)
-                if self.p_candidate_log_period > 0.0 and \
-                   self._candidate_log_counter >= max(1, target):
-                    self._candidate_log_counter = 0
-                    self.get_logger().info(
-                        f"DWA align overshoot stop: angle={math.degrees(local_goal_angle):+.1f}° "
-                        f"→ v={v_stop:.2f} w={w_stop:+.2f} "
-                        f"cooldown {self.p_align_cooldown}s"
-                    )
-                self._log_state_throttled()
-                return
-
-            # 정상 PD 출력 적용 (overshoot 아님)
-            w_cmd = max(-self.p_w_max, min(self.p_w_max, w_cmd_raw))
-            dw_max = self.p_alpha_max * (1.0 / max(self.p_control_rate, 1.0))
-            w_cmd = max(self._state.w - dw_max,
-                        min(self._state.w + dw_max, w_cmd))
-
-            # v blending
-            if angle_abs >= self.p_align_angle_thresh:
-                v_cmd = 0.0
+            # ── 7b) Pure Pursuit (정상 추종) ──────────────────────
+            # 표준 공식: 곡률 κ = 2y / L²
+            # 비유: 자전거가 멀리 한 점을 보고 그 점에 정확히 닿는 호의 반경.
+            if L < 1e-3:
+                kappa = 0.0
             else:
-                blend_ratio = (self.p_align_angle_thresh - angle_abs) / \
-                              max(self.p_align_angle_thresh - self.p_align_angle_exit, 1e-3)
-                blend_ratio = max(0.0, min(1.0, blend_ratio))
-                v_cmd = self.p_align_v_blend_max * blend_ratio
-            dv_max = self.p_a_max * (1.0 / max(self.p_control_rate, 1.0))
-            v_cmd = max(self._state.v - dv_max,
-                        min(self._state.v + dv_max, v_cmd))
+                kappa = 2.0 * ly / (L * L)
+            kappa_dbg = kappa
 
-            self._publish_cmd(VelocityCommand(v=v_cmd, w=w_cmd))
+            # ── adaptive velocity profile ─────────────────────────
+            v_target = self.p_v_max
 
-            # 진단 로그 throttle
-            self._candidate_log_counter += 1
-            target = int(self.p_control_rate * self.p_candidate_log_period)
-            if self.p_candidate_log_period > 0.0 and \
-               self._candidate_log_counter >= max(1, target):
-                self._candidate_log_counter = 0
-                self.get_logger().info(
-                    f"DWA align: angle={math.degrees(local_goal_angle):+.1f}° "
-                    f"→ v={v_cmd:.2f} w={w_cmd:+.2f} "
-                    f"[thresh={math.degrees(self.p_align_angle_thresh):.0f}°→"
-                    f"exit={math.degrees(self.p_align_angle_exit):.0f}°]"
+            # (i) 곡률 기반 (횡가속 한계 안에서)
+            #     a_lat = κ · v² 가 한계 이하 → v ≤ √(a_lat_max / |κ|)
+            #     비유: 시속 100km 로 급커브 못 돈다 — 횡력 한계.
+            if abs(kappa) > 1e-3:
+                v_curve = math.sqrt(self.p_a_max / abs(kappa))
+                v_target = min(v_target, v_curve)
+
+            # (ii) 전방 clearance 기반
+            #      safety_distance ~ safety_distance·3 사이에서 선형 감속,
+            #      safety 안에 들어오면 v=0 → 충돌 직전 자동 정지.
+            cf = self.p_safety_distance
+            cc = self.p_safety_distance * 3.0
+            if fwd_clear < cc:
+                v_clear = self.p_v_max * max(0.0, fwd_clear - cf) / \
+                          max(cc - cf, 1e-3)
+                v_target = min(v_target, v_clear)
+
+            # (iii) goal 감속 (운동량 공식 v = √(2·a·d))
+            #       정확히 goal_tolerance 에서 v=0 되도록 감속거리 계산.
+            v_goal = math.sqrt(2.0 * self.p_a_max *
+                               max(0.0, dist_to_goal - self.p_goal_tolerance))
+            v_target = min(v_target, v_goal)
+
+            # (iv) heading 오차 감속
+            #      α 가 작아도 0 이 아니면 살짝 감속해 부드러운 회전.
+            #      α=0 (완전 정렬) → 1.0 (풀가속), α=±90° → 0.3 cap.
+            heading_factor = max(0.3, math.cos(alpha))
+            v_target *= heading_factor
+
+            # ── Pure Pursuit ω = κ · v ────────────────────────────
+            w_target = kappa * v_target
+
+        # ── 8) 한계 + 가속도 제한 ─────────────────────────────────
+        v_target = max(0.0, min(self.p_v_max, v_target))
+        w_target = max(-self.p_w_max, min(self.p_w_max, w_target))
+        v_cmd = max(self._state.v - dv_max,
+                    min(self._state.v + dv_max, v_target))
+        w_cmd = max(self._state.w - dw_max,
+                    min(self._state.w + dw_max, w_target))
+
+        # ── 9) 최종 충돌 체크 (DWA-style safety net) ──────────────
+        # (v_cmd, w_cmd) 로 predict_horizon 적분 후 hard collision 검사.
+        # 회전+전진 결합 trajectory 가 실제로 안전한지 마지막 확인.
+        # 비유: 운전자가 핸들/액셀 결정한 뒤 ABS 시스템이 최종 점검.
+        sim_state = RobotState(x=0.0, y=0.0, theta=0.0,
+                               v=self._state.v, w=self._state.w)
+        sim_traj = forward_simulate(
+            sim_state, v_cmd, w_cmd, self.p_dt, self.p_predict_horizon)
+        if sim_traj:
+            sim_traj_xy = [(p[0], p[1]) for p in sim_traj[2:]] or \
+                          [(p[0], p[1]) for p in sim_traj]
+            min_d = min_clearance_distance(sim_traj_xy, obstacles_local) \
+                    if sim_traj_xy else float("inf")
+        else:
+            sim_traj_xy = []
+            min_d = float("inf")
+
+        collision_imminent = min_d < (self.p_hard_collision_distance +
+                                       self.p_robot_radius)
+
+        if collision_imminent:
+            # 정지 명령 발행 + EMERGENCY + stuck counter 증가
+            self._publish_cmd(VelocityCommand(v=0.0, w=0.0))
+            self._publish_status_value("EMERGENCY")
+            self._stuck_counter += 1
+            # 1초 이상 stuck → A* 재계획 신호 (astar_node 가 1Hz 로 replan)
+            if self._stuck_counter > int(self.p_control_rate * 1.0):
+                self.get_logger().warn(
+                    f"stuck {self._stuck_counter} cycle "
+                    f"(min_d={min_d:.2f}m). A* replan 대기.",
+                    throttle_duration_sec=2.0
                 )
             self._log_state_throttled()
+            # 시각화는 의도된 (collision 적발된) trajectory
+            if sim_traj:
+                self._publish_best_trajectory(sim_traj)
             return
 
-        # 6) Dynamic Window
-        # allow_backward=False 면 v_min 을 0 으로 강제 — 후진 trajectory 자체 sample 안 함.
-        # heading_score 가 후진 trajectory 도 만점 평가하는 버그 회피.
-        # 모든 전진 trajectory 가 충돌이면 EMERGENCY 가 정직하게 표시 → A* 재계획 유도.
-        effective_v_min = self.p_v_min if self.p_allow_backward else max(self.p_v_min, 0.0)
-        window = compute_dynamic_window(
-            state=local_state,
-            v_max=self.p_v_max, v_min=effective_v_min,
-            w_max=self.p_w_max, a_max=self.p_a_max,
-            alpha_max=self.p_alpha_max, dt=self.p_dt,
-        )
+        # collision 안전 → stuck counter 리셋
+        self._stuck_counter = 0
 
-        # 7) 속도 샘플링
-        samples = sample_velocities(
-            window, self.p_sample_v_n, self.p_sample_w_n)
-        if not samples:
-            self._stop_robot("no_samples")
-            return
+        # ── 10) cmd_vel 발행 ─────────────────────────────────────
+        self._publish_cmd(VelocityCommand(v=v_cmd, w=w_cmd))
 
-        # 8) 장애물 (base_link frame)
-        obstacles_local = self._extract_obstacles_from_scan()
-
-        # 8.5) Path tangent (base_link frame) — Pure Pursuit / Stanley heading control
-        #      trajectory 끝점 yaw 가 이 방향과 정렬되면 path 진행 방향 따라감.
-        path_tangent_local = compute_path_tangent_local(
-            path_xy, nearest_idx, int(self.p_path_tangent_lookahead),
-            self._state.x, self._state.y, self._state.theta,
-        )
-
-        # 9) 각 후보 평가
-        candidates: List[Tuple[VelocityCommand, List[Tuple[float, float, float]]]] = []
-        for v, w in samples:
-            traj = forward_simulate(
-                local_state, v, w, self.p_dt, self.p_predict_horizon)
-            if not traj:
-                continue
-            # 첫 2 step 은 base_link 원점 근처 (자체 lidar 가까이) → 충돌 검사 제외
-            traj_xy = [(p[0], p[1]) for p in traj[2:]] or \
-                      [(p[0], p[1]) for p in traj]
-            min_d = min_clearance_distance(traj_xy, obstacles_local)
-            if min_d < (self.p_hard_collision_distance + self.p_robot_radius):
-                continue
-
-            end_x, end_y, end_theta = traj[-1]
-            # heading_score_dist: 위치 정렬 (끝점이 lookahead 가까이)
-            h = heading_score_dist(end_x, end_y,
-                                   local_goal[0], local_goal[1],
-                                   max_dist=self.p_max_clearance)
-            # path_tangent_score: 자세 정렬 (끝점 yaw 가 path 진행 방향과)
-            # → 회전 trajectory 가 path 옆길로 빠지는 것 방지
-            t = path_tangent_score(end_theta, path_tangent_local)
-            c = clearance_score(traj_xy, obstacles_local, self.p_max_clearance)
-            vel_s = velocity_score(v, self.p_v_max)
-            score = (
-                self.p_w_heading * h
-                + self.p_w_path_tangent * t
-                + self.p_w_clearance * c
-                + self.p_w_velocity * vel_s
-            )
-            candidates.append((VelocityCommand(v=v, w=w, score=score), traj))
-
-        # 10) 모든 후보 차단 → EMERGENCY
-        if not candidates:
-            self._stop_robot("all_candidates_blocked")
-            self._publish_status_value("EMERGENCY")
-            return
-
-        # 11) 최고 점수 선택
-        candidates.sort(key=lambda c: c[0].score, reverse=True)
-        best_cmd, best_traj = candidates[0]
-        self._publish_cmd(best_cmd)
-
-        # 12) 진단 로그 (throttle)
+        # ── 11) 진단 로그 (throttle) ─────────────────────────────
         self._log_state_throttled()
-        self._log_best_candidate_throttled(
-            best_cmd, best_traj, local_goal, len(candidates))
+        self._candidate_log_counter += 1
+        target = int(self.p_control_rate * self.p_candidate_log_period)
+        if self.p_candidate_log_period > 0.0 and \
+           self._candidate_log_counter >= max(1, target):
+            self._candidate_log_counter = 0
+            mode = "ROTATE" if (abs(alpha) > self.p_align_angle_thresh
+                                 and L > 0.1) else "PP"
+            self.get_logger().info(
+                f"PP[{mode}]: la=({lx:+.2f},{ly:+.2f}) L={L:.2f} "
+                f"α={math.degrees(alpha):+.1f}° κ={kappa_dbg:+.2f} "
+                f"v={v_cmd:+.2f}/{v_target:.2f} w={w_cmd:+.2f}/{w_target:+.2f} "
+                f"fwd_clr={fwd_clear:.2f} d_goal={dist_to_goal:.2f}"
+            )
 
-        # 13) 시각화
-        self._publish_trajectories([t for _, t in candidates])
-        self._publish_best_trajectory(best_traj)
+        # ── 12) 시각화 (Pure Pursuit best trajectory) ─────────────
+        if sim_traj:
+            self._publish_best_trajectory(sim_traj)
+
+    # ───────────────────────────────────────────────────────────────
+    # Forward clearance — 전방 부채꼴 안 최단 장애물 거리
+    # ───────────────────────────────────────────────────────────────
+    def _forward_clearance_inline(
+        self,
+        obstacles_local: List[Tuple[float, float]],
+        half_angle: float = math.pi / 3.0,   # ±60° 부채꼴
+    ) -> float:
+        """base_link 정면 (±half_angle) 부채꼴 안의 최단 장애물 거리.
+
+        adaptive velocity profile 의 v_clearance 항 입력.
+        Pure Pursuit 의 lateral 방향 장애물은 자체 회피 못 하므로,
+        전방 부채꼴만 보고 감속 결정. (회전 중 후방 장애물 무시 OK)
+
+        Args:
+            obstacles_local: base_link frame 의 (x, y) 점들
+            half_angle: 부채꼴 반각 [rad]
+
+        Returns:
+            최단 거리 [m]. 부채꼴 안 점 없으면 +inf.
+        """
+        if not obstacles_local:
+            return float("inf")
+        best = float("inf")
+        for ox, oy in obstacles_local:
+            # 자기 뒤 점은 무시
+            if ox < 0.0:
+                continue
+            ang = math.atan2(oy, ox)
+            if abs(ang) > half_angle:
+                continue
+            d = math.hypot(ox, oy)
+            # 로봇 반경 빼서 "여유 거리" 로 환산
+            d_eff = max(0.0, d - self.p_robot_radius)
+            if d_eff < best:
+                best = d_eff
+        return best
 
     # ───────────────────────────────────────────────────────────────
     # 진단 로그 (throttle)
