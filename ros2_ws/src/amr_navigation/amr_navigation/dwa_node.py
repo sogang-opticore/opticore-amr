@@ -425,6 +425,9 @@ class DwaPlannerNode(Node):
         self.declare_parameter("a_max", 1.0)
         # TODO: alpha_max 명세 미명시. 시뮬 측정 후 갱신.
         self.declare_parameter("alpha_max", 1.5)
+        # 횡가속 한계 (Pure Pursuit v_curve 캐핑용)
+        # 명세 미명시. 기본 = a_max (보수적). 시뮬 측정 후 a_max 의 1.5~2배 가능.
+        self.declare_parameter("a_lat_max", 1.0)
 
         # 샘플링 / 시뮬레이션
         self.declare_parameter("sample_v_n", 11)
@@ -588,6 +591,7 @@ class DwaPlannerNode(Node):
         self.p_w_max = gp("w_max").value
         self.p_a_max = gp("a_max").value
         self.p_alpha_max = gp("alpha_max").value
+        self.p_a_lat_max = gp("a_lat_max").value
 
         self.p_sample_v_n = gp("sample_v_n").value
         self.p_sample_w_n = gp("sample_w_n").value
@@ -998,16 +1002,37 @@ class DwaPlannerNode(Node):
         dv_max = self.p_a_max * period
         dw_max = self.p_alpha_max * period
 
-        if abs(alpha) > self.p_align_angle_thresh and L > 0.1:
-            # ── 7a) In-place rotation (큰 오차) ───────────────────
-            # P 제어 단일항. cosine 가 음수 → 후방인 경우만 발동.
-            # Pure Pursuit κ 공식이 |y| 크고 |x| 작을 때 unstable 하므로
-            # 안전을 위해 이 영역만 회전 전담.
+        # ── 7) 모드 결정 — Hysteresis + PD (15차 추가, oscillation 차단) ──
+        # 14차 P-only ROTATE 의 oscillation 분석 (시나리오 (0, 5) 진단):
+        #   α ≈ ±90° 부근에서 lookahead 점의 좌/우 부호가 wraparound →
+        #   P 출력 부호 휙휙 → 가속도 한계로 정지 못함 → overshoot →
+        #   반대방향 가속 → 또 wraparound → oscillation.
+        #
+        # 15차 해결:
+        #   1) PD 의 D 항 (kd·w) 가 회전 관성 잡음 → critical damping.
+        #      α 부호 바뀌어도 현재 w 가 크면 D 가 P 출력 상쇄 → 매끄러운 감속.
+        #   2) Hysteresis (45° in, 15° out): 진입 후 |α| < exit 까지 ROTATE 유지.
+        #      모드 자체가 휙휙 바뀌는 것 방지. 13차 align_angle_exit 재사용.
+        #
+        # 비유: P-only = 핸들 휙휙. PD + hysteresis = 핸들 + ABS 브레이크 + 데드존.
+        if self._in_align_mode:
+            # 종료: |α| 가 exit 이하면 mode 해제 → PP 인계
+            if abs(alpha) < self.p_align_angle_exit:
+                self._in_align_mode = False
+        else:
+            # 진입: |α| > thresh + 의미 있는 lookahead 거리
+            if abs(alpha) > self.p_align_angle_thresh and L > 0.1:
+                self._in_align_mode = True
+
+        if self._in_align_mode:
+            # ── 7a) In-place rotation (PD 제어) ───────────────────
+            # PP 의 κ 공식은 |y| 크고 |x| 작을 때 unstable → 이 영역만 정지 회전.
             v_target = 0.0
-            # 회전 속도는 α 에 비례, w_max 의 0.7 cap
+            # PD: P × α  -  D × w_current  (회전 관성 잡기)
+            w_target = (self.p_align_kp * alpha
+                        - self.p_align_kd * self._state.w)
             w_target = max(-self.p_w_max * 0.7,
-                           min(self.p_w_max * 0.7,
-                               self.p_align_kp * alpha))
+                           min(self.p_w_max * 0.7, w_target))
             kappa_dbg = 0.0
         else:
             # ── 7b) Pure Pursuit (정상 추종) ──────────────────────
@@ -1025,8 +1050,9 @@ class DwaPlannerNode(Node):
             # (i) 곡률 기반 (횡가속 한계 안에서)
             #     a_lat = κ · v² 가 한계 이하 → v ≤ √(a_lat_max / |κ|)
             #     비유: 시속 100km 로 급커브 못 돈다 — 횡력 한계.
+            #     15차: a_lat_max yaml 외부화 (기본 = a_max 보수적).
             if abs(kappa) > 1e-3:
-                v_curve = math.sqrt(self.p_a_max / abs(kappa))
+                v_curve = math.sqrt(self.p_a_lat_max / abs(kappa))
                 v_target = min(v_target, v_curve)
 
             # (ii) 전방 clearance 기반

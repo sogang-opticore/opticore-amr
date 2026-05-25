@@ -38,6 +38,10 @@ dwa_planner:
     w_max: 1.5          # rad/s, 명세 §4.1
     a_max: 1.0          # m/s², 명세 §4.1
     alpha_max: 1.5      # rad/s², ⚠ 명세 미명시 — 시뮬 측정 후 갱신
+    # 횡가속 한계 (Pure Pursuit v_curve 캐핑). 명세 미명시.
+    # 기본 = a_max (보수적). 회전 구간 v 가 작아 보이면 1.5~2.0 으로 시험.
+    # v_curve = √(a_lat_max / |κ|). 예: κ=2 (R=0.5m), a_lat=1 → v_curve=0.7m/s.
+    a_lat_max: 1.0      # m/s², ⚠ 명세 미명시
 
     # ----- 샘플링 / 시뮬레이션 -----
     # 14차 (Pure Pursuit) 부터 sample_v_n / sample_w_n / weight_* 들은 unused.
@@ -73,19 +77,24 @@ dwa_planner:
     goal_tolerance: 0.20    # m, 도착 판정
 
     # ----- In-place rotation (큰 heading 오차 전용) -----
-    # 14차 (Pure Pursuit): align_angle_thresh 만 사용. 나머지 align_* 는 unused.
+    # 15차 (2026-05-25, 시나리오 (0,5) 진단 후): PD + hysteresis 보강.
     #
-    # |α| > thresh (45°) 면 Pure Pursuit 곡률 공식이 unstable 영역 (|y| 크고
-    # |x| 작음 → κ 폭주). 이 영역에서만 정지+P 회전. 그 외는 모두 PP.
+    # 14차 P-only 의 oscillation:
+    #   α ≈ ±90° 근처에서 lookahead 부호 wraparound → P 출력 휙휙 →
+    #   가속도 한계로 정지 못함 → overshoot → oscillation.
     #
-    # align_kp 만 in-place rotation 의 P gain 으로 재사용:
-    #   w = clamp(kp · α, ±w_max · 0.7)
-    align_angle_thresh: 0.785  # rad ≈ 45°, PP/회전 분기점
-    align_angle_exit: 0.262    # [unused, 14차]
-    align_kp: 1.5              # in-place P gain (재사용)
-    align_kd: 0.5              # [unused, 14차]
-    align_v_blend_max: 0.3     # [unused, 14차]
-    align_cooldown: 1.0        # [unused, 14차]
+    # 15차 해결:
+    #   1) PD 의 D 항 (kd·w) 가 회전 관성 잡음 → critical damping.
+    #   2) Hysteresis (45° in, 15° out): 모드 자체 진동 차단.
+    #
+    # |α| > thresh (45°) 면 PP κ=2y/L² 의 unstable 영역 → 정지 + PD 회전.
+    # 진입 후 |α| < exit (15°) 까지 ROTATE 유지 → PP 인계.
+    align_angle_thresh: 0.785  # rad ≈ 45°, ROTATE 진입
+    align_angle_exit: 0.262    # rad ≈ 15°, ROTATE 종료 (15차 재사용)
+    align_kp: 1.5              # PD 의 P gain
+    align_kd: 0.5              # PD 의 D gain (15차 재사용, 관성 잡기)
+    align_v_blend_max: 0.3     # [unused, 14차 이후]
+    align_cooldown: 1.0        # [unused, 14차 이후]
 
     # ----- 후진 / Path offset 안전장치 (2026-05-25 추가, CLAUDE.md §0.1 원칙 8) -----
     # 먼 거리 (20m+) 시나리오에서 발견된 두 문제 해결:
