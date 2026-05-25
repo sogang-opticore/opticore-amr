@@ -449,13 +449,16 @@ class DwaPlannerNode(Node):
         self.declare_parameter("max_clearance", 1.0)
         self.declare_parameter("goal_tolerance", 0.20)
 
-        # In-place rotation 모드 (2026-05-25 추가, 11차 PD 제어로 진화)
-        # lookahead 의 base_link 각도가 이 값 이상 차이면 v=0, w 만으로 정렬.
-        # P 제어만 쓰면 overshoot (회전 관성으로 lookahead 지나침 → 반대 회전 → 진동).
-        # PD 제어 (P × angle - D × w_current) 로 critical damping 달성.
-        self.declare_parameter("align_angle_thresh", 1.05)  # rad ≈ 60°
-        self.declare_parameter("align_kp", 1.5)             # P 제어 gain
-        self.declare_parameter("align_kd", 0.5)             # D 제어 gain (관성 잡기)
+        # In-place rotation 모드 (2026-05-25, 12차 hysteresis + velocity blending)
+        # lookahead 각도가 thresh 이상이면 정지 회전, 작아지면 점진적 전진 가속.
+        # 표준 Pure Pursuit 의 forward velocity ramp + heading deadband.
+        self.declare_parameter("align_angle_thresh", 0.785)  # rad ≈ 45° (진입)
+        self.declare_parameter("align_angle_exit", 0.262)    # rad ≈ 15° (종료, hysteresis)
+        self.declare_parameter("align_kp", 1.5)              # P gain
+        self.declare_parameter("align_kd", 0.5)              # D gain
+        # angle 이 thresh → exit 로 줄어드는 동안 v 가 0 → align_v_blend_max 까지 증가.
+        # 매끄러운 정지→전진 전환. 큰 angle 일 땐 v=0 (안전 회전).
+        self.declare_parameter("align_v_blend_max", 0.5)     # m/s, blending v 상한
 
         # 후진 / Path offset 안전장치 (2026-05-25 추가, CLAUDE.md §0.1 원칙 8 발동)
         # 먼 거리 시나리오 (20m+) 에서 발견된 두 문제:
@@ -519,6 +522,9 @@ class DwaPlannerNode(Node):
         # 매 cycle 의 nearest_idx 가 이 값 이전으로 안 가도록.
         # 새 path 받으면 0 으로 리셋.
         self._path_progress_idx = 0
+
+        # align mode 의 hysteresis 상태 — 한 번 진입하면 exit_thresh 까지 유지
+        self._in_align_mode = False
 
         # ── TF buffer (path 변환에만 사용) ──────────────────────────
         self._tf_buffer = tf2_ros.Buffer()
@@ -590,8 +596,10 @@ class DwaPlannerNode(Node):
         self.p_max_clearance = gp("max_clearance").value
         self.p_goal_tolerance = gp("goal_tolerance").value
         self.p_align_angle_thresh = gp("align_angle_thresh").value
+        self.p_align_angle_exit = gp("align_angle_exit").value
         self.p_align_kp = gp("align_kp").value
         self.p_align_kd = gp("align_kd").value
+        self.p_align_v_blend_max = gp("align_v_blend_max").value
         self.p_allow_backward = gp("allow_backward").value
         self.p_max_path_offset = gp("max_path_offset").value
         self.p_lidar_offset_x = gp("lidar_offset_x").value
@@ -704,6 +712,7 @@ class DwaPlannerNode(Node):
             self._path_local = msg
             self._reached = False
             self._path_progress_idx = 0   # 새 path 받을 때 progress 리셋
+            self._in_align_mode = False   # align mode 도 리셋
             last = msg.poses[-1].pose.position
             self.get_logger().info(
                 f"/global_path 수신 ({src_frame}, 변환 불필요) — "
@@ -726,6 +735,7 @@ class DwaPlannerNode(Node):
         self._path_local = transformed
         self._reached = False
         self._path_progress_idx = 0   # 새 path 받을 때 progress 리셋
+        self._in_align_mode = False   # align mode 도 리셋
         last = transformed.poses[-1].pose.position
         self.get_logger().info(
             f"/global_path 수신 ({src_frame} → {self.LOCAL_FRAME} 변환) — "
@@ -939,30 +949,57 @@ class DwaPlannerNode(Node):
         )
         local_goal = world_to_local(lookahead, self._state)
 
-        # 5.5) In-place rotation 모드 (2026-05-25 추가, 5차 진단에서 안전장치 추가)
-        #      lookahead 가 ±60° 이상 빗나가 있으면 DWA 의 1초 horizon 안에 못 잡힘.
-        #      회전+전진 trade-off 에 의해 매 cycle 부분 회전 누적 → path 와 어긋남.
-        #      → v=0 으로 회전만 (P 제어). 정렬되면 normal DWA 재개.
+        # 5.5) In-place rotation 모드 (2026-05-25, 12차 hysteresis + v blending)
         #
-        #      안전장치: 도착 영역 (1.5 × tolerance) 안에선 align mode 비활성.
-        #      도착 직후 jitter 로 lookahead 가 자기 뒤를 가리킬 때 무한 회전 방지.
+        # 표준 path follower 의 forward velocity ramp + heading deadband:
+        # - |angle| > thresh (45°) 면 align mode 진입
+        # - 진입 후 |angle| < exit (15°) 까지 mode 유지 (hysteresis — 진동 방지)
+        # - PD 제어 (P × angle - D × w) 로 critical damping
+        # - v 는 angle 에 따라 0 ~ v_blend_max 로 blending (정지→전진 부드러운 전환)
+        # - exit 이후엔 normal DWA 가 인계
+        # - 도착 영역 (1.5 × tolerance) 안에선 align mode 비활성
         local_goal_angle = math.atan2(local_goal[1], local_goal[0])
+        angle_abs = abs(local_goal_angle)
         align_safe_dist = self.p_goal_tolerance * 1.5
-        if dist_to_goal > align_safe_dist and \
-           abs(local_goal_angle) > self.p_align_angle_thresh:
-            # PD 제어 (2026-05-25 11차): P × angle - D × w_current
-            # P 항만 쓰면 overshoot (회전 관성). D 항이 자기 현재 w 에 비례한 brake.
-            # angle 작아질수록 P 항 줄고 D 항이 상대적으로 강해져 자연스러운 감속.
-            # 비유: 운전대 돌릴 때 각도 만큼 (P) + 이미 돌고 있는 속도 만큼 (D) 잡아주기.
+
+        if dist_to_goal <= align_safe_dist:
+            # 도착 근처 — align mode 비활성
+            self._in_align_mode = False
+        elif self._in_align_mode:
+            # 종료 조건: angle 이 exit 이하면 mode 종료 → normal DWA
+            if angle_abs < self.p_align_angle_exit:
+                self._in_align_mode = False
+        else:
+            # 진입 조건: angle 이 thresh 이상이면 mode 진입
+            if angle_abs > self.p_align_angle_thresh:
+                self._in_align_mode = True
+
+        if self._in_align_mode:
+            # PD 제어
             w_cmd = (self.p_align_kp * local_goal_angle
                      - self.p_align_kd * self._state.w)
-            # w_max 클램프
             w_cmd = max(-self.p_w_max, min(self.p_w_max, w_cmd))
-            # 가속도 한계 (이전 w 에서 alpha_max * dt 만큼만 변경 가능)
+            # 가속도 한계
             dw_max = self.p_alpha_max * (1.0 / max(self.p_control_rate, 1.0))
             w_cmd = max(self._state.w - dw_max,
                         min(self._state.w + dw_max, w_cmd))
-            self._publish_cmd(VelocityCommand(v=0.0, w=w_cmd))
+
+            # v blending: angle 이 thresh → exit 으로 줄어들수록 v 증가
+            #   angle=thresh: v=0 (정지 회전)
+            #   angle=exit:   v=v_blend_max (종료 직전, normal DWA 가 인계)
+            if angle_abs >= self.p_align_angle_thresh:
+                v_cmd = 0.0
+            else:
+                blend_ratio = (self.p_align_angle_thresh - angle_abs) / \
+                              max(self.p_align_angle_thresh - self.p_align_angle_exit, 1e-3)
+                blend_ratio = max(0.0, min(1.0, blend_ratio))
+                v_cmd = self.p_align_v_blend_max * blend_ratio
+            # v 가속도 한계
+            dv_max = self.p_a_max * (1.0 / max(self.p_control_rate, 1.0))
+            v_cmd = max(self._state.v - dv_max,
+                        min(self._state.v + dv_max, v_cmd))
+
+            self._publish_cmd(VelocityCommand(v=v_cmd, w=w_cmd))
 
             # 진단 로그 throttle
             self._candidate_log_counter += 1
@@ -971,13 +1008,12 @@ class DwaPlannerNode(Node):
                self._candidate_log_counter >= max(1, target):
                 self._candidate_log_counter = 0
                 self.get_logger().info(
-                    f"DWA align mode: goal_angle={math.degrees(local_goal_angle):+.1f}° "
-                    f"→ v=0.00 w={w_cmd:+.2f} "
-                    f"(thresh={math.degrees(self.p_align_angle_thresh):.0f}°)"
+                    f"DWA align: angle={math.degrees(local_goal_angle):+.1f}° "
+                    f"→ v={v_cmd:.2f} w={w_cmd:+.2f} "
+                    f"[thresh={math.degrees(self.p_align_angle_thresh):.0f}°→"
+                    f"exit={math.degrees(self.p_align_angle_exit):.0f}°]"
                 )
-            # state 로그도 같이
             self._log_state_throttled()
-            # 시각화는 normal DWA 모드 때만
             return
 
         # 6) Dynamic Window
