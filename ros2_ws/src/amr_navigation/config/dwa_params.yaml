@@ -24,8 +24,16 @@ dwa_planner:
     # ----- 샘플링 / 시뮬레이션 -----
     sample_v_n: 11
     sample_w_n: 21
-    predict_horizon: 1.0    # s, trajectory 예측 시간
-    dt: 0.1                 # s, 적분 step
+    # predict_horizon × v_max ≈ lookahead_dist 여야 heading_score 가 의미 있음.
+    # 1.0 → 0.3 (2026-05-25, CLAUDE.md §0.1 원칙 8 발동 후 발견):
+    #   1.0s × 1.5m/s = 1.5m trajectory 가 lookahead 0.5m 를 항상 지나친 상태로 끝남.
+    #   끝점에서 lookahead 방향 = 180° → heading_score=0. 모든 직진 trajectory 가 0점
+    #   → 정지(v=0) trajectory 가 score 1등 → stuck.
+    #   0.3s 면 trajectory 끝점 = 0.45m (lookahead 0.5m 직전) → 정상.
+    # 비유: 300m 앞 우회전 안내인데 시뮬은 1km 앞까지 봐서 "우회전 지점이 뒤에 있네?
+    #       돌아가야겠다" 라고 잘못 판단해 멈춰버림.
+    predict_horizon: 0.3
+    dt: 0.1                 # s, 적분 step. 0.3/0.1 = 3 step.
     control_rate: 20.0      # Hz
 
     # ----- 평가함수 가중치 -----
