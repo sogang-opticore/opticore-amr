@@ -456,6 +456,8 @@ class DwaPlannerNode(Node):
         self.declare_parameter("lookahead_time", 0.7)   # s, k = 시간 상수
         self.declare_parameter("max_clearance", 1.0)
         self.declare_parameter("goal_tolerance", 0.20)
+        self.declare_parameter("clearance_slowdown_distance", 0.80)
+        self.declare_parameter("clearance_stop_distance", 0.30)
 
         # In-place rotation 모드 (2026-05-25, 13차 overshoot stop + cooldown)
         # 표준 Pure Pursuit 의 forward velocity ramp + heading deadband + overshoot stop.
@@ -486,6 +488,8 @@ class DwaPlannerNode(Node):
         self.declare_parameter("stuck_recovery_sec", 1.5)   # s, stuck 판정 시간
         self.declare_parameter("backup_velocity", -0.25)    # m/s, 후진 속도 (음수)
         self.declare_parameter("backup_duration", 1.5)      # s, 후진 지속 시간
+        self.declare_parameter("backup_turn_gain", 0.8)     # rad/s, 벽 반대쪽 회전 강도
+        self.declare_parameter("backup_turn_max", 0.45)     # rad/s, recovery 중 최대 회전
         # 18차 추가: backup 완료 후 stuck 재판정 안 하는 시간.
         # A* 1Hz 재계획 + PP 새 path 시도 + adaptive lookahead 안정화 시간 확보.
         # 비유: 막다른 골목 후진 후 "내비 재탐색" 기다림. 바로 또 박지 말 것.
@@ -635,6 +639,8 @@ class DwaPlannerNode(Node):
         self.p_lookahead_time = gp("lookahead_time").value
         self.p_max_clearance = gp("max_clearance").value
         self.p_goal_tolerance = gp("goal_tolerance").value
+        self.p_clearance_slowdown_distance = gp("clearance_slowdown_distance").value
+        self.p_clearance_stop_distance = gp("clearance_stop_distance").value
         self.p_align_angle_thresh = gp("align_angle_thresh").value
         self.p_align_angle_exit = gp("align_angle_exit").value
         self.p_align_kp = gp("align_kp").value
@@ -646,6 +652,8 @@ class DwaPlannerNode(Node):
         self.p_stuck_recovery_sec = gp("stuck_recovery_sec").value
         self.p_backup_velocity = gp("backup_velocity").value
         self.p_backup_duration = gp("backup_duration").value
+        self.p_backup_turn_gain = gp("backup_turn_gain").value
+        self.p_backup_turn_max = gp("backup_turn_max").value
         self.p_recovery_cooldown = gp("recovery_cooldown").value
         self.p_lidar_offset_x = gp("lidar_offset_x").value
         self.p_lidar_offset_y = gp("lidar_offset_y").value
@@ -995,7 +1003,12 @@ class DwaPlannerNode(Node):
                 v_cmd_bk = max(self._state.v - dv_max,
                                min(self._state.v + dv_max,
                                    self.p_backup_velocity))
-                self._publish_cmd(VelocityCommand(v=v_cmd_bk, w=0.0))
+                w_target_bk = self._escape_turn_rate(obstacles_local_bk)
+                dw_max = self.p_alpha_max * period
+                w_cmd_bk = max(self._state.w - dw_max,
+                               min(self._state.w + dw_max,
+                                   w_target_bk))
+                self._publish_cmd(VelocityCommand(v=v_cmd_bk, w=w_cmd_bk))
                 self._publish_status_value("RECOVERY")
                 self._log_state_throttled()
                 return
@@ -1075,6 +1088,7 @@ class DwaPlannerNode(Node):
         # ── 6) 장애물 + forward clearance ─────────────────────────
         obstacles_local = self._extract_obstacles_from_scan()
         fwd_clear = self._forward_clearance_inline(obstacles_local)
+        motion_clear = fwd_clear
 
         # ── 7) 제어 분기 ──────────────────────────────────────────
         # 큰 heading 오차 (|α| > thresh) 면 Pure Pursuit 부적합 →
@@ -1109,6 +1123,14 @@ class DwaPlannerNode(Node):
             # ── 7a) In-place rotation (PD 제어) ───────────────────
             # PP 의 κ 공식은 |y| 크고 |x| 작을 때 unstable → 이 영역만 정지 회전.
             v_target = 0.0
+            if (self.p_align_v_blend_max > 0.0 and
+                    fwd_clear > self.p_clearance_slowdown_distance and
+                    abs(alpha) < math.radians(75.0)):
+                # 큰 heading error 라도 앞이 충분히 열려 있으면 아주 천천히 전진.
+                # 완전 정지 회전만 반복할 때보다 path 인계가 빨라진다.
+                blend = 1.0 - (abs(alpha) - self.p_align_angle_exit) / \
+                    max(math.radians(75.0) - self.p_align_angle_exit, 1e-3)
+                v_target = self.p_align_v_blend_max * max(0.0, min(1.0, blend))
             # PD: P × α  -  D × w_current  (회전 관성 잡기)
             w_target = (self.p_align_kp * alpha
                         - self.p_align_kd * self._state.w)
@@ -1136,13 +1158,19 @@ class DwaPlannerNode(Node):
                 v_curve = math.sqrt(self.p_a_lat_max / abs(kappa))
                 v_target = min(v_target, v_curve)
 
-            # (ii) 전방 clearance 기반
-            #      safety_distance ~ safety_distance·3 사이에서 선형 감속,
-            #      safety 안에 들어오면 v=0 → 충돌 직전 자동 정지.
-            cf = self.p_safety_distance
-            cc = self.p_safety_distance * 3.0
-            if fwd_clear < cc:
-                v_clear = self.p_v_max * max(0.0, fwd_clear - cf) / \
+            # (ii) 실제 추종 arc clearance 기반
+            #      기존 ±60도 전방 최단점은 옆 벽까지 정면 장애물처럼 보아
+            #      좁은 통로에서 불필요하게 감속했다. 이제 현재 κ로 실제 갈
+            #      arc를 먼저 그려 보고 그 주변 clearance만 속도 제한에 쓴다.
+            probe_v = max(0.05, min(self.p_v_max, v_target))
+            probe_w = kappa * probe_v
+            motion_clear = self._trajectory_clearance_margin(
+                obstacles_local, probe_v, probe_w)
+
+            cf = self.p_clearance_stop_distance
+            cc = max(self.p_clearance_slowdown_distance, cf + 1e-3)
+            if motion_clear < cc:
+                v_clear = self.p_v_max * max(0.0, motion_clear - cf) / \
                           max(cc - cf, 1e-3)
                 v_target = min(v_target, v_clear)
 
@@ -1194,7 +1222,7 @@ class DwaPlannerNode(Node):
         # 이걸 collision 과 같은 stuck 으로 잡아 recovery 발동.
         # 18차: recovery cooldown 중이면 stuck 판정 무시 (무한 backup loop 차단).
         is_velocity_blocked = (abs(v_cmd) < 0.02 and
-                                fwd_clear < self.p_safety_distance)
+                               motion_clear < self.p_clearance_stop_distance)
         in_recovery_cooldown = (self._sec_now() < self._recovery_cooldown_until)
         is_stuck = ((collision_imminent or is_velocity_blocked)
                     and not in_recovery_cooldown)
@@ -1222,7 +1250,7 @@ class DwaPlannerNode(Node):
                         f"stuck {self.p_stuck_recovery_sec}s 초과 → "
                         f"backup {self.p_backup_duration}s 시작 "
                         f"(bwd_clear={bwd_clear:.2f}m, "
-                        f"fwd_clear={fwd_clear:.2f}m, min_d={min_d:.2f}m)"
+                        f"motion_clear={motion_clear:.2f}m, min_d={min_d:.2f}m)"
                     )
                 else:
                     # 후방도 막힘 → 사람 개입 대기
@@ -1256,7 +1284,7 @@ class DwaPlannerNode(Node):
                 f"L={L:.2f}(eff={effective_lookahead:.2f}) "
                 f"α={math.degrees(alpha):+.1f}° κ={kappa_dbg:+.2f} "
                 f"v={v_cmd:+.2f}/{v_target:.2f} w={w_cmd:+.2f}/{w_target:+.2f} "
-                f"fwd_clr={fwd_clear:.2f} d_goal={dist_to_goal:.2f}"
+                f"clr={motion_clear:.2f} fwd={fwd_clear:.2f} d_goal={dist_to_goal:.2f}"
             )
 
         # ── 12) 시각화 (Pure Pursuit best trajectory) ─────────────
@@ -1301,6 +1329,34 @@ class DwaPlannerNode(Node):
                 best = d_eff
         return best
 
+    def _trajectory_clearance_margin(
+        self,
+        obstacles_local: List[Tuple[float, float]],
+        v_cmd: float,
+        w_cmd: float,
+    ) -> float:
+        """현재 명령 arc 주변의 최단 여유 거리.
+
+        전방 부채꼴 최단점 대신 실제로 로봇 중심이 지나갈 arc만 본다.
+        옆 벽과 나란히 달릴 때는 감속하지 않고, 진행 arc 위 장애물에는
+        빠르게 반응한다.
+        """
+        if not obstacles_local:
+            return float("inf")
+
+        sim_state = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
+        horizon = max(0.35, self.p_predict_horizon)
+        traj = forward_simulate(sim_state, v_cmd, w_cmd, self.p_dt, horizon)
+        if not traj:
+            return float("inf")
+
+        # 첫 점들은 로봇 몸체 내부/바로 옆 scan에 과민하므로 조금 건너뛴다.
+        traj_xy = [(p[0], p[1]) for p in traj[2:]] or [(p[0], p[1]) for p in traj]
+        center_dist = min_clearance_distance(traj_xy, obstacles_local)
+        if center_dist == float("inf"):
+            return float("inf")
+        return max(0.0, center_dist - self.p_robot_radius)
+
     # ───────────────────────────────────────────────────────────────
     # Backward clearance — Backup Recovery 안전 판단용 (16차)
     # ───────────────────────────────────────────────────────────────
@@ -1336,6 +1392,30 @@ class DwaPlannerNode(Node):
             if d_eff < best:
                 best = d_eff
         return best
+
+    def _escape_turn_rate(self, obstacles_local: List[Tuple[float, float]]) -> float:
+        """Recovery 후진 중 벽 반대쪽으로 살짝 틀기 위한 yaw rate."""
+        if not obstacles_local:
+            return 0.0
+
+        side_bias = 0.0
+        for ox, oy in obstacles_local:
+            # 주로 전방/측방의 가까운 장애물만 탈출 방향 판단에 사용.
+            if ox < -0.20:
+                continue
+            d = math.hypot(ox, oy)
+            if d < 1e-3 or d > 1.2:
+                continue
+            side_bias += (1.0 if oy >= 0.0 else -1.0) / d
+
+        if abs(side_bias) < 1e-3:
+            return 0.0
+
+        # 장애물이 왼쪽(+)에 많으면 오른쪽(-)으로, 오른쪽이면 왼쪽으로.
+        target = -self.p_backup_turn_gain * side_bias
+        return max(-self.p_backup_turn_max,
+                   min(self.p_backup_turn_max, target))
+
 
     # ───────────────────────────────────────────────────────────────
     # 진단 로그 (throttle)

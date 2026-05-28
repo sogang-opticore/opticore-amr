@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>DWA Clearance & Recovery 변경사항</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,600;0,800;1,400;1,600&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+    :root {
+      --bg: #f4f1ea; --ink: #1a1a1a; --ink-soft: #4a4a4a;
+      --paint: #8a8a8a; --rule: #d9d2c4; --rule-soft: #e8e3d6;
+      --card: #ffffff; --soft-card: #faf8f3; --pre: #fdfcf9;
+      --nav: #2d4a8a; --ok: #166534; --warn: #c2410c; --bad: #991b1b;
+      --ok-bg: #dcf0e0; --warn-bg: #fef3e7; --bad-bg: #fde2e2;
+    }
+    html {
+      background: var(--bg);
+      background-image: repeating-linear-gradient(90deg, transparent 0, transparent 39px, rgba(0,0,0,0.02) 39px, rgba(0,0,0,0.02) 40px);
+      min-height: 100%;
+    }
+    body {
+      color: var(--ink); font-family: 'IBM Plex Sans KR', sans-serif; line-height: 1.65;
+      max-width: 1180px; margin: 0 auto; padding: 48px 32px 96px;
+    }
+    h1 {
+      position: relative; font-family: Fraunces, serif; font-size: 42px; line-height: 1.05;
+      border-top: 3px solid var(--ink); border-bottom: 1px solid var(--ink);
+      padding: 24px 0 18px; margin: 0 0 16px;
+    }
+    h1::before {
+      content: 'CHANGE NOTE · INTERNAL'; position: absolute; right: 0; top: 7px;
+      font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: 0.25em;
+    }
+    h2 {
+      font-family: Fraunces, serif; font-size: 26px; border-bottom: 2px solid var(--ink);
+      margin: 42px 0 14px; padding-bottom: 6px;
+    }
+    h3 { font-size: 17px; font-weight: 600; margin: 24px 0 8px; }
+    h3::before { content: '▸ '; color: var(--nav); }
+    .subtitle { font-family: Fraunces, serif; font-style: italic; color: var(--ink-soft); }
+    .meta, .callout {
+      background: var(--card); border: 1px solid var(--rule); padding: 14px 16px; margin: 18px 0;
+    }
+    .meta { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+    .meta strong { letter-spacing: 0.16em; text-transform: uppercase; }
+    .callout.ok { border-left: 4px solid var(--ok); background: var(--ok-bg); }
+    .callout.warn { border-left: 4px solid var(--warn); background: var(--warn-bg); }
+    pre {
+      background: var(--pre); border-left: 3px solid var(--ink); padding: 14px 16px;
+      overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    }
+    code { font-family: 'JetBrains Mono', monospace; }
+    table { width: 100%; border-collapse: collapse; background: var(--card); margin: 16px 0; }
+    th, td { border: 1px solid var(--rule); padding: 9px 10px; vertical-align: top; }
+    th { background: var(--soft-card); font-family: 'JetBrains Mono', monospace; font-size: 10.5px; text-transform: uppercase; }
+    footer { border-top: 1px solid var(--rule); margin-top: 48px; padding-top: 12px; color: var(--paint); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <h1>DWA Clearance & Recovery 변경사항</h1>
+  <p class="subtitle">벽 근처에서 멈칫거리는 원인을 넓은 전방 부채꼴 clearance에서 실제 추종 arc clearance로 옮겨 잡고, recovery는 직선 후진 대신 벽 반대쪽 회전을 섞도록 보강했다.</p>
+
+  <div class="meta">
+    <strong>date</strong> 2026-05-28<br>
+    <strong>branch</strong> feature/dwa<br>
+    <strong>files</strong> ros2_ws/src/amr_navigation/amr_navigation/dwa_node.py, ros2_ws/src/amr_navigation/config/dwa_params.yaml
+  </div>
+
+  <h2 id="why">왜 수정했는가</h2>
+  <p>기존 DWA는 전방 ±60도 부채꼴 안의 가장 가까운 장애물을 <code>fwd_clear</code>로 보고 속도를 줄였다. 이 방식은 좁은 통로나 벽 옆 주행에서 옆 벽을 정면 장애물처럼 해석해 불필요하게 감속한다. 그 결과 벽에서 빠져나오기도 늦고, 정상 경로 추종도 굼떠졌다.</p>
+
+  <h2 id="strategy">수정 전략</h2>
+  <table>
+    <thead><tr><th>영역</th><th>기존</th><th>변경</th></tr></thead>
+    <tbody>
+      <tr><td>속도 제한 clearance</td><td>전방 ±60도 최단 장애물</td><td>현재 Pure Pursuit 곡률로 실제 진행할 arc를 짧게 적분하고 그 arc 주변 clearance 사용</td></tr>
+      <tr><td>Recovery</td><td>1.5초 직선 후진</td><td>가까운 벽/장애물의 반대쪽으로 yaw를 섞어 후진</td></tr>
+      <tr><td>ROTATE 모드</td><td>항상 v=0</td><td>앞이 충분히 열려 있고 heading error가 과하지 않으면 낮은 전진 속도 허용</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="changes">실제 변경</h2>
+  <h3>Trajectory clearance</h3>
+  <pre><code>motion_clear = self._trajectory_clearance_margin(obstacles_local, probe_v, probe_w)
+v_clear = v_max * (motion_clear - stop_distance) / (slowdown_distance - stop_distance)</code></pre>
+  <p><code>_trajectory_clearance_margin()</code>을 추가해 현재 명령 arc 기준의 clearance margin을 계산한다. 이 값은 adaptive velocity profile과 stuck 판정에 사용된다.</p>
+
+  <h3>Turned backup recovery</h3>
+  <pre><code>w_target_bk = self._escape_turn_rate(obstacles_local_bk)
+self._publish_cmd(VelocityCommand(v=v_cmd_bk, w=w_cmd_bk))</code></pre>
+  <p><code>_escape_turn_rate()</code>는 가까운 장애물이 왼쪽에 많으면 오른쪽으로, 오른쪽에 많으면 왼쪽으로 후진 회전을 만든다.</p>
+
+  <h3>YAML 튜닝값</h3>
+  <pre><code>clearance_stop_distance: 0.30
+clearance_slowdown_distance: 0.80
+backup_turn_gain: 0.8
+backup_turn_max: 0.45</code></pre>
+
+  <h2 id="unchanged">변경하지 않은 부분</h2>
+  <ul>
+    <li>A* inflation radius는 0.30m 유지.</li>
+    <li>Pure Pursuit 핵심 공식 <code>kappa = 2y / L^2</code>, <code>w = kappa * v</code> 유지.</li>
+    <li>최종 collision check는 기존 DWA-style trajectory 검사 유지.</li>
+  </ul>
+
+  <h2 id="verify">검증 계획</h2>
+  <div class="callout warn">
+    로컬 Windows 환경에서는 ROS2/Gazebo 주행 검증까지 수행하지 않는다. 대신 Python compile 및 pytest로 문법/순수 함수 회귀를 확인하고, RunPod에서 시나리오 주행을 이어서 검증한다.
+  </div>
+  <ul>
+    <li><code>python -m compileall ros2_ws/src/amr_navigation/amr_navigation/dwa_node.py</code></li>
+    <li><code>pytest ros2_ws/src/amr_navigation/test/test_dwa.py</code></li>
+    <li>RunPod: (5,0), (20,5), 벽 근접/좁은 통로, stuck recovery 시나리오 재측정</li>
+  </ul>
+
+  <footer>DWA clearance/recovery note · Opticore AMR</footer>
+</body>
+</html>

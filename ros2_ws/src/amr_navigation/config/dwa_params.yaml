@@ -84,6 +84,14 @@ dwa_planner:
     max_clearance: 1.0       # m, [unused] 호환 위해 유지
     goal_tolerance: 0.20     # m, 도착 판정
 
+    # ----- Clearance 기반 속도 제한 (2026-05-28 보강) -----
+    # 기존에는 전방 ±60° 부채꼴 안 최단점을 fwd_clear 로 써서, 통로 옆 벽도
+    # 정면 장애물처럼 보고 속도를 크게 죽였다.
+    # 이제 DWA/Pure Pursuit 가 실제로 따라갈 arc 를 짧게 적분한 뒤 그 arc
+    # 주변 clearance 로만 감속한다.
+    clearance_stop_distance: 0.30      # m, 이 여유보다 작으면 v_clear=0
+    clearance_slowdown_distance: 0.80  # m, 이 여유부터 선형 감속 시작
+
     # ----- In-place rotation (큰 heading 오차 전용) -----
     # 15차 (2026-05-25, 시나리오 (0,5) 진단 후): PD + hysteresis 보강.
     #
@@ -131,6 +139,8 @@ dwa_planner:
     stuck_recovery_sec: 1.5    # s, stuck 판정 시간
     backup_velocity: -0.25     # m/s, 후진 속도 (음수) [18차: -0.2 → -0.25]
     backup_duration: 1.5       # s, 후진 지속 시간 [18차: 1.0→1.5, 0.375m 이동]
+    backup_turn_gain: 0.8      # rad/s, recovery 중 가까운 벽 반대쪽으로 트는 강도
+    backup_turn_max: 0.45      # rad/s, recovery 중 최대 회전 속도
     # 18차 추가: backup 완료 후 stuck 재판정 안 하는 시간.
     # 무한 backup loop 차단. A* 1Hz × 3회 재계획 + PP 새 path 시도 시간 확보.
     # 이전 (17차 후): 같은 위치 backup→stuck→backup 무한 반복.
