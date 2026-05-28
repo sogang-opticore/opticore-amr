@@ -131,7 +131,7 @@ class DynamicObstacleMover(Node):
                 speed=0.4, z=0.0,
                 pause_min=4.0, pause_max=6.0,
                 yaw_rate=1.5,
-                fixed_yaw=math.pi / 2.0,  # 옵션 A: yaw 고정 (visual +x 방향)
+                fixed_yaw=0.0,  # 옵션 A: yaw 고정 (visual +x 방향)
             ),
             # 신규 동적 2개 (좁은 1m 왕복, 선반 옆)
             Obstacle(
