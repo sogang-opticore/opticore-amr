@@ -30,7 +30,7 @@ class AstarPlanner(Node):
         # ── 파라미터 선언 ──────────────────────────────────────────
         self.declare_parameter('heuristic', 'octile')
         self.declare_parameter('allow_diagonal', True)
-        self.declare_parameter('inflation_radius', 0.30)
+        self.declare_parameter('inflation_radius', 0.50)  # robot_radius(0.20) + clearance_stop(0.30)
         self.declare_parameter('smoothing', 'catmull_rom')
         # 2026-05-24 보강(SW, HU 보강-1):
         #   goal 셀이 inflation/점유로 막혔을 때 nearest free cell로 자동 보정.
@@ -379,10 +379,11 @@ class AstarPlanner(Node):
         Catmull-Rom 스플라인으로 경로 스무딩.
         인접 4점을 이용해 곡선 보간, 각 구간을 samples개 점으로 분할.
 
-        # 보강 필요:
-        # 1) samples 튜닝 — 5~10 사이 권장.
-        # 2) 스무딩 후 inflated 셀 통과 여부 재검증 없음.
-        #    좁은 통로에서 경로가 장애물을 뚫을 수 있음. 추후 검토.
+        스무딩 후 inflation 재검증:
+          blocked 셀을 단순 제거하지 않고 해당 구간을 raw A* 경로로 대체.
+          이유: 단순 제거 시 앞뒤 free 점 사이 연결선이 여전히 벽을 뚫음.
+          예) A(free)→B(blocked)→C(free) 에서 B 제거하면
+              A→C 직선이 벽을 가로지르는 문제 그대로 남음.
         """
         if len(cells) < 4:
             return cells
@@ -406,7 +407,31 @@ class AstarPlanner(Node):
             for s in range(1, samples + 1):
                 smoothed.append(_cr(p0, p1, p2, p3, s / samples))
 
-        return smoothed
+        # ── 스무딩 후 inflation 재검증 ────────────────────────────────
+        if self.inflated_grid is None:
+            return smoothed
+
+        h, w = self.inflated_grid.shape
+
+        def _is_free(cell):
+            r, c = int(cell[0]), int(cell[1])
+            return 0 <= r < h and 0 <= c < w and self.inflated_grid[r, c] == 0
+
+        validated = []
+        for si, cell in enumerate(smoothed):
+            if _is_free(cell):
+                validated.append(cell)
+            else:
+                # blocked → 해당 구간의 raw A* 점으로 대체
+                # si=0은 cells[0], si=1..samples는 cells[0~1] 구간에 대응
+                raw_seg   = max(0, (si - 1) // samples) if si > 0 else 0
+                raw_start = min(raw_seg, len(cells) - 1)
+                raw_end   = min(raw_seg + 1, len(cells) - 1)
+                for raw_cell in cells[raw_start:raw_end + 1]:
+                    if not validated or validated[-1] != raw_cell:
+                        validated.append(raw_cell)
+
+        return validated if len(validated) > 1 else cells
 
     # ══════════════════════════════════════════════════════════════
     # 좌표 변환

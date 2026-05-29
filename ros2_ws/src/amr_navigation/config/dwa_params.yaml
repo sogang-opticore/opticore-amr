@@ -111,6 +111,11 @@ dwa_planner:
     align_kd: 0.5              # PD 의 D gain (15차 재사용, 관성 잡기)
     align_v_blend_max: 0.3     # [unused, 14차 이후]
     align_cooldown: 1.0        # [unused, 14차 이후]
+        # v/w 커플링 해제 (YS 패치, 2026-05-29):
+    # clearance 로 v=0 이 되어도 heading 오차가 남으면 이 값 이상 회전 보장.
+    # 너무 크면 좁은 통로에서 옆 벽을 긁을 수 있음.
+    # 0.0 으로 설정하면 기존 동작 (w=κ·v 그대로).
+    w_min_rotate: 0.3       # rad/s
 
     # ----- 후진 / Path offset 안전장치 (2026-05-25 추가, CLAUDE.md §0.1 원칙 8) -----
     # 먼 거리 (20m+) 시나리오에서 발견된 두 문제 해결:
@@ -146,7 +151,7 @@ dwa_planner:
     # 이전 (17차 후): 같은 위치 backup→stuck→backup 무한 반복.
     # 비유: 막다른 골목 후진 후 "내비 재탐색" 기다림. 바로 또 박지 말 것.
     recovery_cooldown: 3.0     # s, recovery 후 cooldown
-
+    spin_duration: 2.0    # s, spin recovery 지속 시간
     # ----- 안전 -----
     robot_radius: 0.20             # m, URDF chassis_width 0.40 / 2
     hard_collision_distance: 0.05  # m, 거부 게이트 — 진짜 충돌 직전

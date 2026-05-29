@@ -21,7 +21,7 @@ astar_planner:
     #   17차 0.30 에서 (20,5) 성공했던 데이터로 복귀.
     #   무한 loop 차단의 주역은 18차 추가된 recovery_cooldown (3s).
     #   즉 17차 inflation + 18차 cooldown = 모든 좋은 부분의 합집합.
-    inflation_radius: 0.30
+    inflation_radius: 0.50
 
     # 경로 스무딩: none / catmull_rom / bezier
     smoothing: "catmull_rom"
