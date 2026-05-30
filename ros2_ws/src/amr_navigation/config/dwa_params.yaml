@@ -77,6 +77,20 @@ dwa_planner:
     path_cross_track_gain: 0.8  # rad/s per m, path 횡오차 복귀 보정
     path_error_slowdown_offset: 0.25  # m, 이 이상 벌어지면 속도 감속 시작
     path_error_min_speed_scale: 0.35  # path 복귀 중 최소 속도 스케일
+    # T15 (2026-05-31): path 이탈 시 가장 가까운 점으로 급회전하지 않고,
+    # 앞으로 이어지는 path 후보 중 "현재 조향각 + 합류 heading mismatch + 거리" 비용이
+    # 가장 작은 미래 점으로 부드럽게 재합류한다.
+    # TODO(미확정): RunPod 주행 로그에서 rj distance/arrival_error 를 보고 튜닝.
+    rejoin_entry_offset: 0.35    # m, 이 이상 path 에서 벗어나면 REJOIN 후보 선택
+    rejoin_exit_offset: 0.18     # m, REJOIN 유지 hysteresis 해제 거리
+    rejoin_min_lookahead: 0.60   # m, 너무 가까운 복귀점 배제
+    rejoin_max_lookahead: 3.00   # m, 미래 path 후보 탐색 상한
+    rejoin_step: 0.25            # m, 후보 arc-length 간격
+    rejoin_heading_weight: 1.2   # 합류 지점 path heading mismatch 비용
+    rejoin_distance_weight: 0.12 # 너무 먼 합류점 선호 방지 비용
+    rejoin_cross_track_gain_scale: 0.35 # REJOIN 중 nearest CTE 보정 완화
+    rejoin_align_angle_thresh: 1.75     # rad, REJOIN 중 ALIGN 진입 완화(약 100도)
+
     max_clearance: 1.0       # m, [unused] 호환 위해 유지
     goal_tolerance: 0.20     # m, 도착 판정
 

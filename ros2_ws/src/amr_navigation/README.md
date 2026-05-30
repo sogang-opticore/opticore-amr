@@ -159,6 +159,7 @@ angular:
 | `WAITING_ODOM` | 초기 부팅 직후 — `/odometry/filtered` 미수신 |
 | `STOPPED` | odom 수신 완료, 그러나 `/global_path` 없음 또는 빈 path (계획 실패) |
 | `NORMAL` | path 수신 완료, Pure Pursuit 정상 추종 루프 실행 중 (코드가 발행하는 실제 값; 구 문서 `PLANNING`) |
+| `REJOIN` | path 이탈 상태. 가장 가까운 점 대신 미래 path 후보를 골라 작은 조향각으로 재합류 중 |
 | `GOAL_REACHED` | **도착 순간 1회(edge)** — goal_tolerance 진입 시 (2026-05-31 P2 추가) |
 | `REACHED` | 도착 후 정지 유지 상태 (1Hz 정상 발행) |
 | `EMERGENCY` | 모든 trajectory 후보가 충돌 또는 안전거리(0.30m) 침범 → 즉시 정지 |
@@ -225,9 +226,18 @@ angular:
 | `path_cross_track_gain` | 0.8 | path 횡오차 복귀 보정 |
 | `path_error_slowdown_offset` | 0.25 m | 이 이상 path에서 벌어지면 속도 감속 시작 |
 | `path_error_min_speed_scale` | 0.35 | path 복귀 중 최소 속도 스케일 |
+| `rejoin_entry_offset` | 0.35 m | 이 이상 path에서 벗어나면 `REJOIN` 후보 선택 |
+| `rejoin_exit_offset` | 0.18 m | `REJOIN` 해제 hysteresis 거리 |
+| `rejoin_min_lookahead` | 0.60 m | 너무 가까운 복귀점 배제 |
+| `rejoin_max_lookahead` | 3.00 m | 미래 path 후보 탐색 상한 |
+| `rejoin_step` | 0.25 m | 후보 arc-length 간격 |
+| `rejoin_heading_weight` | 1.2 | 합류 지점 path heading mismatch 비용 |
+| `rejoin_distance_weight` | 0.12 | 너무 먼 합류점 선호 방지 비용 |
+| `rejoin_cross_track_gain_scale` | 0.35 | `REJOIN` 중 nearest CTE 보정 완화 |
+| `rejoin_align_angle_thresh` | 1.75 rad | `REJOIN` 중 ALIGN 진입 완화(약 100도) |
 | `max_path_offset` | 1.0 m | 이 이상 path에서 벗어나면 `PATH_LOST` 후 A\* 재계획 유도 |
 
-> T14부터 DWA는 nearest point가 아니라 path 선분 위 투영점을 기준으로 lookahead를 고른다. Pure Pursuit가 코너를 지름길처럼 잘라 가는 성향을 줄이기 위해 횡오차와 path 접선 heading 오차도 각속도에 더한다.
+> T14부터 DWA는 nearest point가 아니라 path 선분 위 투영점을 기준으로 lookahead를 고른다. T15부터 path 이탈 시에는 `REJOIN` 상태로 들어가 가장 가까운 점 대신 현재 조향각, 합류 지점 heading mismatch, 이동 거리를 함께 최소화하는 미래 path 점으로 부드럽게 재합류한다.
 
 ### 4.4 DWA — 평가함수 가중치
 

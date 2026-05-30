@@ -22,6 +22,8 @@ from amr_navigation.dwa_node import (
     min_clearance_distance,
     pick_lookahead_point,
     pick_lookahead_from_projection,
+    sample_path_from_projection,
+    choose_rejoin_target,
     project_to_path,
 )
 
@@ -268,6 +270,37 @@ class TestPathProjectionLookahead:
         assert pt is not None
         assert abs(pt[0] - 1.0) < 1e-9
         assert abs(pt[1]) < 1e-9
+
+    def test_sample_path_from_projection_returns_yaw(self):
+        path = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0)]
+        proj = project_to_path(path, (0.2, 0.3), 0)
+
+        sample = sample_path_from_projection(path, proj, 1.2)
+
+        assert sample is not None
+        assert abs(sample.point[0] - 1.0) < 1e-9
+        assert abs(sample.point[1] - 0.4) < 1e-9
+        assert abs(sample.yaw - math.pi / 2.0) < 1e-9
+
+    def test_rejoin_target_prefers_forward_merge_over_nearest(self):
+        path = [(0.0, 0.0), (5.0, 0.0)]
+        robot = RobotState(x=0.0, y=1.0, theta=0.0, v=0.0, w=0.0)
+        proj = project_to_path(path, (robot.x, robot.y), 0)
+
+        target = choose_rejoin_target(
+            path_xy=path,
+            robot=robot,
+            projection=proj,
+            min_lookahead=0.60,
+            max_lookahead=3.00,
+            step=0.25,
+            heading_weight=1.2,
+            distance_weight=0.12,
+        )
+
+        assert target is not None
+        assert target.distance > 1.0
+        assert abs(target.alpha) < math.radians(35.0)
 
 
 # ── v/w 커플링 해제 패치 검증 (YS, 2026-05-29) ──────────────────────────

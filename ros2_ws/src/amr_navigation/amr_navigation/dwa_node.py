@@ -106,9 +106,29 @@ class PathProjection:
     yaw: float
 
 
+@dataclass
+class PathSample:
+    """Path projection point에서 arc-length로 떨어진 path 위 샘플."""
+    point: Tuple[float, float]
+    yaw: float
+    distance: float
+
+
+@dataclass
+class RejoinTarget:
+    """Path 이탈 시 부드럽게 재합류하기 위한 미래 목표점."""
+    point: Tuple[float, float]
+    yaw: float
+    distance: float
+    alpha: float
+    arrival_error: float
+    score: float
+
+
 class NavState(Enum):
     """명시적 내비게이션 상태 — fleet BT 연결 준비."""
     NORMAL       = "NORMAL"        # Pure Pursuit 정상 추종
+    REJOIN       = "REJOIN"        # path 이탈 후 미래 path 지점으로 부드럽게 재합류
     ALIGN        = "ALIGN"         # in-place 회전 (heading 오차 큼)
     SPIN         = "SPIN"          # spin recovery (stuck → 제자리 회전 탈출)
     FORWARD_ONLY = "FORWARD_ONLY"  # spin 완료 후 현재 heading으로 짧게 전진
@@ -368,20 +388,21 @@ def project_to_path(
     )
 
 
-def pick_lookahead_from_projection(
+def sample_path_from_projection(
     path_xy: List[Tuple[float, float]],
     projection: PathProjection,
-    lookahead_dist: float,
-) -> Optional[Tuple[float, float]]:
-    """투영점에서 path arc-length 기준 lookahead 지점을 고른다."""
+    distance: float,
+) -> Optional[PathSample]:
+    """투영점에서 path arc-length 기준 샘플 point/yaw 를 반환한다."""
     if not path_xy:
         return None
     if len(path_xy) == 1:
-        return path_xy[0]
+        return PathSample(point=path_xy[0], yaw=0.0, distance=0.0)
 
     cumulative = 0.0
     prev_x, prev_y = projection.point
     start_seg = max(0, min(projection.segment_idx, len(path_xy) - 2))
+    last_yaw = projection.yaw
 
     for j in range(start_seg + 1, len(path_xy)):
         x, y = path_xy[j]
@@ -389,17 +410,94 @@ def pick_lookahead_from_projection(
         if seg_len <= 1e-9:
             prev_x, prev_y = x, y
             continue
-        if cumulative + seg_len >= lookahead_dist:
-            remain = lookahead_dist - cumulative
+        seg_yaw = math.atan2(y - prev_y, x - prev_x)
+        last_yaw = seg_yaw
+        if cumulative + seg_len >= distance:
+            remain = distance - cumulative
             ratio = max(0.0, min(1.0, remain / seg_len))
-            return (
-                prev_x + ratio * (x - prev_x),
-                prev_y + ratio * (y - prev_y),
+            return PathSample(
+                point=(
+                    prev_x + ratio * (x - prev_x),
+                    prev_y + ratio * (y - prev_y),
+                ),
+                yaw=seg_yaw,
+                distance=max(0.0, distance),
             )
         cumulative += seg_len
         prev_x, prev_y = x, y
 
-    return path_xy[-1]
+    return PathSample(point=path_xy[-1], yaw=last_yaw, distance=cumulative)
+
+
+def pick_lookahead_from_projection(
+    path_xy: List[Tuple[float, float]],
+    projection: PathProjection,
+    lookahead_dist: float,
+) -> Optional[Tuple[float, float]]:
+    """투영점에서 path arc-length 기준 lookahead 지점을 고른다."""
+    sample = sample_path_from_projection(path_xy, projection, lookahead_dist)
+    return sample.point if sample is not None else None
+
+
+def choose_rejoin_target(
+    path_xy: List[Tuple[float, float]],
+    robot: RobotState,
+    projection: PathProjection,
+    min_lookahead: float,
+    max_lookahead: float,
+    step: float,
+    heading_weight: float,
+    distance_weight: float,
+) -> Optional[RejoinTarget]:
+    """가장 가까운 점이 아니라, 작은 조향으로 합류 가능한 미래 path 점을 고른다."""
+    if not path_xy:
+        return None
+
+    step = max(0.05, step)
+    min_lookahead = max(0.0, min_lookahead)
+    max_lookahead = max(min_lookahead, max_lookahead)
+    count = int((max_lookahead - min_lookahead) / step) + 1
+
+    best: Optional[RejoinTarget] = None
+    fallback: Optional[RejoinTarget] = None
+
+    for i in range(count + 1):
+        distance = min(max_lookahead, min_lookahead + i * step)
+        sample = sample_path_from_projection(path_xy, projection, distance)
+        if sample is None:
+            continue
+
+        lx, ly = world_to_local(sample.point, robot)
+        alpha = math.atan2(ly, lx)
+        dx = sample.point[0] - robot.x
+        dy = sample.point[1] - robot.y
+        approach_yaw = math.atan2(dy, dx)
+        arrival_error = math.atan2(
+            math.sin(sample.yaw - approach_yaw),
+            math.cos(sample.yaw - approach_yaw),
+        )
+        score = (
+            abs(alpha)
+            + heading_weight * abs(arrival_error)
+            + distance_weight * sample.distance
+        )
+        target = RejoinTarget(
+            point=sample.point,
+            yaw=sample.yaw,
+            distance=sample.distance,
+            alpha=alpha,
+            arrival_error=arrival_error,
+            score=score,
+        )
+
+        if fallback is None or target.score < fallback.score:
+            fallback = target
+        if lx <= 0.05:
+            continue
+        if best is None or target.score < best.score:
+            best = target
+
+    return best if best is not None else fallback
 
 
 def pick_lookahead_point(
@@ -490,6 +588,15 @@ class DwaPlannerNode(Node):
         self.declare_parameter("path_cross_track_gain", 0.8)
         self.declare_parameter("path_error_slowdown_offset", 0.25)
         self.declare_parameter("path_error_min_speed_scale", 0.35)
+        self.declare_parameter("rejoin_entry_offset", 0.35)
+        self.declare_parameter("rejoin_exit_offset", 0.18)
+        self.declare_parameter("rejoin_min_lookahead", 0.60)
+        self.declare_parameter("rejoin_max_lookahead", 3.00)
+        self.declare_parameter("rejoin_step", 0.25)
+        self.declare_parameter("rejoin_heading_weight", 1.2)
+        self.declare_parameter("rejoin_distance_weight", 0.12)
+        self.declare_parameter("rejoin_cross_track_gain_scale", 0.35)
+        self.declare_parameter("rejoin_align_angle_thresh", 1.75)
         self.declare_parameter("max_clearance", 1.0)
         self.declare_parameter("goal_tolerance", 0.20)
         self.declare_parameter("clearance_slowdown_distance", 0.80)
@@ -645,6 +752,15 @@ class DwaPlannerNode(Node):
         self.p_path_cross_track_gain    = gp("path_cross_track_gain").value
         self.p_path_error_slowdown_offset = gp("path_error_slowdown_offset").value
         self.p_path_error_min_speed_scale = gp("path_error_min_speed_scale").value
+        self.p_rejoin_entry_offset      = gp("rejoin_entry_offset").value
+        self.p_rejoin_exit_offset       = gp("rejoin_exit_offset").value
+        self.p_rejoin_min_lookahead     = gp("rejoin_min_lookahead").value
+        self.p_rejoin_max_lookahead     = gp("rejoin_max_lookahead").value
+        self.p_rejoin_step              = gp("rejoin_step").value
+        self.p_rejoin_heading_weight    = gp("rejoin_heading_weight").value
+        self.p_rejoin_distance_weight   = gp("rejoin_distance_weight").value
+        self.p_rejoin_cross_track_gain_scale = gp("rejoin_cross_track_gain_scale").value
+        self.p_rejoin_align_angle_thresh = gp("rejoin_align_angle_thresh").value
         self.p_max_clearance            = gp("max_clearance").value
         self.p_goal_tolerance           = gp("goal_tolerance").value
         self.p_clearance_slowdown_distance = gp("clearance_slowdown_distance").value
@@ -802,8 +918,8 @@ class DwaPlannerNode(Node):
         #   _align_trigger_count(예: 2)가 새 path 로 새어 한 tick 만에 ALIGN 진입 가능.
         #   "N틱 연속" 의미가 path 경계를 넘어가지 않도록.
         self._align_trigger_count = 0
-        # EMERGENCY 중 새 path 오면 NORMAL 복귀 (SPIN/FORWARD_ONLY 는 recovery 완료까지 유지)
-        if self._nav_state in (NavState.EMERGENCY,):
+        # EMERGENCY/REJOIN 중 새 path 오면 NORMAL 복귀 (SPIN/FORWARD_ONLY 는 recovery 완료까지 유지)
+        if self._nav_state in (NavState.EMERGENCY, NavState.REJOIN):
             self._nav_state = NavState.NORMAL
             self._stuck_counter = 0
         # ── 추가 (2026-05-31 SW · P2 보강): REACHED 도 새 path 오면 해제 ──
@@ -915,6 +1031,24 @@ class DwaPlannerNode(Node):
                 throttle_duration_sec=2.0)
             return None
 
+        was_rejoining = self._nav_state == NavState.REJOIN
+        rejoin_requested = (
+            path_offset > self.p_rejoin_entry_offset or
+            (was_rejoining and path_offset > self.p_rejoin_exit_offset)
+        )
+        rejoin_target: Optional[RejoinTarget] = None
+        if rejoin_requested:
+            rejoin_target = choose_rejoin_target(
+                path_xy=path_xy,
+                robot=self._state,
+                projection=projection,
+                min_lookahead=self.p_rejoin_min_lookahead,
+                max_lookahead=self.p_rejoin_max_lookahead,
+                step=self.p_rejoin_step,
+                heading_weight=self.p_rejoin_heading_weight,
+                distance_weight=self.p_rejoin_distance_weight,
+            )
+
         # Adaptive lookahead (approach scaling)
         approach_scale = min(1.0, dist_to_goal / max(self.p_lookahead_dist, 1e-3))
         effective_lookahead = max(
@@ -922,11 +1056,17 @@ class DwaPlannerNode(Node):
             self.p_lookahead_time * abs(self._state.v),
             self.p_lookahead_dist * approach_scale,
         )
-        if path_offset > self.p_path_error_slowdown_offset:
-            effective_lookahead = min(effective_lookahead, self.p_lookahead_dist)
+        if rejoin_target is not None:
+            effective_lookahead = rejoin_target.distance
+            lookahead = rejoin_target.point
+            target_path_yaw = rejoin_target.yaw
+        else:
+            if path_offset > self.p_path_error_slowdown_offset:
+                effective_lookahead = min(effective_lookahead, self.p_lookahead_dist)
+            lookahead = pick_lookahead_from_projection(
+                path_xy, projection, effective_lookahead)
+            target_path_yaw = projection.yaw
 
-        lookahead = pick_lookahead_from_projection(
-            path_xy, projection, effective_lookahead)
         if lookahead is None:
             self._stop_robot("no_lookahead")
             return None
@@ -935,8 +1075,8 @@ class DwaPlannerNode(Node):
         L = math.hypot(lx, ly)
         alpha = math.atan2(ly, lx)
         path_heading_error = math.atan2(
-            math.sin(projection.yaw - self._state.theta),
-            math.cos(projection.yaw - self._state.theta),
+            math.sin(target_path_yaw - self._state.theta),
+            math.cos(target_path_yaw - self._state.theta),
         )
 
         obstacles_local = self._extract_obstacles_from_scan()
@@ -950,6 +1090,13 @@ class DwaPlannerNode(Node):
             "signed_path_offset": projection.signed_offset,
             "path_heading_error": path_heading_error,
             "effective_lookahead": effective_lookahead,
+            "is_rejoining": rejoin_target is not None,
+            "rejoin_distance": rejoin_target.distance if rejoin_target else 0.0,
+            "rejoin_alpha": rejoin_target.alpha if rejoin_target else 0.0,
+            "rejoin_arrival_error": (
+                rejoin_target.arrival_error if rejoin_target else 0.0
+            ),
+            "rejoin_score": rejoin_target.score if rejoin_target else 0.0,
             "lx": lx, "ly": ly, "L": L, "alpha": alpha,
             "obstacles_local": obstacles_local,
             "fwd_clear": fwd_clear,
@@ -970,6 +1117,12 @@ class DwaPlannerNode(Node):
         path_offset = ctx["path_offset"]
         signed_path_offset = ctx["signed_path_offset"]
         path_heading_error = ctx["path_heading_error"]
+        is_rejoining = ctx.get("is_rejoining", False)
+
+        if is_rejoining:
+            self._nav_state = NavState.REJOIN
+        elif self._nav_state == NavState.REJOIN:
+            self._nav_state = NavState.NORMAL
 
         period = 1.0 / max(self.p_control_rate, 1.0)
         dv_max = self.p_a_max * period
@@ -984,7 +1137,11 @@ class DwaPlannerNode(Node):
                 self._in_align_mode = False
                 self._align_trigger_count = 0
         else:
-            if abs(alpha) > self.p_align_angle_thresh and L > 0.1:
+            align_entry_thresh = (
+                self.p_rejoin_align_angle_thresh
+                if is_rejoining else self.p_align_angle_thresh
+            )
+            if abs(alpha) > align_entry_thresh and L > 0.1:
                 self._align_trigger_count += 1
                 if self._align_trigger_count >= self.p_align_trigger_ticks:
                     self._in_align_mode = True
@@ -1054,9 +1211,12 @@ class DwaPlannerNode(Node):
         # w 계산 (v/w 커플링 해제) — 곡률 감속이 반영된 v_target 으로 ω 를 계산해
         #   실행 곡률 w_cmd/v_cmd ≈ κ 정합 유지.
         w_pp = kappa * v_target
+        cross_track_gain = self.p_path_cross_track_gain
+        if is_rejoining:
+            cross_track_gain *= self.p_rejoin_cross_track_gain_scale
         w_path = (
             self.p_path_heading_gain * path_heading_error
-            - self.p_path_cross_track_gain * signed_path_offset
+            - cross_track_gain * signed_path_offset
         )
         w_target_raw = w_pp + w_path
         if (self.p_w_min_rotate > 0.0
@@ -1122,7 +1282,8 @@ class DwaPlannerNode(Node):
         # 정상 발행
         self._stuck_counter = 0
         self._publish_cmd(VelocityCommand(v=v_cmd, w=w_cmd))
-        self._publish_status_value("NORMAL")
+        status_value = "REJOIN" if is_rejoining else "NORMAL"
+        self._publish_status_value(status_value)
         self._log_state_throttled()
         if sim_traj:
             self._publish_best_trajectory(sim_traj)
@@ -1134,11 +1295,13 @@ class DwaPlannerNode(Node):
            self._candidate_log_counter >= max(1, target):
             self._candidate_log_counter = 0
             self.get_logger().info(
-                f"PP[NORMAL]: la=({lx:+.2f},{ly:+.2f}) "
+                f"PP[{status_value}]: la=({lx:+.2f},{ly:+.2f}) "
                 f"L={L:.2f}(eff={ctx['effective_lookahead']:.2f}) "
                 f"α={math.degrees(alpha):+.1f}° κ={kappa:+.2f} "
                 f"v={v_cmd:+.2f}/{v_target:.2f} w={w_cmd:+.2f}/{w_target:+.2f} "
                 f"cte={path_offset:.2f}/{signed_path_offset:+.2f} "
+                f"rj={ctx['rejoin_distance']:.2f}/"
+                f"{math.degrees(ctx['rejoin_arrival_error']):+.1f}° "
                 f"ψ={math.degrees(path_heading_error):+.1f}° "
                 f"clr={motion_clear:.2f} fwd={fwd_clear:.2f} "
                 f"d_goal={dist_to_goal:.2f}"
