@@ -268,9 +268,15 @@ class TestRotationClearanceInline:
         assert result == float("inf")
 
     def test_far_obstacle_ignored(self):
-        """danger_radius(0.50m) 의 2배(1.0m) 밖 장애물 → inf."""
+        """robot_radius × 8 (= 1.6m) 밖 장애물 → inf.
+
+        dwa_node._rotation_clearance_inline 의 성능 필터:
+        body_range = p_robot_radius * 8.0 안의 장애물만 본다.
+        그 밖이면 best 가 갱신 안 되어 inf 그대로 반환.
+        """
         node = self._make_node_stub()
-        result = node._rotation_clearance_inline([(1.5, 0.0)])
+        # 1.6m 밖 (2.0m) → 필터에 의해 무시
+        result = node._rotation_clearance_inline([(2.0, 0.0)])
         assert result == float("inf")
 
     def test_close_obstacle_detected(self):
@@ -282,9 +288,9 @@ class TestRotationClearanceInline:
     def test_side_wall_at_0_4m_returns_positive(self):
         """측면 0.4m 벽 — fwd_clear 였으면 0 이지만 rotation_clear 는 양수."""
         node = self._make_node_stub()
-        # 측면(y=0.4m) 장애물 — danger_radius*2 = 1.0m 이내이므로 감지
+        # 측면(y=0.4m) 장애물 — robot_radius × 8 = 1.6m 이내이므로 감지
         result = node._rotation_clearance_inline([(0.0, 0.4)])
-        # robot_radius(0.20) 빼면 0.20m 정도
+        # 0.4 - robot_radius(0.20) = 0.20m 정도
         assert result > 0.0
 
 
