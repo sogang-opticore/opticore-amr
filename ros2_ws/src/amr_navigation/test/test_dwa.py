@@ -443,9 +443,9 @@ class TestGlobalPathStaleGuard:
 
         node.get_logger = lambda: _NullLogger()
         for name in ("_should_ignore_empty_path", "_path_offset_to_state",
-                     "_is_path_close_to_state", "_is_duplicate_goal",
-                     "_path_xy"):
+                     "_is_path_close_to_state", "_is_duplicate_goal"):
             setattr(node, name, getattr(DwaPlannerNode, name).__get__(node))
+        node._path_xy = DwaPlannerNode._path_xy
         return node
 
     def test_ignores_empty_path_when_no_new_goal(self):
