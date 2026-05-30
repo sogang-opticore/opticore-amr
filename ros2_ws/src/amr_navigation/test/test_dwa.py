@@ -25,6 +25,8 @@ from amr_navigation.dwa_node import (
     sample_path_from_projection,
     choose_rejoin_target,
     should_use_rejoin,
+    should_release_align,
+    clamp_forward_velocity,
     project_to_path,
 )
 
@@ -339,6 +341,30 @@ class TestPathProjectionLookahead:
 
 # ── v/w 커플링 해제 패치 검증 (YS, 2026-05-29) ──────────────────────────
 
+class TestAlignReleaseAndVelocityClamp:
+    def test_align_release_is_more_permissive_during_rejoin(self):
+        assert should_release_align(
+            alpha=math.radians(50.0),
+            is_rejoining=True,
+            release_angle=0.70,
+            rejoin_release_angle=0.95,
+            rotate_clearance=1.0,
+            release_clearance=0.60,
+        ) is True
+        assert should_release_align(
+            alpha=math.radians(50.0),
+            is_rejoining=False,
+            release_angle=0.70,
+            rejoin_release_angle=0.95,
+            rotate_clearance=1.0,
+            release_clearance=0.60,
+        ) is False
+
+    def test_no_backward_clamp_blocks_negative_velocity(self):
+        assert clamp_forward_velocity(-0.2, allow_backward=False) == 0.0
+        assert clamp_forward_velocity(-0.2, allow_backward=True) == -0.2
+
+
 class TestRotationClearanceInline:
     """_rotation_clearance_inline 단위 테스트."""
 
@@ -560,9 +586,11 @@ class TestGlobalPathStaleGuard:
         node._state = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
         node.p_max_path_offset = 2.0
         node.p_goal_dedup_dist = 0.10
+        node.p_goal_tolerance = 0.20
         node.p_goal_dedup_yaw = 0.10
         node._last_goal_xy = (5.0, 1.0)
         node._last_goal_yaw = 0.0
+        node._nav_state = None
 
         class _NullLogger:
             def warn(self, *a, **k):
@@ -570,6 +598,8 @@ class TestGlobalPathStaleGuard:
 
         node.get_logger = lambda: _NullLogger()
         for name in ("_should_ignore_empty_path", "_path_goal_matches_last_goal",
+                     "_should_ignore_path_while_reached",
+                     "_is_path_goal_close_to_latest_goal",
                      "_path_offset_to_state", "_is_path_close_to_state",
                      "_is_duplicate_goal"):
             setattr(node, name, getattr(DwaPlannerNode, name).__get__(node))
@@ -610,6 +640,34 @@ class TestGlobalPathStaleGuard:
     def test_yaw_changed_same_position_does_not_create_new_edge(self):
         node = self._make_node()
         assert node._is_duplicate_goal((5.0, 1.0), 0.30) is True
+
+    def test_reached_same_goal_path_is_ignored(self):
+        from amr_navigation.dwa_node import NavState
+
+        node = self._make_node()
+        node._nav_state = NavState.REACHED
+        near_goal_path = self._path([(0.0, 0.0), (0.12, 0.0)])
+
+        assert node._should_ignore_path_while_reached(
+            (5.04, 1.02),
+            near_goal_path,
+        ) is True
+
+    def test_reached_different_goal_path_is_not_ignored(self):
+        from amr_navigation.dwa_node import NavState
+
+        node = self._make_node()
+        node._nav_state = NavState.REACHED
+        near_goal_path = self._path([(0.0, 0.0), (0.12, 0.0)])
+
+        assert node._should_ignore_path_while_reached(
+            (7.0, 3.0),
+            near_goal_path,
+        ) is False
+
+    def test_rejects_path_goal_for_old_goal(self):
+        node = self._make_node()
+        assert node._is_path_goal_close_to_latest_goal((7.0, 3.0)) is False
 
 
 class TestPathStateReset:

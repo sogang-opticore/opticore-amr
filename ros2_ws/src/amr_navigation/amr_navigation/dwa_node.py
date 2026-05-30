@@ -460,6 +460,24 @@ def should_use_rejoin(
     return path_offset > exit_offset or abs(heading_error) > exit_heading
 
 
+def clamp_forward_velocity(v_cmd: float, allow_backward: bool) -> float:
+    if allow_backward:
+        return v_cmd
+    return max(0.0, v_cmd)
+
+
+def should_release_align(
+    alpha: float,
+    is_rejoining: bool,
+    release_angle: float,
+    rejoin_release_angle: float,
+    rotate_clearance: float,
+    release_clearance: float,
+) -> bool:
+    threshold = rejoin_release_angle if is_rejoining else release_angle
+    return abs(alpha) < threshold and rotate_clearance > release_clearance
+
+
 def choose_rejoin_target(
     path_xy: List[Tuple[float, float]],
     robot: RobotState,
@@ -614,8 +632,8 @@ class DwaPlannerNode(Node):
         self.declare_parameter("weight_velocity", 0.2)
         self.declare_parameter("weight_path_tangent", 0.8)
         self.declare_parameter("path_tangent_lookahead", 10)
-        self.declare_parameter("lookahead_dist", 0.45)
-        self.declare_parameter("lookahead_time", 0.35)
+        self.declare_parameter("lookahead_dist", 0.65)
+        self.declare_parameter("lookahead_time", 0.55)
         self.declare_parameter("path_heading_gain", 0.6)
         self.declare_parameter("path_cross_track_gain", 0.8)
         self.declare_parameter("path_error_slowdown_offset", 0.25)
@@ -640,7 +658,11 @@ class DwaPlannerNode(Node):
         self.declare_parameter("align_angle_exit", 0.262)
         self.declare_parameter("align_kp", 1.5)
         self.declare_parameter("align_kd", 0.5)
-        self.declare_parameter("align_v_blend_max", 0.45)
+        self.declare_parameter("align_v_blend_max", 0.55)
+        self.declare_parameter("align_drive_angle", 1.57)
+        self.declare_parameter("align_release_angle", 0.70)
+        self.declare_parameter("rejoin_align_release_angle", 0.95)
+        self.declare_parameter("align_release_clearance", 0.60)
         self.declare_parameter("align_cooldown", 1.0)
         # 2026-05-31 추가 (SW · dwa-ys):
         #   P4 ALIGN 진입 시간 hysteresis — |alpha|>thresh 가 N틱 연속일 때만 진입.
@@ -808,6 +830,10 @@ class DwaPlannerNode(Node):
         self.p_align_kp                 = gp("align_kp").value
         self.p_align_kd                 = gp("align_kd").value
         self.p_align_v_blend_max        = gp("align_v_blend_max").value
+        self.p_align_drive_angle        = gp("align_drive_angle").value
+        self.p_align_release_angle      = gp("align_release_angle").value
+        self.p_rejoin_align_release_angle = gp("rejoin_align_release_angle").value
+        self.p_align_release_clearance  = gp("align_release_clearance").value
         self.p_align_cooldown           = gp("align_cooldown").value
         self.p_align_trigger_ticks      = gp("align_trigger_ticks").value      # P4
         self.p_w_min_rotate             = gp("w_min_rotate").value
@@ -936,11 +962,17 @@ class DwaPlannerNode(Node):
         if not self._is_path_close_to_state(transformed):
             return
 
+        src_goal = msg.poses[-1].pose.position
+        path_goal_xy_global = (src_goal.x, src_goal.y)
+        if not self._is_path_goal_close_to_latest_goal(path_goal_xy_global):
+            return
+        if self._should_ignore_path_while_reached(path_goal_xy_global, transformed):
+            return
+
         self._path_local = transformed
         self._reset_path_state()
         self._path_goal_version = self._goal_version
-        src_goal = msg.poses[-1].pose.position
-        self._path_goal_xy_global = (src_goal.x, src_goal.y)
+        self._path_goal_xy_global = path_goal_xy_global
         last = transformed.poses[-1].pose.position
         self.get_logger().info(
             f"/global_path 수신 ({src_frame} → {self.LOCAL_FRAME}) — "
@@ -1279,6 +1311,7 @@ class DwaPlannerNode(Node):
         w_target = max(-self.p_w_max, min(self.p_w_max, w_target))
         v_cmd = max(self._state.v - dv_max,
                     min(self._state.v + dv_max, v_target))
+        v_cmd = clamp_forward_velocity(v_cmd, self.p_allow_backward)
         w_cmd = max(self._state.w - dw_max,
                     min(self._state.w + dw_max, w_target))
 
@@ -1360,6 +1393,7 @@ class DwaPlannerNode(Node):
         alpha     = ctx["alpha"]
         fwd_clear = ctx["fwd_clear"]
         obstacles = ctx["obstacles_local"]
+        is_rejoining = ctx.get("is_rejoining", False)
 
         period = 1.0 / max(self.p_control_rate, 1.0)
         dv_max = self.p_a_max * period
@@ -1376,12 +1410,27 @@ class DwaPlannerNode(Node):
         rotate_clear = self._rotation_clearance_inline(obstacles)
         motion_clear = rotate_clear
 
+        if should_release_align(
+                alpha,
+                is_rejoining,
+                self.p_align_release_angle,
+                self.p_rejoin_align_release_angle,
+                rotate_clear,
+                self.p_align_release_clearance):
+            self._in_align_mode = False
+            self._nav_state = NavState.REJOIN if is_rejoining else NavState.NORMAL
+            self._align_trigger_count = 0
+            self._align_cooldown_until = self._sec_now() + self.p_align_cooldown
+            self._publish_status_value(self._nav_state.value)
+            return
+
         v_target = 0.0
+        drive_angle = max(self.p_align_drive_angle, self.p_align_angle_exit + 1e-3)
         if (self.p_align_v_blend_max > 0.0 and
                 rotate_clear > self.p_clearance_slowdown_distance and
-                abs(alpha) < math.radians(75.0)):
+                abs(alpha) < drive_angle):
             blend = 1.0 - (abs(alpha) - self.p_align_angle_exit) / \
-                max(math.radians(75.0) - self.p_align_angle_exit, 1e-3)
+                max(drive_angle - self.p_align_angle_exit, 1e-3)
             v_target = self.p_align_v_blend_max * max(0.0, min(1.0, blend))
 
         w_target = (self.p_align_kp * alpha - self.p_align_kd * self._state.w)
@@ -1389,6 +1438,7 @@ class DwaPlannerNode(Node):
 
         v_cmd = max(self._state.v - dv_max,
                     min(self._state.v + dv_max, v_target))
+        v_cmd = clamp_forward_velocity(v_cmd, self.p_allow_backward)
         w_cmd = max(self._state.w - dw_max,
                     min(self._state.w + dw_max, w_target))
 
@@ -1786,6 +1836,61 @@ class DwaPlannerNode(Node):
             math.hypot(dx, dy) < self.p_goal_dedup_dist
         )
 
+    def _should_ignore_path_while_reached(
+        self,
+        path_goal_xy_global: Tuple[float, float],
+        path_local: Path,
+    ) -> bool:
+        if self._nav_state != NavState.REACHED:
+            return False
+        if self._state is None or self._last_goal_xy is None or not path_local.poses:
+            return False
+
+        goal_dx = path_goal_xy_global[0] - self._last_goal_xy[0]
+        goal_dy = path_goal_xy_global[1] - self._last_goal_xy[1]
+        goal_match_radius = max(
+            self.p_goal_dedup_dist * 3.0,
+            self.p_goal_tolerance + 0.10,
+            0.75,
+        )
+        if math.hypot(goal_dx, goal_dy) >= goal_match_radius:
+            return False
+
+        local_goal = path_local.poses[-1].pose.position
+        dist_to_path_goal = math.hypot(
+            local_goal.x - self._state.x,
+            local_goal.y - self._state.y,
+        )
+        hold_radius = max(self.p_goal_tolerance * 2.0, 0.35)
+        if dist_to_path_goal > hold_radius:
+            return False
+
+        self._path_goal_version = self._goal_version
+        self.get_logger().warn(
+            "same-goal /global_path ignored while REACHED hold is valid",
+            throttle_duration_sec=2.0)
+        return True
+
+    def _is_path_goal_close_to_latest_goal(
+        self,
+        path_goal_xy_global: Tuple[float, float],
+    ) -> bool:
+        if self._last_goal_xy is None:
+            return True
+        dx = path_goal_xy_global[0] - self._last_goal_xy[0]
+        dy = path_goal_xy_global[1] - self._last_goal_xy[1]
+        tolerance = max(
+            self.p_goal_dedup_dist * 3.0,
+            self.p_goal_tolerance + 0.10,
+            0.75,
+        )
+        if math.hypot(dx, dy) <= tolerance:
+            return True
+        self.get_logger().warn(
+            "stale /global_path ignored because goal endpoint differs from latest goal",
+            throttle_duration_sec=2.0)
+        return False
+
     def _path_offset_to_state(self, path_msg: Path) -> Optional[float]:
         if self._state is None or not path_msg.poses:
             return None
@@ -1870,7 +1975,8 @@ class DwaPlannerNode(Node):
     # ───────────────────────────────────────────────────────────────
     def _publish_cmd(self, cmd: VelocityCommand) -> None:
         twist = Twist()
-        twist.linear.x = float(cmd.v)
+        allow_backward = getattr(self, "p_allow_backward", False)
+        twist.linear.x = float(clamp_forward_velocity(cmd.v, allow_backward))
         twist.angular.z = float(cmd.w)
         self._cmd_pub.publish(twist)
 

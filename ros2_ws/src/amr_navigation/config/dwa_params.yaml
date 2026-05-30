@@ -70,9 +70,9 @@ dwa_planner:
     # T14 (2026-05-31): path를 벗어나려는 현상 보정.
     # 긴 lookahead는 코너에서 Pure Pursuit가 path를 지름길처럼 잘라 가게 만든다.
     # 이제 선분 투영점 기준 lookahead + 횡오차/heading 보정으로 path 중심선을 더 강하게 추종한다.
-    # TODO(미확정): RunPod에서 0.35~0.60m / 0.25~0.45s 범위 튜닝.
-    lookahead_dist: 0.45     # m, 최소 lookahead (작을수록 path 밀착, 너무 작으면 흔들림)
-    lookahead_time: 0.35     # s, adaptive k. v_max=1.5 → L=0.525m
+    # TODO(미확정): RunPod에서 0.55~0.75m / 0.45~0.65s 범위 튜닝.
+    lookahead_dist: 0.65     # m, 최소 lookahead (작을수록 path 밀착, 너무 작으면 흔들림)
+    lookahead_time: 0.55     # s, adaptive k. v_max=1.5 → L=0.825m
     path_heading_gain: 0.6   # rad/s per rad, path 접선 방향 추종 보정
     path_cross_track_gain: 0.8  # rad/s per m, path 횡오차 복귀 보정
     path_error_slowdown_offset: 0.25  # m, 이 이상 벌어지면 속도 감속 시작
@@ -125,7 +125,11 @@ dwa_planner:
     align_angle_exit: 0.262    # rad ≈ 15°, ROTATE 종료 (15차 재사용)
     align_kp: 1.5              # PD 의 P gain
     align_kd: 0.5              # PD 의 D gain (15차 재사용, 관성 잡기)
-    align_v_blend_max: 0.45    # m/s, 회전 정렬 중 안전하면 조금 전진
+    align_v_blend_max: 0.55    # m/s, 회전 정렬 중 안전하면 조금 전진
+    align_drive_angle: 1.57    # rad, 안전하면 이 각도까지 turn-in-motion 허용
+    align_release_angle: 0.70  # rad, NORMAL은 이 각도부터 PP 추종으로 조기 복귀
+    rejoin_align_release_angle: 0.95 # rad, REJOIN은 더 빨리 PP 추종으로 복귀
+    align_release_clearance: 0.60 # m, 조기 복귀/전진 정렬 최소 여유거리
     align_cooldown: 1.0        # [unused, 14차 이후]
         # v/w 커플링 해제 (YS 패치, 2026-05-29):
     # clearance 로 v=0 이 되어도 heading 오차가 남으면 이 값 이상 회전 보장.

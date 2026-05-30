@@ -220,8 +220,8 @@ angular:
 
 | 파라미터 | 기본값 | 비고 |
 |---|---|---|
-| `lookahead_dist` | 0.45 m | path 선분 투영점 기준 최소 lookahead. 작을수록 경로 밀착 |
-| `lookahead_time` | 0.35 s | 속도 비례 lookahead. v=1.5 m/s에서 약 0.525 m |
+| `lookahead_dist` | 0.65 m | path 선분 투영점 기준 최소 lookahead. 짧은 주기 흔들림을 줄이기 위해 완만하게 조향 |
+| `lookahead_time` | 0.55 s | 속도 비례 lookahead. v=1.5 m/s에서 약 0.825 m |
 | `path_heading_gain` | 0.6 | path 접선 방향 heading 오차 보정 |
 | `path_cross_track_gain` | 0.8 | path 횡오차 복귀 보정 |
 | `path_error_slowdown_offset` | 0.25 m | 이 이상 path에서 벌어지면 속도 감속 시작 |
@@ -237,6 +237,9 @@ angular:
 | `rejoin_curvature_weight` | 0.18 | 큰 곡률의 급합류 후보 억제 비용 |
 | `rejoin_cross_track_gain_scale` | 0.35 | `REJOIN` 중 nearest CTE 보정 완화 |
 | `rejoin_align_angle_thresh` | 1.75 rad | `REJOIN` 중 ALIGN 진입 완화(약 100도) |
+| `align_release_angle` | 0.70 rad | ALIGN 중 안전하면 15도까지 기다리지 않고 NORMAL로 조기 복귀 |
+| `rejoin_align_release_angle` | 0.95 rad | REJOIN 중 안전하면 더 이른 각도에서 path 추종으로 복귀 |
+| `align_drive_angle` | 1.57 rad | ALIGN 중 전방 여유가 있으면 저속 turn-in-motion 허용 각도 |
 | `max_path_offset` | 1.0 m | 새 `/global_path`가 현재 pose와 너무 멀면 stale path로 무시 |
 | `path_lost_offset` | 1.8 m | 추종 중 이 이상 path에서 벗어나면 `PATH_LOST` 후 A\* 재계획 유도 |
 
