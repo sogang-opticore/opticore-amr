@@ -221,6 +221,7 @@ angular:
 | 파라미터 | 기본값 | 비고 |
 |---|---|---|
 | `safety_distance` | 0.30 m | 명세 §7 안전거리 |
+| `near_wall_creep_speed` | 0.12 m/s | 전방이 열린 측면 벽 근접 상황에서 v=0 고착 방지. **TODO 미확정, RunPod 튜닝 필요** |
 | `odom_timeout` | 0.5 s | 이 시간 안에 `/odometry/filtered` 없으면 `/odom` fallback |
 
 ### 4.5 A\* — 그리드 / 휴리스틱 (제안, HU 확정 대기)
@@ -245,8 +246,9 @@ angular:
 | `/global_path` empty 수신(새 goal 직후) | — | 즉시 정지, `status="STOPPED"` |
 | `/global_path` empty 수신(새 goal 없음 + 기존 path 있음) | — | stale/중복 publisher 가능성으로 보고 기존 path 유지 |
 | `/global_path`가 현재 pose와 `max_path_offset` 초과로 멂 | — | stale path 가능성으로 보고 path 무시, 기존 path 유지 |
+| 전방은 열렸지만 측면 벽/초기 arc clearance가 낮음 | — | 충돌권 밖이면 `near_wall_creep_speed`로 최소 전진해 벽 옆 고착 탈출 |
 | 모든 trajectory 후보 충돌 | — | 정지, `status="EMERGENCY"` |
-| 장애물 거리 < `safety_distance` (0.30 m) | — | 즉시 정지 (명세 §7 안전거리) |
+| 진행 방향 장애물 거리 < `safety_distance` (0.30 m) | — | 즉시 정지 (명세 §7 안전거리). 측면 벽은 near-wall creep 조건을 별도로 적용 |
 | `/odometry/filtered` 미수신 > 0.5 s | — | `/odom`으로 fallback |
 | `/odom`마저 미수신 | — | 정지, `status="WAITING_ODOM"` |
 | `/global_path` frame_id ≠ `map` | — | 경고 로그 + path 무시 |

@@ -372,6 +372,7 @@ class DwaPlannerNode(Node):
         self.declare_parameter("goal_tolerance", 0.20)
         self.declare_parameter("clearance_slowdown_distance", 0.80)
         self.declare_parameter("clearance_stop_distance", 0.30)
+        self.declare_parameter("near_wall_creep_speed", 0.12)
         self.declare_parameter("align_angle_thresh", 0.785)
         self.declare_parameter("align_angle_exit", 0.262)
         self.declare_parameter("align_kp", 1.5)
@@ -521,6 +522,7 @@ class DwaPlannerNode(Node):
         self.p_goal_tolerance           = gp("goal_tolerance").value
         self.p_clearance_slowdown_distance = gp("clearance_slowdown_distance").value
         self.p_clearance_stop_distance  = gp("clearance_stop_distance").value
+        self.p_near_wall_creep_speed    = gp("near_wall_creep_speed").value
         self.p_align_angle_thresh       = gp("align_angle_thresh").value
         self.p_align_angle_exit         = gp("align_angle_exit").value
         self.p_align_kp                 = gp("align_kp").value
@@ -868,8 +870,12 @@ class DwaPlannerNode(Node):
         motion_clear = self._trajectory_clearance_margin(obstacles, probe_v, probe_w)
         cf = self.p_clearance_stop_distance
         cc = max(self.p_clearance_slowdown_distance, cf + 1e-3)
+        near_wall_creep = False
         if motion_clear < cc:
             v_clear = self.p_v_max * max(0.0, motion_clear - cf) / max(cc - cf, 1e-3)
+            near_wall_creep = self._allow_near_wall_creep(motion_clear, fwd_clear)
+            if near_wall_creep:
+                v_clear = max(v_clear, self.p_near_wall_creep_speed)
             v_target = min(v_target, v_clear)
 
         # (iii) goal 감속
@@ -927,7 +933,8 @@ class DwaPlannerNode(Node):
         # motion_clear: arc 위 장애물 (주 기준)
         # fwd_clear: 부채꼴 장애물 (보조 — arc 밖 측면 벽이 v를 낮춘 경우 커버)
         is_velocity_blocked = (abs(v_cmd) < 0.02 and
-                               (motion_clear < self.p_clearance_stop_distance or
+                               ((motion_clear < self.p_clearance_stop_distance
+                                 and not near_wall_creep) or
                                 fwd_clear < self.p_clearance_stop_distance))
         in_recovery_cooldown = self._sec_now() < self._recovery_cooldown_until
 
@@ -969,7 +976,8 @@ class DwaPlannerNode(Node):
                 f"α={math.degrees(alpha):+.1f}° κ={kappa:+.2f} "
                 f"v={v_cmd:+.2f}/{v_target:.2f} w={w_cmd:+.2f}/{w_target:+.2f} "
                 f"clr={motion_clear:.2f} fwd={fwd_clear:.2f} "
-                f"d_goal={dist_to_goal:.2f}")
+                f"d_goal={dist_to_goal:.2f}"
+                f"{' creep=1' if near_wall_creep else ''}")
 
     def _execute_align(self, ctx: dict) -> None:
         """NavState.ALIGN — In-place PD 회전."""
@@ -1206,6 +1214,15 @@ class DwaPlannerNode(Node):
     # ───────────────────────────────────────────────────────────────
     # Clearance 헬퍼들 (기존과 동일)
     # ───────────────────────────────────────────────────────────────
+    def _allow_near_wall_creep(self, motion_clear: float, fwd_clear: float) -> bool:
+        """전방은 열려 있고 측면 여유만 낮을 때 최소 전진을 허용한다."""
+        if self.p_near_wall_creep_speed <= 0.0:
+            return False
+        if fwd_clear <= self.p_clearance_slowdown_distance:
+            return False
+        side_margin_floor = self.p_robot_radius + self.p_hard_collision_distance
+        return motion_clear >= side_margin_floor
+
     def _forward_clearance_inline(
         self,
         obstacles_local: List[Tuple[float, float]],

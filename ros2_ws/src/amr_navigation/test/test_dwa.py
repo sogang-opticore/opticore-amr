@@ -408,6 +408,39 @@ class TestTriggerRecoverySpinEntry:
         assert node._nav_state == NavState.EMERGENCY
 
 
+class TestNearWallCreep:
+    """전방이 열린 측면 벽 근접 상황에서 v=0 고착을 피한다."""
+
+    def _make_node(self):
+        import types
+        from amr_navigation.dwa_node import DwaPlannerNode
+
+        node = types.SimpleNamespace()
+        node.p_near_wall_creep_speed = 0.12
+        node.p_clearance_slowdown_distance = 0.80
+        node.p_robot_radius = 0.20
+        node.p_hard_collision_distance = 0.05
+        node._allow_near_wall_creep = (
+            DwaPlannerNode._allow_near_wall_creep.__get__(node)
+        )
+        return node
+
+    def test_allows_creep_when_only_side_clearance_is_low(self):
+        node = self._make_node()
+        assert node._allow_near_wall_creep(motion_clear=0.30,
+                                           fwd_clear=1.20) is True
+
+    def test_blocks_creep_when_front_is_not_clear(self):
+        node = self._make_node()
+        assert node._allow_near_wall_creep(motion_clear=0.30,
+                                           fwd_clear=0.50) is False
+
+    def test_blocks_creep_inside_hard_margin(self):
+        node = self._make_node()
+        assert node._allow_near_wall_creep(motion_clear=0.20,
+                                           fwd_clear=1.20) is False
+
+
 class TestGlobalPathStaleGuard:
     """중복 /global_path publisher가 기존 path를 흔드는 회귀 방지."""
 
