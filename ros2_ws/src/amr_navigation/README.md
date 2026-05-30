@@ -55,6 +55,7 @@
 |---|---|---|---|---|---|
 | `/goal_pose` | `geometry_msgs/PoseStamped` | RViz2 / BT / 사용자 | **A\***, DWA | Reliable, depth 1 | frame_id = `map`. DWA는 새 goal edge 확인용으로만 구독하며 반복 goal은 dedup |
 | `/map` | `nav_msgs/OccupancyGrid` | slam_toolbox | **A\*** | Reliable, depth 1, **TRANSIENT_LOCAL** | frame_id = `map`, latched |
+| `/dwa/status` | `std_msgs/String` | DWA | **A\*** | Reliable, depth 10 | 경로 재계획 이벤트 입력 (`EMERGENCY`/`PATH_LOST`/`RECOVERY_DONE` 등) |
 | `/global_path` | `nav_msgs/Path` | A\* | **DWA** | Reliable, depth 1, **TRANSIENT_LOCAL** | frame_id = `map`, latched |
 | `/odometry/filtered` | `nav_msgs/Odometry` | EKF (robot_localization) | DWA (1순위) | Reliable | frame_id = `odom_filtered` |
 | `/odom` | `nav_msgs/Odometry` | DiffDrive plugin | DWA (fallback, timeout > 0.5s) | Reliable | frame_id = `odom` |
@@ -65,11 +66,11 @@
 
 | 토픽 | 타입 | 발행 주체 | 주기 | QoS | 용도 |
 |---|---|---|---|---|---|
-| `/global_path` | `nav_msgs/Path` | **A\*** | goal 입력 시 1회 + 동적 재계획 시 | Reliable, depth 1, TRANSIENT_LOCAL | DWA가 추종할 전역 경로 |
+| `/global_path` | `nav_msgs/Path` | **A\*** | goal 입력 시 1회 + DWA 상태 이벤트 시 | Reliable, depth 1, TRANSIENT_LOCAL | DWA가 추종할 전역 경로 |
 | `/cmd_vel` | `geometry_msgs/Twist` | **DWA 단독** ★ | 20 Hz (control_rate) | Reliable, depth 10 | Ignition DiffDrive 입력 |
 | `/dwa/trajectories` | `visualization_msgs/MarkerArray` | DWA | 5 Hz | Reliable | 후보 trajectory 시각화 (Foxglove) |
 | `/dwa/best_trajectory` | `visualization_msgs/Marker` | DWA | 5 Hz | Reliable | 선택된 trajectory 강조 |
-| `/dwa/status` | `std_msgs/String` | DWA | 1 Hz | Reliable | 상태 문자열 — 상세는 §3.3 (`NORMAL`/`ALIGN`/`RECOVERY`/`EMERGENCY`/`STOPPED_NEAR_WALL`/`REACHED`/`GOAL_REACHED` 등) |
+| `/dwa/status` | `std_msgs/String` | DWA | 1 Hz + edge 이벤트 | Reliable | 상태 문자열 — 상세는 §3.3 (`NORMAL`/`ALIGN`/`RECOVERY`/`RECOVERY_DONE`/`EMERGENCY`/`PATH_LOST`/`REACHED` 등) |
 
 > ★ **`/cmd_vel`은 DWA만 발행한다.** A\*은 경로만 만들고 운동 명령은 만들지 않는다. 이중 발행자가 생기면 Twist가 충돌하므로 절대 금지.
 
@@ -125,6 +126,9 @@ poses:                         # PoseStamped 배열
 - A\*는 binary inflation 바깥 free 셀도 장애물 거리장 비용으로 다시 평가해,
   가능한 경우 벽 경계보다 통로 중앙에 가까운 경로를 선호한다.
 - 빈 path(`poses=[]`)는 **"계획 실패"** 컨벤션 → DWA는 즉시 정지, `status="STOPPED"`.
+- 기본값에서는 A\*가 `/global_path`를 1초마다 다시 발행하지 않는다. 새 goal 또는 DWA의
+  `EMERGENCY`/`PATH_LOST`/`RECOVERY_DONE` 이벤트에서만 현재 pose 기준으로 재계획한다.
+  평상시에는 latched path를 끝까지 따라간다.
 - 단, A\*의 **주기 재계획** 실패가 이미 성공한 경로를 가진 상태에서 발생하면 빈 path를 발행하지 않고
   기존 `/global_path`를 유지한다. 일시적 TF/맵 흔들림이 DWA의 정상 추종을 `STOPPED/NORMAL`로
   떨리게 만들지 않기 위한 정책이다. 새 goal의 최초 계획 실패처럼 기존 경로를 믿으면 안 되는 경우에는
@@ -158,6 +162,9 @@ angular:
 | `GOAL_REACHED` | **도착 순간 1회(edge)** — goal_tolerance 진입 시 (2026-05-31 P2 추가) |
 | `REACHED` | 도착 후 정지 유지 상태 (1Hz 정상 발행) |
 | `EMERGENCY` | 모든 trajectory 후보가 충돌 또는 안전거리(0.30m) 침범 → 즉시 정지 |
+| `RECOVERY` | SPIN/FORWARD_ONLY 복구 동작 중 |
+| `RECOVERY_DONE` | FORWARD_ONLY 복구 완료. A\*가 현재 pose 기준으로 1회 재계획해야 하는 edge 이벤트 |
+| `PATH_LOST` | 현재 pose가 path와 너무 멀어 기존 path를 믿기 어려운 상태 |
 
 > 그 외 내부 NavState(`ALIGN`/`RECOVERY`/`STOPPED_NEAR_WALL`/`PATH_LOST`/`EMERGENCY` 등)도 해당 상태일 때 그 값이 그대로 발행된다. (`RECOVERY` = SPIN/FORWARD_ONLY 복구 중. 2026-05-31 후진 제거 → 회전 전용)
 > 도착 판정 소비자(예: `frontier_explorer`)는 **성공 = `GOAL_REACHED`/`REACHED`**, **실패·대기 = `STOPPED`** 로 구분한다.
@@ -237,6 +244,10 @@ angular:
 | `clearance_cost_weight` | 6.0 | clearance 비용 가중치. 0이면 shortest path 우선 |
 | `smoothing` | `"catmull_rom"` | `none` / `catmull_rom` / `bezier` |
 | `replan_period` | 0.0 s | 0이면 goal 입력 시에만 1회, > 0이면 주기적 재계획 |
+| `dwa_status_topic` | `"/dwa/status"` | A\*가 이벤트 재계획 판단에 쓰는 DWA 상태 토픽 |
+| `status_replan_cooldown` | 2.0 s | 상태 이벤트 재계획 최소 간격 |
+| `status_replan_states` | `["EMERGENCY", "PATH_LOST", "RECOVERY_DONE"]` | 수신 즉시 현재 pose 기준 A\* 재계획 |
+| `status_replan_after_states` | `["FORWARD_ONLY", "RECOVERY"]` | fallback: 이 상태 뒤 reset 상태가 오면 1회 재계획 |
 
 ---
 
@@ -246,6 +257,8 @@ angular:
 |---|---|---|
 | goal이 점유 셀 | 빈 path 발행 + 로그 | — |
 | goal 도달 불가 (장애물로 막힘) | 빈 path 발행 | 정지 |
+| DWA가 `EMERGENCY`/`PATH_LOST`/`RECOVERY_DONE` 발행 | 현재 pose 기준 1회 재계획. 실패해도 기존 성공 path가 있으면 빈 path 미발행 | 새 path 수신 시 추종 재개 |
+| DWA가 `NORMAL`/`ALIGN`으로 정상 추종 중 | 기본값에서는 재계획 없음. 기존 latched path 유지 | path 초입 재정렬 반복 방지 |
 | 주기 재계획 실패 + 기존 성공 path 있음 | 빈 path 미발행, 기존 path 유지 | 기존 path 계속 추종 |
 | `/global_path` empty 수신(새 goal 직후) | — | 즉시 정지, `status="STOPPED"` |
 | `/global_path` empty 수신(새 goal 없음 + 기존 path 있음) | — | stale/중복 publisher 가능성으로 보고 기존 path 유지 |

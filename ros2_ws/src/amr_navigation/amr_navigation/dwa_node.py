@@ -1156,6 +1156,7 @@ class DwaPlannerNode(Node):
         else:
             reason = "시간 초과"
 
+        self._publish_status_value("RECOVERY_DONE")
         self.get_logger().info(
             f"FORWARD_ONLY 완료 → A* 재계획 대기 ({reason})")
 

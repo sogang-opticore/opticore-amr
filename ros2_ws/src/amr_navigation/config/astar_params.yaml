@@ -42,12 +42,23 @@ astar_planner:
     # (예: Loading zone (3,15)이 맵 가장자리라 BLOCK → 인근 (3,14.5)로 자동 이동)
     goal_snap_radius: 0.6
 
-    # 2026-05-25 추가 (SW · 페어, DWA stuck/벗어남 자동 복구):
-    # 주기적 재계획 — 로봇이 path 벗어났을 때 현재 위치에서 goal 까지 새 path.
-    # 0 = 비활성 (goal 받을 때만 1회), 1.0 = 1초마다 자동 재계획.
-    # 표준 Nav2 의 controller_server 가 1Hz 정도 replan 하는 것과 동일.
-    # 비유: GPS 가 한 번만 길 안내 안 하고, 잘못 빠지면 "재탐색" 자동 수행.
-    replan_period: 1.0
+    # 주기적 재계획 — 기본 비활성.
+    # 1Hz 재발행은 DWA가 새 path 초입에 계속 다시 정렬하게 만들어 장거리 주행을
+    # 느리게 할 수 있다. 평상시에는 goal 입력 때 만든 path를 유지하고, 아래
+    # /dwa/status 이벤트에서만 재계획한다.
+    # 필요 시 >0 으로 바꾸면 과거처럼 주기 재계획을 병행한다.
+    replan_period: 0.0
+
+    # DWA 상태 이벤트 기반 재계획.
+    # 즉시 재계획: EMERGENCY/PATH_LOST/RECOVERY_DONE
+    # 복구 후 재계획 fallback: FORWARD_ONLY/RECOVERY → NORMAL 또는 STOPPED 전이
+    # STOPPED_NEAR_WALL은 순간 튐이 많아 기본 trigger에서 제외한다. DWA가 recovery를
+    # 수행한 뒤 복구 완료 순간 한 번 새 path를 받는 쪽이 path churn이 적다.
+    dwa_status_topic: "/dwa/status"
+    status_replan_cooldown: 2.0
+    status_replan_states: ["EMERGENCY", "PATH_LOST", "RECOVERY_DONE"]
+    status_replan_after_states: ["FORWARD_ONLY", "RECOVERY"]
+    status_replan_reset_states: ["NORMAL", "ALIGN", "STOPPED", "REACHED", "GOAL_REACHED"]
 
     # 2026-05-31 추가 (SW · dwa-ys, 도착 인식 안정화 P1):
     # goal dedup 임계값 [m] — 같은 goal 재수신 시 재계획 스킵.

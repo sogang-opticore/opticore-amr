@@ -15,11 +15,19 @@ from rclpy.qos import QoSProfile, QoSDurabilityPolicy, QoSReliabilityPolicy
 
 from nav_msgs.msg import OccupancyGrid, Path
 from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import String
 
 import tf2_ros
 from tf2_ros import TransformException
 
 from amr_navigation.heuristics import heuristic, movement_cost
+
+
+def _status_param_to_set(value) -> set[str]:
+    """ROS parameter 값(list 또는 comma string)을 status set으로 정규화."""
+    if isinstance(value, str):
+        return {x.strip() for x in value.split(',') if x.strip()}
+    return {str(x).strip() for x in value if str(x).strip()}
 
 
 class AstarPlanner(Node):
@@ -40,10 +48,20 @@ class AstarPlanner(Node):
         self.declare_parameter('goal_snap_radius', 0.6)   # m, 0 이면 비활성
 
         # 2026-05-25 추가 (SW · 페어, DWA stuck/벗어남 문제 해결):
-        # 주기적 재계획 — 로봇이 path 벗어났을 때 현재 위치에서 goal 까지 새 path.
-        # 0 = 비활성 (goal 받을 때만 1회), >0 = 그 주기로 자동 재계획.
-        # 비유: GPS 내비가 한 번만 길 안내하지 않고, 잘못 빠지면 "재탐색" 하는 것.
-        self.declare_parameter('replan_period', 1.0)   # s, 0=비활성
+        # 주기적 재계획 — 기본은 비활성. 잦은 path 갱신이 DWA 재정렬을 유발할 수 있어
+        # 평상시에는 기존 path를 유지하고, DWA 상태 이벤트로만 재계획한다.
+        self.declare_parameter('replan_period', 0.0)   # s, 0=비활성
+        self.declare_parameter('dwa_status_topic', '/dwa/status')
+        self.declare_parameter('status_replan_cooldown', 2.0)
+        self.declare_parameter(
+            'status_replan_states',
+            ['EMERGENCY', 'PATH_LOST', 'RECOVERY_DONE'],
+        )
+        self.declare_parameter('status_replan_after_states', ['FORWARD_ONLY', 'RECOVERY'])
+        self.declare_parameter(
+            'status_replan_reset_states',
+            ['NORMAL', 'ALIGN', 'STOPPED', 'REACHED', 'GOAL_REACHED'],
+        )
 
         # 2026-05-31 추가 (SW · dwa-ys, 도착 인식 안정화 P1):
         # goal dedup — 같은 goal 재수신 시 재계획 스킵 임계값 [m].
@@ -65,6 +83,14 @@ class AstarPlanner(Node):
         self.smoothing        = self.get_parameter('smoothing').value
         self.goal_snap_radius = self.get_parameter('goal_snap_radius').value
         self.replan_period    = self.get_parameter('replan_period').value
+        self.dwa_status_topic = self.get_parameter('dwa_status_topic').value
+        self.status_replan_cooldown = self.get_parameter('status_replan_cooldown').value
+        self.status_replan_states = _status_param_to_set(
+            self.get_parameter('status_replan_states').value)
+        self.status_replan_after_states = _status_param_to_set(
+            self.get_parameter('status_replan_after_states').value)
+        self.status_replan_reset_states = _status_param_to_set(
+            self.get_parameter('status_replan_reset_states').value)
         self.goal_dedup_dist  = self.get_parameter('goal_dedup_dist').value
         self.goal_dedup_yaw   = self.get_parameter('goal_dedup_yaw').value
 
@@ -76,6 +102,9 @@ class AstarPlanner(Node):
         self._last_goal_xy: tuple[float, float] | None = None  # P1 dedup (2026-05-31)
         self._last_goal_yaw: float | None = None               # P1 dedup yaw (리뷰 반영)
         self._has_valid_path_for_goal = False
+        self._status_replan_armed = True
+        self._last_status_replan_time = -float('inf')
+        self._last_dwa_status: str | None = None
 
         # ── TF ────────────────────────────────────────────────────
         self.tf_buffer   = tf2_ros.Buffer()
@@ -97,6 +126,9 @@ class AstarPlanner(Node):
         self.goal_sub = self.create_subscription(
             PoseStamped, '/goal_pose', self._goal_callback, 10,
         )
+        self.status_sub = self.create_subscription(
+            String, self.dwa_status_topic, self._on_dwa_status, 10,
+        )
 
         # ── 발행 ───────────────────────────────────────────────────
         self.path_pub = self.create_publisher(Path, '/global_path', 10)
@@ -107,12 +139,55 @@ class AstarPlanner(Node):
             self.create_timer(self.replan_period, self._replan_timer)
             self.get_logger().info(
                 f'AstarPlanner 주기적 재계획 활성 — {self.replan_period}s 마다')
+        else:
+            self.get_logger().info(
+                'AstarPlanner 주기적 재계획 비활성 — DWA 상태 이벤트 기반 재계획')
 
         self.get_logger().info('AstarPlanner 노드 시작 — 맵과 goal 대기 중')
 
     # ══════════════════════════════════════════════════════════════
     # 주기적 재계획 (2026-05-25 추가)
     # ══════════════════════════════════════════════════════════════
+    def _sec_now(self) -> float:
+        return self.get_clock().now().nanoseconds * 1e-9
+
+    def _on_dwa_status(self, msg: String):
+        """DWA 상태 이벤트를 받아 필요할 때만 A* 재계획한다."""
+        status = msg.data.strip()
+        if not status:
+            return
+
+        prev_status = self._last_dwa_status
+        self._last_dwa_status = status
+
+        if status in self.status_replan_reset_states:
+            self._status_replan_armed = True
+            if prev_status in self.status_replan_after_states:
+                self._request_status_replan(f'{prev_status}->{status}')
+            return
+
+        if status in self.status_replan_states:
+            self._request_status_replan(status)
+
+    def _request_status_replan(self, reason: str) -> bool:
+        """DWA가 막힘/복구 이벤트를 보냈을 때 현재 pose 기준 path를 갱신한다."""
+        if self.goal is None or self.map_data is None:
+            return False
+        if not self._status_replan_armed:
+            return False
+
+        now = self._sec_now()
+        if now - self._last_status_replan_time < self.status_replan_cooldown:
+            return False
+
+        self._last_status_replan_time = now
+        self.get_logger().warn(
+            f'DWA 상태 {reason} 감지 — 현재 pose 기준 A* 이벤트 재계획')
+        success = self._plan(clear_on_failure=False)
+        if success:
+            self._status_replan_armed = False
+        return success
+
     def _replan_timer(self):
         """주기적 재계획 — DWA stuck / path 벗어남 자동 복구.
 
@@ -203,6 +278,7 @@ class AstarPlanner(Node):
         self._last_goal_yaw = new_yaw
         self.goal = msg
         self._has_valid_path_for_goal = False
+        self._status_replan_armed = True
         self.get_logger().info(
             f'Goal 수신: ({new_goal[0]:.2f}, {new_goal[1]:.2f}, yaw={new_yaw:.2f})'
         )
@@ -212,7 +288,7 @@ class AstarPlanner(Node):
     # 경로 계획 메인
     # ══════════════════════════════════════════════════════════════
 
-    def _plan(self, *, clear_on_failure: bool = True):
+    def _plan(self, *, clear_on_failure: bool = True) -> bool:
         """
         A* 경로 계획 메인 함수.
         성공 시 /global_path 발행.
@@ -228,7 +304,7 @@ class AstarPlanner(Node):
             self._handle_plan_failure(
                 'TF lookup 실패 — 경로 계획 중단',
                 clear_on_failure=clear_on_failure)
-            return
+            return False
 
         goal_world = (self.goal.pose.position.x, self.goal.pose.position.y)
 
@@ -245,7 +321,7 @@ class AstarPlanner(Node):
                 self._handle_plan_failure(
                     f'Start {start_cell}이 점유/맵-밖이고 인근 자유공간 없음',
                     clear_on_failure=clear_on_failure)
-                return
+                return False
             self.get_logger().info(
                 f'Start 보정: {start_cell} (점유/inflation) → {snapped} (인근 free)')
             start_cell = snapped
@@ -259,7 +335,7 @@ class AstarPlanner(Node):
                 self._handle_plan_failure(
                     f'Goal {goal_cell}이 점유/맵-밖이고 인근 자유공간 없음',
                     clear_on_failure=clear_on_failure)
-                return
+                return False
             self.get_logger().info(
                 f'Goal 보정: {goal_cell} (점유/inflation) → {snapped} (인근 free)')
             goal_cell = snapped
@@ -270,7 +346,7 @@ class AstarPlanner(Node):
             self._handle_plan_failure(
                 '경로 없음',
                 clear_on_failure=clear_on_failure)
-            return
+            return False
 
         if self.smoothing == 'catmull_rom':
             cell_path = self._smooth_catmull_rom(cell_path)
@@ -279,6 +355,7 @@ class AstarPlanner(Node):
         self.path_pub.publish(path_msg)
         self._has_valid_path_for_goal = True
         self.get_logger().info(f'경로 발행: {len(path_msg.poses)} 웨이포인트')
+        return True
 
     def _handle_plan_failure(self, reason: str, *, clear_on_failure: bool) -> None:
         """계획 실패 처리.
