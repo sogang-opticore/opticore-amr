@@ -53,7 +53,7 @@
 
 | 토픽 | 타입 | 발행 주체 | 구독자 | QoS | 비고 |
 |---|---|---|---|---|---|
-| `/goal_pose` | `geometry_msgs/PoseStamped` | RViz2 / BT / 사용자 | **A\*** | Reliable, depth 1 | frame_id = `map` |
+| `/goal_pose` | `geometry_msgs/PoseStamped` | RViz2 / BT / 사용자 | **A\***, DWA | Reliable, depth 1 | frame_id = `map`. DWA는 새 goal edge 확인용으로만 구독하며 반복 goal은 dedup |
 | `/map` | `nav_msgs/OccupancyGrid` | slam_toolbox | **A\*** | Reliable, depth 1, **TRANSIENT_LOCAL** | frame_id = `map`, latched |
 | `/global_path` | `nav_msgs/Path` | A\* | **DWA** | Reliable, depth 1, **TRANSIENT_LOCAL** | frame_id = `map`, latched |
 | `/odometry/filtered` | `nav_msgs/Odometry` | EKF (robot_localization) | DWA (1순위) | Reliable | frame_id = `odom_filtered` |
@@ -242,7 +242,9 @@ angular:
 | goal이 점유 셀 | 빈 path 발행 + 로그 | — |
 | goal 도달 불가 (장애물로 막힘) | 빈 path 발행 | 정지 |
 | 주기 재계획 실패 + 기존 성공 path 있음 | 빈 path 미발행, 기존 path 유지 | 기존 path 계속 추종 |
-| `/global_path` empty 수신 | — | 즉시 정지, `status="STOPPED"` |
+| `/global_path` empty 수신(새 goal 직후) | — | 즉시 정지, `status="STOPPED"` |
+| `/global_path` empty 수신(새 goal 없음 + 기존 path 있음) | — | stale/중복 publisher 가능성으로 보고 기존 path 유지 |
+| `/global_path`가 현재 pose와 `max_path_offset` 초과로 멂 | — | stale path 가능성으로 보고 path 무시, 기존 path 유지 |
 | 모든 trajectory 후보 충돌 | — | 정지, `status="EMERGENCY"` |
 | 장애물 거리 < `safety_distance` (0.30 m) | — | 즉시 정지 (명세 §7 안전거리) |
 | `/odometry/filtered` 미수신 > 0.5 s | — | `/odom`으로 fallback |

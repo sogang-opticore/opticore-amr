@@ -55,7 +55,7 @@ import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 
-from geometry_msgs.msg import Twist, Point
+from geometry_msgs.msg import Twist, Point, PoseStamped
 from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String
@@ -399,6 +399,9 @@ class DwaPlannerNode(Node):
         self.declare_parameter("odom_topic", "/odometry/filtered")
         self.declare_parameter("odom_fallback_topic", "/odom")
         self.declare_parameter("global_path_topic", "/global_path")
+        self.declare_parameter("goal_pose_topic", "/goal_pose")
+        self.declare_parameter("goal_dedup_dist", 0.10)
+        self.declare_parameter("goal_dedup_yaw", 0.10)
         self.declare_parameter("scan_topic", "/lidar")
         self.declare_parameter("cmd_vel_topic", "/cmd_vel")
         self.declare_parameter("state_log_period", 1.0)
@@ -414,6 +417,10 @@ class DwaPlannerNode(Node):
         self._last_odom_time: Optional[float] = None
         self._last_odom_was_fallback = False
         self._path_warn_logged = False
+        self._goal_version = 0
+        self._path_goal_version = 0
+        self._last_goal_xy: Optional[Tuple[float, float]] = None
+        self._last_goal_yaw: Optional[float] = None
 
         # ── NavState 머신 ─────────────────────────────────────────────
         self._nav_state: NavState = NavState.NORMAL
@@ -463,6 +470,8 @@ class DwaPlannerNode(Node):
             Odometry, self.p_odom_topic, self._on_odom, 10)
         self.create_subscription(
             Odometry, self.p_odom_fallback_topic, self._on_odom_fallback, 10)
+        self.create_subscription(
+            PoseStamped, self.p_goal_pose_topic, self._on_goal_pose, 10)
         self.create_subscription(
             Path, self.p_global_path_topic, self._on_global_path, path_qos)
         self.create_subscription(
@@ -535,6 +544,9 @@ class DwaPlannerNode(Node):
         self.p_odom_topic               = gp("odom_topic").value
         self.p_odom_fallback_topic      = gp("odom_fallback_topic").value
         self.p_global_path_topic        = gp("global_path_topic").value
+        self.p_goal_pose_topic          = gp("goal_pose_topic").value
+        self.p_goal_dedup_dist          = gp("goal_dedup_dist").value
+        self.p_goal_dedup_yaw           = gp("goal_dedup_yaw").value
         self.p_scan_topic               = gp("scan_topic").value
         self.p_cmd_vel_topic            = gp("cmd_vel_topic").value
         self.p_state_log_period         = gp("state_log_period").value
@@ -581,21 +593,46 @@ class DwaPlannerNode(Node):
             self._state.v = v; self._state.w = w
         self._last_odom_was_fallback = is_fallback
 
+    def _on_goal_pose(self, msg: PoseStamped) -> None:
+        """새 goal 수신 표시.
+
+        DWA는 path만 따라가지만, 빈 /global_path가 들어왔을 때 이것이
+        "새 goal의 계획 실패"인지 "이전/중복 publisher의 stale empty"인지 구분하려면
+        goal edge가 필요하다.
+        """
+        new_goal = (msg.pose.position.x, msg.pose.position.y)
+        q = msg.pose.orientation
+        new_yaw = yaw_from_quaternion(q.x, q.y, q.z, q.w)
+        if self._is_duplicate_goal(new_goal, new_yaw):
+            return
+        self._last_goal_xy = new_goal
+        self._last_goal_yaw = new_yaw
+        self._goal_version += 1
+
     def _on_global_path(self, msg: Path) -> None:
         if not msg.poses:
+            if self._should_ignore_empty_path():
+                self.get_logger().warn(
+                    "빈 /global_path 수신 — 새 goal 없음, 기존 path 유지",
+                    throttle_duration_sec=2.0)
+                return
             if self._path_local is None or self._path_local.poses:
                 self.get_logger().warn("빈 /global_path 수신 — DWA 정지 모드")
             empty = Path()
             empty.header.frame_id = self.LOCAL_FRAME
             empty.header.stamp = self.get_clock().now().to_msg()
             self._path_local = empty
+            self._path_goal_version = self._goal_version
             self._reached = False
             return
 
         src_frame = msg.header.frame_id or self.GLOBAL_FRAME
         if src_frame == self.LOCAL_FRAME:
+            if not self._is_path_close_to_state(msg):
+                return
             self._path_local = msg
             self._reset_path_state()
+            self._path_goal_version = self._goal_version
             last = msg.poses[-1].pose.position
             self.get_logger().info(
                 f"/global_path 수신 ({src_frame}) — "
@@ -611,8 +648,12 @@ class DwaPlannerNode(Node):
         if transformed is None:
             return
 
+        if not self._is_path_close_to_state(transformed):
+            return
+
         self._path_local = transformed
         self._reset_path_state()
+        self._path_goal_version = self._goal_version
         last = transformed.poses[-1].pose.position
         self.get_logger().info(
             f"/global_path 수신 ({src_frame} → {self.LOCAL_FRAME}) — "
@@ -1316,6 +1357,47 @@ class DwaPlannerNode(Node):
     @staticmethod
     def _path_xy(path_msg: Path) -> List[Tuple[float, float]]:
         return [(p.pose.position.x, p.pose.position.y) for p in path_msg.poses]
+
+    def _should_ignore_empty_path(self) -> bool:
+        """새 goal이 아닌 빈 path가 기존 유효 path를 지우지 않도록 한다."""
+        return (
+            self._path_local is not None
+            and bool(self._path_local.poses)
+            and self._path_goal_version == self._goal_version
+        )
+
+    def _is_duplicate_goal(self,
+                           new_goal: Tuple[float, float],
+                           new_yaw: float) -> bool:
+        if self._last_goal_xy is None or self._last_goal_yaw is None:
+            return False
+        dx = new_goal[0] - self._last_goal_xy[0]
+        dy = new_goal[1] - self._last_goal_xy[1]
+        dyaw = abs(math.atan2(math.sin(new_yaw - self._last_goal_yaw),
+                              math.cos(new_yaw - self._last_goal_yaw)))
+        return (
+            math.hypot(dx, dy) < self.p_goal_dedup_dist
+            and dyaw < self.p_goal_dedup_yaw
+        )
+
+    def _path_offset_to_state(self, path_msg: Path) -> Optional[float]:
+        if self._state is None or not path_msg.poses:
+            return None
+        path_xy = self._path_xy(path_msg)
+        nearest_idx = find_nearest_idx(path_xy, (self._state.x, self._state.y), 0)
+        nx, ny = path_xy[nearest_idx]
+        return math.hypot(nx - self._state.x, ny - self._state.y)
+
+    def _is_path_close_to_state(self, path_msg: Path) -> bool:
+        """현재 pose와 너무 먼 stale path를 수신 단계에서 거부한다."""
+        offset = self._path_offset_to_state(path_msg)
+        if offset is None or offset <= self.p_max_path_offset:
+            return True
+        self.get_logger().warn(
+            f"/global_path가 현재 pose와 {offset:.2f}m 떨어져 무시 "
+            f"(max={self.p_max_path_offset:.2f}m, 기존 path 유지)",
+            throttle_duration_sec=2.0)
+        return False
 
     def _extract_obstacles_from_scan(self) -> List[Tuple[float, float]]:
         scan = self._latest_scan

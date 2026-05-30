@@ -406,3 +406,71 @@ class TestTriggerRecoverySpinEntry:
         node, NavState = self._make_node()
         node._trigger_recovery([(0.22, 0.0)], motion_clear=0.0)
         assert node._nav_state == NavState.EMERGENCY
+
+
+class TestGlobalPathStaleGuard:
+    """중복 /global_path publisher가 기존 path를 흔드는 회귀 방지."""
+
+    @staticmethod
+    def _path(points):
+        import types
+        poses = []
+        for x, y in points:
+            pose = types.SimpleNamespace()
+            pose.pose = types.SimpleNamespace()
+            pose.pose.position = types.SimpleNamespace(x=x, y=y)
+            poses.append(pose)
+        return types.SimpleNamespace(poses=poses)
+
+    def _make_node(self):
+        import types
+        from amr_navigation.dwa_node import DwaPlannerNode, RobotState
+
+        node = types.SimpleNamespace()
+        node._goal_version = 1
+        node._path_goal_version = 1
+        node._path_local = self._path([(0.0, 0.0), (1.0, 0.0)])
+        node._state = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
+        node.p_max_path_offset = 2.0
+        node.p_goal_dedup_dist = 0.10
+        node.p_goal_dedup_yaw = 0.10
+        node._last_goal_xy = (5.0, 1.0)
+        node._last_goal_yaw = 0.0
+
+        class _NullLogger:
+            def warn(self, *a, **k):
+                pass
+
+        node.get_logger = lambda: _NullLogger()
+        for name in ("_should_ignore_empty_path", "_path_offset_to_state",
+                     "_is_path_close_to_state", "_is_duplicate_goal",
+                     "_path_xy"):
+            setattr(node, name, getattr(DwaPlannerNode, name).__get__(node))
+        return node
+
+    def test_ignores_empty_path_when_no_new_goal(self):
+        node = self._make_node()
+        assert node._should_ignore_empty_path() is True
+
+    def test_accepts_empty_path_after_new_goal_edge(self):
+        node = self._make_node()
+        node._goal_version = 2
+        assert node._should_ignore_empty_path() is False
+
+    def test_rejects_stale_path_far_from_current_pose(self):
+        node = self._make_node()
+        stale = self._path([(3.0, 0.0), (4.0, 0.0)])
+        assert node._is_path_close_to_state(stale) is False
+
+    def test_accepts_path_near_current_pose(self):
+        node = self._make_node()
+        current = self._path([(0.1, 0.0), (1.0, 0.0)])
+        assert node._is_path_close_to_state(current) is True
+
+    def test_repeated_goal_does_not_create_new_edge(self):
+        node = self._make_node()
+        assert node._is_duplicate_goal((5.05, 1.02), 0.05) is True
+
+    def test_yaw_changed_goal_creates_new_edge(self):
+        node = self._make_node()
+        assert node._is_duplicate_goal((5.0, 1.0), 0.30) is False

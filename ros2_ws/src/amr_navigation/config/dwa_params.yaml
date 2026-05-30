@@ -182,6 +182,12 @@ dwa_planner:
     odom_topic: "/odometry/filtered"
     odom_fallback_topic: "/odom"
     global_path_topic: "/global_path"
+    goal_pose_topic: "/goal_pose"
+    # DWA는 /goal_pose를 계획에 쓰지 않고 "새 goal edge" 확인용으로만 구독한다.
+    # A* dedup과 같은 기준으로 반복 goal pub(--rate) 노이즈를 무시.
+    # TODO(미확정): A* goal_dedup_*와 함께 시뮬 측정 후 확정.
+    goal_dedup_dist: 0.10
+    goal_dedup_yaw: 0.10
     scan_topic: "/lidar"
     cmd_vel_topic: "/cmd_vel"
 
