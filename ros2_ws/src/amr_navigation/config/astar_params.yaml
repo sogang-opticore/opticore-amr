@@ -42,12 +42,11 @@ astar_planner:
     # (예: Loading zone (3,15)이 맵 가장자리라 BLOCK → 인근 (3,14.5)로 자동 이동)
     goal_snap_radius: 0.6
 
-    # 주기적 재계획 — 기본 비활성.
-    # 1Hz 재발행은 DWA가 새 path 초입에 계속 다시 정렬하게 만들어 장거리 주행을
-    # 느리게 할 수 있다. 평상시에는 goal 입력 때 만든 path를 유지하고, 아래
-    # /dwa/status 이벤트에서만 재계획한다.
-    # 필요 시 >0 으로 바꾸면 과거처럼 주기 재계획을 병행한다.
-    replan_period: 0.0
+    # 주기적 재계획 — 기본 1Hz.
+    # DWA의 stale empty 방어와 재계획 실패 시 기존 path 유지 정책을 전제로,
+    # 현재 pose 기준 global path를 주기적으로 갱신한다.
+    # 필요 시 0으로 바꾸면 goal/event 기반 재계획만 사용한다.
+    replan_period: 1.0
 
     # DWA 상태 이벤트 기반 재계획.
     # 즉시 재계획: EMERGENCY/PATH_LOST/RECOVERY_DONE

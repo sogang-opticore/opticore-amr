@@ -21,6 +21,8 @@ from amr_navigation.dwa_node import (
     velocity_score,
     min_clearance_distance,
     pick_lookahead_point,
+    pick_lookahead_from_projection,
+    project_to_path,
 )
 
 
@@ -242,6 +244,30 @@ class TestPickLookahead:
         path = [(0, 0), (1, 0), (2, 0), (3, 0), (4, 0)]
         pt = pick_lookahead_point(path, (2.1, 0), 1.0)
         assert pt == (3, 0)
+
+
+class TestPathProjectionLookahead:
+    def test_projection_returns_signed_cross_track_error(self):
+        path = [(0.0, 0.0), (2.0, 0.0)]
+
+        proj = project_to_path(path, (0.5, 0.2), 0)
+
+        assert proj is not None
+        assert abs(proj.point[0] - 0.5) < 1e-9
+        assert abs(proj.point[1]) < 1e-9
+        assert abs(proj.offset - 0.2) < 1e-9
+        assert abs(proj.signed_offset - 0.2) < 1e-9
+        assert abs(proj.yaw) < 1e-9
+
+    def test_projection_lookahead_interpolates_from_projected_point(self):
+        path = [(0.0, 0.0), (1.0, 0.0), (2.0, 0.0)]
+        proj = project_to_path(path, (0.25, 0.4), 0)
+
+        pt = pick_lookahead_from_projection(path, proj, 0.75)
+
+        assert pt is not None
+        assert abs(pt[0] - 1.0) < 1e-9
+        assert abs(pt[1]) < 1e-9
 
 
 # ── v/w 커플링 해제 패치 검증 (YS, 2026-05-29) ──────────────────────────

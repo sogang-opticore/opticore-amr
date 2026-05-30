@@ -96,6 +96,16 @@ class VelocityCommand:
     score: float = 0.0
 
 
+@dataclass
+class PathProjection:
+    """로봇 위치를 path 선분 위에 투영한 결과."""
+    segment_idx: int
+    point: Tuple[float, float]
+    offset: float
+    signed_offset: float
+    yaw: float
+
+
 class NavState(Enum):
     """명시적 내비게이션 상태 — fleet BT 연결 준비."""
     NORMAL       = "NORMAL"        # Pure Pursuit 정상 추종
@@ -284,6 +294,114 @@ def find_nearest_idx(
     return nearest_idx
 
 
+def project_to_path(
+    path_xy: List[Tuple[float, float]],
+    robot_xy: Tuple[float, float],
+    start_idx: int = 0,
+) -> Optional[PathProjection]:
+    """가장 가까운 path 선분 위 투영점을 구한다.
+
+    기존 nearest point 방식은 코너에서 로봇이 선분 사이를 지날 때 lookahead가
+    튀기 쉽다. 선분 투영을 쓰면 경로의 실제 중심선 기준 횡오차를 안정적으로
+    계산할 수 있다.
+    """
+    if not path_xy:
+        return None
+    rx, ry = robot_xy
+    if len(path_xy) == 1:
+        px, py = path_xy[0]
+        return PathProjection(
+            segment_idx=0,
+            point=(px, py),
+            offset=math.hypot(rx - px, ry - py),
+            signed_offset=0.0,
+            yaw=0.0,
+        )
+
+    start = max(0, min(start_idx, len(path_xy) - 2) - 5)
+    best: Optional[PathProjection] = None
+    best_d_sq = float("inf")
+
+    for i in range(start, len(path_xy) - 1):
+        x1, y1 = path_xy[i]
+        x2, y2 = path_xy[i + 1]
+        sx = x2 - x1
+        sy = y2 - y1
+        seg_len_sq = sx * sx + sy * sy
+        if seg_len_sq <= 1e-12:
+            continue
+
+        t = ((rx - x1) * sx + (ry - y1) * sy) / seg_len_sq
+        t = max(0.0, min(1.0, t))
+        px = x1 + t * sx
+        py = y1 + t * sy
+        dx = rx - px
+        dy = ry - py
+        d_sq = dx * dx + dy * dy
+        if d_sq >= best_d_sq:
+            continue
+
+        seg_len = math.sqrt(seg_len_sq)
+        tx = sx / seg_len
+        ty = sy / seg_len
+        signed_offset = tx * dy - ty * dx
+        best = PathProjection(
+            segment_idx=i,
+            point=(px, py),
+            offset=math.sqrt(d_sq),
+            signed_offset=signed_offset,
+            yaw=math.atan2(sy, sx),
+        )
+        best_d_sq = d_sq
+
+    if best is not None:
+        return best
+
+    nearest_idx = find_nearest_idx(path_xy, robot_xy, start_idx)
+    px, py = path_xy[nearest_idx]
+    return PathProjection(
+        segment_idx=max(0, min(nearest_idx, len(path_xy) - 2)),
+        point=(px, py),
+        offset=math.hypot(rx - px, ry - py),
+        signed_offset=0.0,
+        yaw=0.0,
+    )
+
+
+def pick_lookahead_from_projection(
+    path_xy: List[Tuple[float, float]],
+    projection: PathProjection,
+    lookahead_dist: float,
+) -> Optional[Tuple[float, float]]:
+    """투영점에서 path arc-length 기준 lookahead 지점을 고른다."""
+    if not path_xy:
+        return None
+    if len(path_xy) == 1:
+        return path_xy[0]
+
+    cumulative = 0.0
+    prev_x, prev_y = projection.point
+    start_seg = max(0, min(projection.segment_idx, len(path_xy) - 2))
+
+    for j in range(start_seg + 1, len(path_xy)):
+        x, y = path_xy[j]
+        seg_len = math.hypot(x - prev_x, y - prev_y)
+        if seg_len <= 1e-9:
+            prev_x, prev_y = x, y
+            continue
+        if cumulative + seg_len >= lookahead_dist:
+            remain = lookahead_dist - cumulative
+            ratio = max(0.0, min(1.0, remain / seg_len))
+            return (
+                prev_x + ratio * (x - prev_x),
+                prev_y + ratio * (y - prev_y),
+            )
+        cumulative += seg_len
+        prev_x, prev_y = x, y
+
+    return path_xy[-1]
+
+
 def pick_lookahead_point(
     path_xy: List[Tuple[float, float]],
     robot_xy: Tuple[float, float],
@@ -366,8 +484,12 @@ class DwaPlannerNode(Node):
         self.declare_parameter("weight_velocity", 0.2)
         self.declare_parameter("weight_path_tangent", 0.8)
         self.declare_parameter("path_tangent_lookahead", 10)
-        self.declare_parameter("lookahead_dist", 1.0)
-        self.declare_parameter("lookahead_time", 0.7)
+        self.declare_parameter("lookahead_dist", 0.45)
+        self.declare_parameter("lookahead_time", 0.35)
+        self.declare_parameter("path_heading_gain", 0.6)
+        self.declare_parameter("path_cross_track_gain", 0.8)
+        self.declare_parameter("path_error_slowdown_offset", 0.25)
+        self.declare_parameter("path_error_min_speed_scale", 0.35)
         self.declare_parameter("max_clearance", 1.0)
         self.declare_parameter("goal_tolerance", 0.20)
         self.declare_parameter("clearance_slowdown_distance", 0.80)
@@ -386,7 +508,7 @@ class DwaPlannerNode(Node):
         self.declare_parameter("align_trigger_ticks", 3)      # TODO: 시뮬 측정 후 확정(미확정 초안)
         self.declare_parameter("w_min_rotate", 0.3)
         self.declare_parameter("allow_backward", False)
-        self.declare_parameter("max_path_offset", 2.0)
+        self.declare_parameter("max_path_offset", 1.0)
         self.declare_parameter("stuck_recovery_sec", 1.5)
         self.declare_parameter("recovery_cooldown", 3.0)
         self.declare_parameter("spin_duration", 2.0)       # spin recovery 지속 시간
@@ -519,6 +641,10 @@ class DwaPlannerNode(Node):
         self.p_path_tangent_lookahead   = gp("path_tangent_lookahead").value
         self.p_lookahead_dist           = gp("lookahead_dist").value
         self.p_lookahead_time           = gp("lookahead_time").value
+        self.p_path_heading_gain        = gp("path_heading_gain").value
+        self.p_path_cross_track_gain    = gp("path_cross_track_gain").value
+        self.p_path_error_slowdown_offset = gp("path_error_slowdown_offset").value
+        self.p_path_error_min_speed_scale = gp("path_error_min_speed_scale").value
         self.p_max_clearance            = gp("max_clearance").value
         self.p_goal_tolerance           = gp("goal_tolerance").value
         self.p_clearance_slowdown_distance = gp("clearance_slowdown_distance").value
@@ -771,12 +897,16 @@ class DwaPlannerNode(Node):
         gx, gy = path_xy[-1]
         dist_to_goal = math.hypot(gx - self._state.x, gy - self._state.y)
 
-        nearest_idx = find_nearest_idx(
+        projection = project_to_path(
             path_xy, (self._state.x, self._state.y), self._path_progress_idx)
+        if projection is None:
+            self._stop_robot("no_path_projection")
+            return None
+
+        nearest_idx = projection.segment_idx
         self._path_progress_idx = nearest_idx
 
-        nx, ny = path_xy[nearest_idx]
-        path_offset = math.hypot(nx - self._state.x, ny - self._state.y)
+        path_offset = projection.offset
         if path_offset > self.p_max_path_offset:
             self._stop_robot("path_offset_too_large")
             self._publish_status_value("PATH_LOST")
@@ -792,9 +922,11 @@ class DwaPlannerNode(Node):
             self.p_lookahead_time * abs(self._state.v),
             self.p_lookahead_dist * approach_scale,
         )
-        lookahead = pick_lookahead_point(
-            path_xy, (self._state.x, self._state.y),
-            effective_lookahead, start_idx=nearest_idx)
+        if path_offset > self.p_path_error_slowdown_offset:
+            effective_lookahead = min(effective_lookahead, self.p_lookahead_dist)
+
+        lookahead = pick_lookahead_from_projection(
+            path_xy, projection, effective_lookahead)
         if lookahead is None:
             self._stop_robot("no_lookahead")
             return None
@@ -802,6 +934,10 @@ class DwaPlannerNode(Node):
         lx, ly = world_to_local(lookahead, self._state)
         L = math.hypot(lx, ly)
         alpha = math.atan2(ly, lx)
+        path_heading_error = math.atan2(
+            math.sin(projection.yaw - self._state.theta),
+            math.cos(projection.yaw - self._state.theta),
+        )
 
         obstacles_local = self._extract_obstacles_from_scan()
         fwd_clear = self._forward_clearance_inline(obstacles_local, kappa=self._last_kappa)
@@ -810,6 +946,9 @@ class DwaPlannerNode(Node):
             "path_xy": path_xy,
             "dist_to_goal": dist_to_goal,
             "nearest_idx": nearest_idx,
+            "path_offset": path_offset,
+            "signed_path_offset": projection.signed_offset,
+            "path_heading_error": path_heading_error,
             "effective_lookahead": effective_lookahead,
             "lx": lx, "ly": ly, "L": L, "alpha": alpha,
             "obstacles_local": obstacles_local,
@@ -828,6 +967,9 @@ class DwaPlannerNode(Node):
         fwd_clear   = ctx["fwd_clear"]
         dist_to_goal= ctx["dist_to_goal"]
         obstacles   = ctx["obstacles_local"]
+        path_offset = ctx["path_offset"]
+        signed_path_offset = ctx["signed_path_offset"]
+        path_heading_error = ctx["path_heading_error"]
 
         period = 1.0 / max(self.p_control_rate, 1.0)
         dv_max = self.p_a_max * period
@@ -892,6 +1034,16 @@ class DwaPlannerNode(Node):
         heading_factor = max(0.3, math.cos(alpha))
         v_target *= heading_factor
 
+        # (v) path 이탈 감속 — 경로에서 벌어질수록 속도를 낮춰 복귀 회전을 우선한다.
+        if path_offset > self.p_path_error_slowdown_offset:
+            denom = max(
+                self.p_max_path_offset - self.p_path_error_slowdown_offset,
+                1e-3,
+            )
+            scale = 1.0 - (path_offset - self.p_path_error_slowdown_offset) / denom
+            scale = max(self.p_path_error_min_speed_scale, min(1.0, scale))
+            v_target *= scale
+
         # ── 최종 한계 (2026-05-31: P3 v_target LPF 제거 — 반응성 회복) ─────────
         # P3 LPF 는 상향(재가속)을 smooth 하느라 직선·감속 후 재가속이 굼떠
         # 주행이 "빠릿"하지 않다는 사용자 피드백 → revert. v_target 즉시 반영.
@@ -902,12 +1054,18 @@ class DwaPlannerNode(Node):
         # w 계산 (v/w 커플링 해제) — 곡률 감속이 반영된 v_target 으로 ω 를 계산해
         #   실행 곡률 w_cmd/v_cmd ≈ κ 정합 유지.
         w_pp = kappa * v_target
+        w_path = (
+            self.p_path_heading_gain * path_heading_error
+            - self.p_path_cross_track_gain * signed_path_offset
+        )
+        w_target_raw = w_pp + w_path
         if (self.p_w_min_rotate > 0.0
                 and abs(alpha) > self.p_align_angle_exit
-                and abs(w_pp) < self.p_w_min_rotate):
-            w_target = math.copysign(self.p_w_min_rotate, alpha)
+                and abs(w_target_raw) < self.p_w_min_rotate):
+            turn_ref = alpha if abs(alpha) >= abs(path_heading_error) else path_heading_error
+            w_target = math.copysign(self.p_w_min_rotate, turn_ref)
         else:
-            w_target = w_pp
+            w_target = w_target_raw
 
         # 가속도 제한
         w_target = max(-self.p_w_max, min(self.p_w_max, w_target))
@@ -980,6 +1138,8 @@ class DwaPlannerNode(Node):
                 f"L={L:.2f}(eff={ctx['effective_lookahead']:.2f}) "
                 f"α={math.degrees(alpha):+.1f}° κ={kappa:+.2f} "
                 f"v={v_cmd:+.2f}/{v_target:.2f} w={w_cmd:+.2f}/{w_target:+.2f} "
+                f"cte={path_offset:.2f}/{signed_path_offset:+.2f} "
+                f"ψ={math.degrees(path_heading_error):+.1f}° "
                 f"clr={motion_clear:.2f} fwd={fwd_clear:.2f} "
                 f"d_goal={dist_to_goal:.2f}"
                 f"{' creep=1' if near_wall_creep else ''}")

@@ -48,9 +48,9 @@ class AstarPlanner(Node):
         self.declare_parameter('goal_snap_radius', 0.6)   # m, 0 이면 비활성
 
         # 2026-05-25 추가 (SW · 페어, DWA stuck/벗어남 문제 해결):
-        # 주기적 재계획 — 기본은 비활성. 잦은 path 갱신이 DWA 재정렬을 유발할 수 있어
-        # 평상시에는 기존 path를 유지하고, DWA 상태 이벤트로만 재계획한다.
-        self.declare_parameter('replan_period', 0.0)   # s, 0=비활성
+        # 주기적 재계획 — 기본 1Hz. DWA가 path를 잃거나 복구가 끝난 경우에는
+        # /dwa/status 이벤트로도 즉시 재계획한다.
+        self.declare_parameter('replan_period', 1.0)   # s, 0=비활성
         self.declare_parameter('dwa_status_topic', '/dwa/status')
         self.declare_parameter('status_replan_cooldown', 2.0)
         self.declare_parameter(

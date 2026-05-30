@@ -66,7 +66,7 @@
 
 | 토픽 | 타입 | 발행 주체 | 주기 | QoS | 용도 |
 |---|---|---|---|---|---|
-| `/global_path` | `nav_msgs/Path` | **A\*** | goal 입력 시 1회 + DWA 상태 이벤트 시 | Reliable, depth 1, TRANSIENT_LOCAL | DWA가 추종할 전역 경로 |
+| `/global_path` | `nav_msgs/Path` | **A\*** | goal 입력 시 1회 + 1Hz 주기 재계획 + DWA 상태 이벤트 시 | Reliable, depth 1, TRANSIENT_LOCAL | DWA가 추종할 전역 경로 |
 | `/cmd_vel` | `geometry_msgs/Twist` | **DWA 단독** ★ | 20 Hz (control_rate) | Reliable, depth 10 | Ignition DiffDrive 입력 |
 | `/dwa/trajectories` | `visualization_msgs/MarkerArray` | DWA | 5 Hz | Reliable | 후보 trajectory 시각화 (Foxglove) |
 | `/dwa/best_trajectory` | `visualization_msgs/Marker` | DWA | 5 Hz | Reliable | 선택된 trajectory 강조 |
@@ -127,9 +127,8 @@ poses:                         # PoseStamped 배열
 - A\*는 binary inflation 바깥 free 셀도 장애물 거리장 비용으로 다시 평가해,
   가능한 경우 벽 경계보다 통로 중앙에 가까운 경로를 선호한다.
 - 빈 path(`poses=[]`)는 **"계획 실패"** 컨벤션 → DWA는 즉시 정지, `status="STOPPED"`.
-- 기본값에서는 A\*가 `/global_path`를 1초마다 다시 발행하지 않는다. 새 goal 또는 DWA의
-  `EMERGENCY`/`PATH_LOST`/`RECOVERY_DONE` 이벤트에서만 현재 pose 기준으로 재계획한다.
-  평상시에는 latched path를 끝까지 따라간다.
+- 기본값에서는 A\*가 `/global_path`를 1초마다 현재 pose 기준으로 다시 발행한다.
+  DWA의 `EMERGENCY`/`PATH_LOST`/`RECOVERY_DONE` 이벤트도 즉시 재계획 trigger로 사용한다.
 - 단, A\*의 **주기 재계획** 실패가 이미 성공한 경로를 가진 상태에서 발생하면 빈 path를 발행하지 않고
   기존 `/global_path`를 유지한다. 일시적 TF/맵 흔들림이 DWA의 정상 추종을 `STOPPED/NORMAL`로
   떨리게 만들지 않기 위한 정책이다. 새 goal의 최초 계획 실패처럼 기존 경로를 믿으면 안 되는 경우에는
@@ -212,11 +211,25 @@ angular:
 |---|---|---|
 | `sample_v_n` | 11 | 선속도 샘플 수 |
 | `sample_w_n` | 21 | 각속도 샘플 수 (총 11×21 = 231 후보) |
-| `predict_horizon` | 1.0 s | trajectory 예측 시간 |
+| `predict_horizon` | 0.5 s | trajectory 예측 시간 |
 | `dt` | 0.1 s | 적분 step |
 | `control_rate` | 20.0 Hz | 제어 주기 |
 
-### 4.3 DWA — 평가함수 가중치
+### 4.3 DWA — Path 추종
+
+| 파라미터 | 기본값 | 비고 |
+|---|---|---|
+| `lookahead_dist` | 0.45 m | path 선분 투영점 기준 최소 lookahead. 작을수록 경로 밀착 |
+| `lookahead_time` | 0.35 s | 속도 비례 lookahead. v=1.5 m/s에서 약 0.525 m |
+| `path_heading_gain` | 0.6 | path 접선 방향 heading 오차 보정 |
+| `path_cross_track_gain` | 0.8 | path 횡오차 복귀 보정 |
+| `path_error_slowdown_offset` | 0.25 m | 이 이상 path에서 벌어지면 속도 감속 시작 |
+| `path_error_min_speed_scale` | 0.35 | path 복귀 중 최소 속도 스케일 |
+| `max_path_offset` | 1.0 m | 이 이상 path에서 벗어나면 `PATH_LOST` 후 A\* 재계획 유도 |
+
+> T14부터 DWA는 nearest point가 아니라 path 선분 위 투영점을 기준으로 lookahead를 고른다. Pure Pursuit가 코너를 지름길처럼 잘라 가는 성향을 줄이기 위해 횡오차와 path 접선 heading 오차도 각속도에 더한다.
+
+### 4.4 DWA — 평가함수 가중치
 
 | 파라미터 | 기본값 | 비고 |
 |---|---|---|
@@ -226,7 +239,7 @@ angular:
 
 > 좁은 통로(< 1.5 m)에서는 `weight_clearance`를 0.6으로 상향 권장.
 
-### 4.4 DWA — 안전
+### 4.5 DWA — 안전
 
 | 파라미터 | 기본값 | 비고 |
 |---|---|---|
@@ -234,7 +247,7 @@ angular:
 | `near_wall_creep_speed` | 0.12 m/s | 전방이 열린 측면 벽 근접 상황에서 v=0 고착 방지. **TODO 미확정, RunPod 튜닝 필요** |
 | `odom_timeout` | 0.5 s | 이 시간 안에 `/odometry/filtered` 없으면 `/odom` fallback |
 
-### 4.5 A\* — 그리드 / 휴리스틱 (제안, HU 확정 대기)
+### 4.6 A\* — 그리드 / 휴리스틱 (제안, HU 확정 대기)
 
 | 파라미터 | 기본값 | 비고 |
 |---|---|---|
@@ -244,7 +257,7 @@ angular:
 | `preferred_clearance` | 1.00 m | 이 거리 안쪽 free 셀에 비용을 부여해 벽 경계 path를 피함. **TODO 미확정, RunPod 튜닝 필요** |
 | `clearance_cost_weight` | 6.0 | clearance 비용 가중치. 0이면 shortest path 우선 |
 | `smoothing` | `"catmull_rom"` | `none` / `catmull_rom` / `bezier` |
-| `replan_period` | 0.0 s | 0이면 goal 입력 시에만 1회, > 0이면 주기적 재계획 |
+| `replan_period` | 1.0 s | 0이면 goal 입력 시에만 1회, > 0이면 주기적 재계획 |
 | `dwa_status_topic` | `"/dwa/status"` | A\*가 이벤트 재계획 판단에 쓰는 DWA 상태 토픽 |
 | `status_replan_cooldown` | 2.0 s | 상태 이벤트 재계획 최소 간격 |
 | `status_replan_states` | `["EMERGENCY", "PATH_LOST", "RECOVERY_DONE"]` | 수신 즉시 현재 pose 기준 A\* 재계획 |
