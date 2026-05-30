@@ -226,16 +226,19 @@ angular:
 | `path_cross_track_gain` | 0.8 | path 횡오차 복귀 보정 |
 | `path_error_slowdown_offset` | 0.25 m | 이 이상 path에서 벌어지면 속도 감속 시작 |
 | `path_error_min_speed_scale` | 0.35 | path 복귀 중 최소 속도 스케일 |
-| `rejoin_entry_offset` | 0.35 m | 이 이상 path에서 벗어나면 `REJOIN` 후보 선택 |
+| `rejoin_entry_offset` | 0.30 m | 이 이상 path에서 벗어나면 `REJOIN` 후보 선택 |
 | `rejoin_exit_offset` | 0.18 m | `REJOIN` 해제 hysteresis 거리 |
-| `rejoin_min_lookahead` | 0.60 m | 너무 가까운 복귀점 배제 |
-| `rejoin_max_lookahead` | 3.00 m | 미래 path 후보 탐색 상한 |
+| `rejoin_exit_heading` | 0.45 rad | path heading 오차가 남아 있으면 `REJOIN` 유지 |
+| `rejoin_min_lookahead` | 0.80 m | 너무 가까운 복귀점 배제 |
+| `rejoin_max_lookahead` | 3.50 m | 미래 path 후보 탐색 상한 |
 | `rejoin_step` | 0.25 m | 후보 arc-length 간격 |
 | `rejoin_heading_weight` | 1.2 | 합류 지점 path heading mismatch 비용 |
-| `rejoin_distance_weight` | 0.12 | 너무 먼 합류점 선호 방지 비용 |
+| `rejoin_distance_weight` | 0.12 | 동적 적정 합류거리와의 차이 비용 |
+| `rejoin_curvature_weight` | 0.18 | 큰 곡률의 급합류 후보 억제 비용 |
 | `rejoin_cross_track_gain_scale` | 0.35 | `REJOIN` 중 nearest CTE 보정 완화 |
 | `rejoin_align_angle_thresh` | 1.75 rad | `REJOIN` 중 ALIGN 진입 완화(약 100도) |
-| `max_path_offset` | 1.0 m | 이 이상 path에서 벗어나면 `PATH_LOST` 후 A\* 재계획 유도 |
+| `max_path_offset` | 1.0 m | 새 `/global_path`가 현재 pose와 너무 멀면 stale path로 무시 |
+| `path_lost_offset` | 1.8 m | 추종 중 이 이상 path에서 벗어나면 `PATH_LOST` 후 A\* 재계획 유도 |
 
 > T14부터 DWA는 nearest point가 아니라 path 선분 위 투영점을 기준으로 lookahead를 고른다. T15부터 path 이탈 시에는 `REJOIN` 상태로 들어가 가장 가까운 점 대신 현재 조향각, 합류 지점 heading mismatch, 이동 거리를 함께 최소화하는 미래 path 점으로 부드럽게 재합류한다.
 
@@ -287,6 +290,7 @@ angular:
 | `/global_path` empty 수신(새 goal 직후) | — | 즉시 정지, `status="STOPPED"` |
 | `/global_path` empty 수신(새 goal 없음 + 기존 path 있음) | — | stale/중복 publisher 가능성으로 보고 기존 path 유지 |
 | `/global_path`가 현재 pose와 `max_path_offset` 초과로 멂 | — | stale path 가능성으로 보고 path 무시, 기존 path 유지 |
+| DWA가 추종 중 path와 `path_lost_offset` 초과로 멂 | 현재 pose 기준 1회 재계획 | 정지, `status="PATH_LOST"` |
 | 전방은 열렸지만 측면 벽/초기 arc clearance가 낮음 | — | 충돌권 밖이면 `near_wall_creep_speed`로 최소 전진해 벽 옆 고착 탈출 |
 | 모든 trajectory 후보 충돌 | — | 정지, `status="EMERGENCY"` |
 | 진행 방향 장애물 거리 < `safety_distance` (0.30 m) | — | 즉시 정지 (명세 §7 안전거리). 측면 벽은 near-wall creep 조건을 별도로 적용 |

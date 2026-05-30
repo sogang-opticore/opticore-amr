@@ -122,6 +122,8 @@ class RejoinTarget:
     distance: float
     alpha: float
     arrival_error: float
+    curvature: float
+    desired_distance: float
     score: float
 
 
@@ -439,6 +441,25 @@ def pick_lookahead_from_projection(
     return sample.point if sample is not None else None
 
 
+def normalize_angle(angle: float) -> float:
+    return math.atan2(math.sin(angle), math.cos(angle))
+
+
+def should_use_rejoin(
+    path_offset: float,
+    heading_error: float,
+    was_rejoining: bool,
+    entry_offset: float,
+    exit_offset: float,
+    exit_heading: float,
+) -> bool:
+    if path_offset > entry_offset:
+        return True
+    if not was_rejoining:
+        return False
+    return path_offset > exit_offset or abs(heading_error) > exit_heading
+
+
 def choose_rejoin_target(
     path_xy: List[Tuple[float, float]],
     robot: RobotState,
@@ -448,6 +469,7 @@ def choose_rejoin_target(
     step: float,
     heading_weight: float,
     distance_weight: float,
+    curvature_weight: float,
 ) -> Optional[RejoinTarget]:
     """가장 가까운 점이 아니라, 작은 조향으로 합류 가능한 미래 path 점을 고른다."""
     if not path_xy:
@@ -457,6 +479,13 @@ def choose_rejoin_target(
     min_lookahead = max(0.0, min_lookahead)
     max_lookahead = max(min_lookahead, max_lookahead)
     count = int((max_lookahead - min_lookahead) / step) + 1
+    desired_distance = min(
+        max_lookahead,
+        max(
+            min_lookahead,
+            0.8 + 2.2 * projection.offset + 0.5 * max(0.0, robot.v),
+        ),
+    )
 
     best: Optional[RejoinTarget] = None
     fallback: Optional[RejoinTarget] = None
@@ -472,14 +501,15 @@ def choose_rejoin_target(
         dx = sample.point[0] - robot.x
         dy = sample.point[1] - robot.y
         approach_yaw = math.atan2(dy, dx)
-        arrival_error = math.atan2(
-            math.sin(sample.yaw - approach_yaw),
-            math.cos(sample.yaw - approach_yaw),
-        )
+        arrival_error = normalize_angle(sample.yaw - approach_yaw)
+        L = math.hypot(lx, ly)
+        curvature = abs(2.0 * ly / (L * L)) if L >= 1e-3 else float("inf")
+        distance_error = abs(sample.distance - desired_distance)
         score = (
             abs(alpha)
             + heading_weight * abs(arrival_error)
-            + distance_weight * sample.distance
+            + curvature_weight * curvature
+            + distance_weight * distance_error
         )
         target = RejoinTarget(
             point=sample.point,
@@ -487,6 +517,8 @@ def choose_rejoin_target(
             distance=sample.distance,
             alpha=alpha,
             arrival_error=arrival_error,
+            curvature=curvature,
+            desired_distance=desired_distance,
             score=score,
         )
 
@@ -588,13 +620,15 @@ class DwaPlannerNode(Node):
         self.declare_parameter("path_cross_track_gain", 0.8)
         self.declare_parameter("path_error_slowdown_offset", 0.25)
         self.declare_parameter("path_error_min_speed_scale", 0.35)
-        self.declare_parameter("rejoin_entry_offset", 0.35)
+        self.declare_parameter("rejoin_entry_offset", 0.30)
         self.declare_parameter("rejoin_exit_offset", 0.18)
-        self.declare_parameter("rejoin_min_lookahead", 0.60)
-        self.declare_parameter("rejoin_max_lookahead", 3.00)
+        self.declare_parameter("rejoin_exit_heading", 0.45)
+        self.declare_parameter("rejoin_min_lookahead", 0.80)
+        self.declare_parameter("rejoin_max_lookahead", 3.50)
         self.declare_parameter("rejoin_step", 0.25)
         self.declare_parameter("rejoin_heading_weight", 1.2)
         self.declare_parameter("rejoin_distance_weight", 0.12)
+        self.declare_parameter("rejoin_curvature_weight", 0.18)
         self.declare_parameter("rejoin_cross_track_gain_scale", 0.35)
         self.declare_parameter("rejoin_align_angle_thresh", 1.75)
         self.declare_parameter("max_clearance", 1.0)
@@ -602,11 +636,11 @@ class DwaPlannerNode(Node):
         self.declare_parameter("clearance_slowdown_distance", 0.80)
         self.declare_parameter("clearance_stop_distance", 0.30)
         self.declare_parameter("near_wall_creep_speed", 0.12)
-        self.declare_parameter("align_angle_thresh", 0.785)
+        self.declare_parameter("align_angle_thresh", 1.10)
         self.declare_parameter("align_angle_exit", 0.262)
         self.declare_parameter("align_kp", 1.5)
         self.declare_parameter("align_kd", 0.5)
-        self.declare_parameter("align_v_blend_max", 0.3)
+        self.declare_parameter("align_v_blend_max", 0.45)
         self.declare_parameter("align_cooldown", 1.0)
         # 2026-05-31 추가 (SW · dwa-ys):
         #   P4 ALIGN 진입 시간 hysteresis — |alpha|>thresh 가 N틱 연속일 때만 진입.
@@ -616,6 +650,7 @@ class DwaPlannerNode(Node):
         self.declare_parameter("w_min_rotate", 0.3)
         self.declare_parameter("allow_backward", False)
         self.declare_parameter("max_path_offset", 1.0)
+        self.declare_parameter("path_lost_offset", 1.8)
         self.declare_parameter("stuck_recovery_sec", 1.5)
         self.declare_parameter("recovery_cooldown", 3.0)
         self.declare_parameter("spin_duration", 2.0)       # spin recovery 지속 시간
@@ -754,11 +789,13 @@ class DwaPlannerNode(Node):
         self.p_path_error_min_speed_scale = gp("path_error_min_speed_scale").value
         self.p_rejoin_entry_offset      = gp("rejoin_entry_offset").value
         self.p_rejoin_exit_offset       = gp("rejoin_exit_offset").value
+        self.p_rejoin_exit_heading      = gp("rejoin_exit_heading").value
         self.p_rejoin_min_lookahead     = gp("rejoin_min_lookahead").value
         self.p_rejoin_max_lookahead     = gp("rejoin_max_lookahead").value
         self.p_rejoin_step              = gp("rejoin_step").value
         self.p_rejoin_heading_weight    = gp("rejoin_heading_weight").value
         self.p_rejoin_distance_weight   = gp("rejoin_distance_weight").value
+        self.p_rejoin_curvature_weight  = gp("rejoin_curvature_weight").value
         self.p_rejoin_cross_track_gain_scale = gp("rejoin_cross_track_gain_scale").value
         self.p_rejoin_align_angle_thresh = gp("rejoin_align_angle_thresh").value
         self.p_max_clearance            = gp("max_clearance").value
@@ -776,6 +813,7 @@ class DwaPlannerNode(Node):
         self.p_w_min_rotate             = gp("w_min_rotate").value
         self.p_allow_backward           = gp("allow_backward").value
         self.p_max_path_offset          = gp("max_path_offset").value
+        self.p_path_lost_offset         = gp("path_lost_offset").value
         self.p_stuck_recovery_sec       = gp("stuck_recovery_sec").value
         self.p_recovery_cooldown        = gp("recovery_cooldown").value
         self.p_spin_duration            = gp("spin_duration").value
@@ -1026,18 +1064,23 @@ class DwaPlannerNode(Node):
         self._path_progress_idx = nearest_idx
 
         path_offset = projection.offset
-        if path_offset > self.p_max_path_offset:
+        projection_heading_error = normalize_angle(projection.yaw - self._state.theta)
+        if path_offset > self.p_path_lost_offset:
             self._stop_robot("path_offset_too_large")
             self._publish_status_value("PATH_LOST")
             self.get_logger().warn(
-                f"path 와 {path_offset:.2f}m 떨어짐 (max={self.p_max_path_offset}m).",
+                f"path 와 {path_offset:.2f}m 떨어짐 (max={self.p_path_lost_offset}m).",
                 throttle_duration_sec=2.0)
             return None
 
         was_rejoining = self._nav_state == NavState.REJOIN
-        rejoin_requested = (
-            path_offset > self.p_rejoin_entry_offset or
-            (was_rejoining and path_offset > self.p_rejoin_exit_offset)
+        rejoin_requested = should_use_rejoin(
+            path_offset=path_offset,
+            heading_error=projection_heading_error,
+            was_rejoining=was_rejoining,
+            entry_offset=self.p_rejoin_entry_offset,
+            exit_offset=self.p_rejoin_exit_offset,
+            exit_heading=self.p_rejoin_exit_heading,
         )
         rejoin_target: Optional[RejoinTarget] = None
         if rejoin_requested:
@@ -1050,6 +1093,7 @@ class DwaPlannerNode(Node):
                 step=self.p_rejoin_step,
                 heading_weight=self.p_rejoin_heading_weight,
                 distance_weight=self.p_rejoin_distance_weight,
+                curvature_weight=self.p_rejoin_curvature_weight,
             )
 
         # Adaptive lookahead (approach scaling)
@@ -1077,10 +1121,7 @@ class DwaPlannerNode(Node):
         lx, ly = world_to_local(lookahead, self._state)
         L = math.hypot(lx, ly)
         alpha = math.atan2(ly, lx)
-        path_heading_error = math.atan2(
-            math.sin(target_path_yaw - self._state.theta),
-            math.cos(target_path_yaw - self._state.theta),
-        )
+        path_heading_error = normalize_angle(target_path_yaw - self._state.theta)
 
         obstacles_local = self._extract_obstacles_from_scan()
         fwd_clear = self._forward_clearance_inline(obstacles_local, kappa=self._last_kappa)
@@ -1098,6 +1139,10 @@ class DwaPlannerNode(Node):
             "rejoin_alpha": rejoin_target.alpha if rejoin_target else 0.0,
             "rejoin_arrival_error": (
                 rejoin_target.arrival_error if rejoin_target else 0.0
+            ),
+            "rejoin_curvature": rejoin_target.curvature if rejoin_target else 0.0,
+            "rejoin_desired_distance": (
+                rejoin_target.desired_distance if rejoin_target else 0.0
             ),
             "rejoin_score": rejoin_target.score if rejoin_target else 0.0,
             "lx": lx, "ly": ly, "L": L, "alpha": alpha,
@@ -1132,7 +1177,7 @@ class DwaPlannerNode(Node):
         dw_max = self.p_alpha_max * period
 
         # ── ALIGN 전이 판정 ──────────────────────────────────────
-        # 각도 hysteresis(45° in / 15° out)에 더해, P4 시간 hysteresis:
+        # 각도 hysteresis(63° in / 15° out)에 더해, P4 시간 hysteresis:
         #   |alpha|>thresh 가 align_trigger_ticks(기본 3틱 ≈ 150ms) 연속이어야 진입.
         #   AMCL drift 로 한 tick 만 α 폭증해도 즉시 ALIGN 진입하지 않게 함.
         if self._in_align_mode:
@@ -1197,7 +1242,7 @@ class DwaPlannerNode(Node):
         # (v) path 이탈 감속 — 경로에서 벌어질수록 속도를 낮춰 복귀 회전을 우선한다.
         if path_offset > self.p_path_error_slowdown_offset:
             denom = max(
-                self.p_max_path_offset - self.p_path_error_slowdown_offset,
+                self.p_path_lost_offset - self.p_path_error_slowdown_offset,
                 1e-3,
             )
             scale = 1.0 - (path_offset - self.p_path_error_slowdown_offset) / denom

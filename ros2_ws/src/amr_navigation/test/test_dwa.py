@@ -24,6 +24,7 @@ from amr_navigation.dwa_node import (
     pick_lookahead_from_projection,
     sample_path_from_projection,
     choose_rejoin_target,
+    should_use_rejoin,
     project_to_path,
 )
 
@@ -291,16 +292,49 @@ class TestPathProjectionLookahead:
             path_xy=path,
             robot=robot,
             projection=proj,
-            min_lookahead=0.60,
-            max_lookahead=3.00,
+            min_lookahead=0.80,
+            max_lookahead=3.50,
             step=0.25,
             heading_weight=1.2,
             distance_weight=0.12,
+            curvature_weight=0.18,
         )
 
         assert target is not None
         assert target.distance > 1.0
         assert abs(target.alpha) < math.radians(35.0)
+        assert target.curvature < 1.0
+        assert target.desired_distance > 2.5
+
+    def test_rejoin_stays_active_until_heading_is_aligned(self):
+        assert should_use_rejoin(
+            path_offset=0.10,
+            heading_error=0.60,
+            was_rejoining=True,
+            entry_offset=0.30,
+            exit_offset=0.18,
+            exit_heading=0.45,
+        ) is True
+
+    def test_rejoin_exits_when_offset_and_heading_are_small(self):
+        assert should_use_rejoin(
+            path_offset=0.10,
+            heading_error=0.10,
+            was_rejoining=True,
+            entry_offset=0.30,
+            exit_offset=0.18,
+            exit_heading=0.45,
+        ) is False
+
+    def test_rejoin_enters_by_offset(self):
+        assert should_use_rejoin(
+            path_offset=0.35,
+            heading_error=0.0,
+            was_rejoining=False,
+            entry_offset=0.30,
+            exit_offset=0.18,
+            exit_heading=0.45,
+        ) is True
 
 
 # ── v/w 커플링 해제 패치 검증 (YS, 2026-05-29) ──────────────────────────

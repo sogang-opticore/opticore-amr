@@ -81,13 +81,15 @@ dwa_planner:
     # 앞으로 이어지는 path 후보 중 "현재 조향각 + 합류 heading mismatch + 거리" 비용이
     # 가장 작은 미래 점으로 부드럽게 재합류한다.
     # TODO(미확정): RunPod 주행 로그에서 rj distance/arrival_error 를 보고 튜닝.
-    rejoin_entry_offset: 0.35    # m, 이 이상 path 에서 벗어나면 REJOIN 후보 선택
+    rejoin_entry_offset: 0.30    # m, 이 이상 path 에서 벗어나면 REJOIN 후보 선택
     rejoin_exit_offset: 0.18     # m, REJOIN 유지 hysteresis 해제 거리
-    rejoin_min_lookahead: 0.60   # m, 너무 가까운 복귀점 배제
-    rejoin_max_lookahead: 3.00   # m, 미래 path 후보 탐색 상한
+    rejoin_exit_heading: 0.45    # rad, heading 오차가 이보다 크면 REJOIN 유지
+    rejoin_min_lookahead: 0.80   # m, 너무 가까운 복귀점 배제
+    rejoin_max_lookahead: 3.50   # m, 미래 path 후보 탐색 상한
     rejoin_step: 0.25            # m, 후보 arc-length 간격
     rejoin_heading_weight: 1.2   # 합류 지점 path heading mismatch 비용
-    rejoin_distance_weight: 0.12 # 너무 먼 합류점 선호 방지 비용
+    rejoin_distance_weight: 0.12 # 동적 적정 합류거리와의 차이 비용
+    rejoin_curvature_weight: 0.18 # 큰 곡률의 급합류 후보 억제 비용
     rejoin_cross_track_gain_scale: 0.35 # REJOIN 중 nearest CTE 보정 완화
     rejoin_align_angle_thresh: 1.75     # rad, REJOIN 중 ALIGN 진입 완화(약 100도)
 
@@ -115,15 +117,15 @@ dwa_planner:
     #
     # 15차 해결:
     #   1) PD 의 D 항 (kd·w) 가 회전 관성 잡음 → critical damping.
-    #   2) Hysteresis (45° in, 15° out): 모드 자체 진동 차단.
+    #   2) Hysteresis (63° in, 15° out): 모드 자체 진동 차단.
     #
-    # |α| > thresh (45°) 면 PP κ=2y/L² 의 unstable 영역 → 정지 + PD 회전.
+    # |α| > thresh (63°) 면 PP κ=2y/L² 의 unstable 영역 → 정지 + PD 회전.
     # 진입 후 |α| < exit (15°) 까지 ROTATE 유지 → PP 인계.
-    align_angle_thresh: 0.785  # rad ≈ 45°, ROTATE 진입
+    align_angle_thresh: 1.10   # rad ≈ 63°, ROTATE 진입
     align_angle_exit: 0.262    # rad ≈ 15°, ROTATE 종료 (15차 재사용)
     align_kp: 1.5              # PD 의 P gain
     align_kd: 0.5              # PD 의 D gain (15차 재사용, 관성 잡기)
-    align_v_blend_max: 0.3     # [unused, 14차 이후]
+    align_v_blend_max: 0.45    # m/s, 회전 정렬 중 안전하면 조금 전진
     align_cooldown: 1.0        # [unused, 14차 이후]
         # v/w 커플링 해제 (YS 패치, 2026-05-29):
     # clearance 로 v=0 이 되어도 heading 오차가 남으면 이 값 이상 회전 보장.
@@ -140,7 +142,7 @@ dwa_planner:
     #  v_cmd 는 가속도 제한(dv_max=a_max/rate)으로 여전히 부드럽게 변함.)
     #
     # P4 ALIGN 진입 시간 hysteresis: |α|>thresh 가 N틱 연속일 때만 ALIGN 진입.
-    #   기존 각도 hysteresis(45° in/15° out)에 시간 조건을 더해, 일시적 α 노이즈
+    #   기존 각도 hysteresis(63° in/15° out)에 시간 조건을 더해, 일시적 α 노이즈
     #   한 tick 으로는 ALIGN 진입 안 함. 3틱 ≈ 150ms(20Hz). 비유: 경보가 한 번
     #   삑 했다고 바로 멈추지 말고 몇 번 연속될 때만 반응.
     #   TODO(미확정): 안전 vs 부드러움 trade-off. 초안 3틱.
@@ -157,7 +159,8 @@ dwa_planner:
     # v_min=-1.0 운영 정책은 yaml 그대로 유지. allow_backward=true 로 바꾸면
     # 후진 sample 가능. 정밀 도킹 등 특수 시나리오 전까지 false 권장.
     allow_backward: false
-    max_path_offset: 1.0   # m, path 와 이 이상 떨어지면 정지 + PATH_LOST status
+    max_path_offset: 1.0   # m, 새 /global_path 가 현재 pose 와 너무 멀면 stale 로 무시
+    path_lost_offset: 1.8  # m, 추종 중 path 와 이 이상 떨어지면 정지 + PATH_LOST status
 
     # ----- Stuck Recovery (제자리 회전 SPIN 전용, 2026-05-31 후진 제거) -----
     # Pure Pursuit 의 w=κ·v 공식은 v=0 이면 w=0 → 벽 inflation 안에서 trap.
