@@ -463,6 +463,7 @@ class TestGlobalPathStaleGuard:
         node._goal_version = 1
         node._path_goal_version = 1
         node._path_local = self._path([(0.0, 0.0), (1.0, 0.0)])
+        node._path_goal_xy_global = (1.0, 0.0)
         node._state = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
         node.p_max_path_offset = 2.0
         node.p_goal_dedup_dist = 0.10
@@ -475,8 +476,9 @@ class TestGlobalPathStaleGuard:
                 pass
 
         node.get_logger = lambda: _NullLogger()
-        for name in ("_should_ignore_empty_path", "_path_offset_to_state",
-                     "_is_path_close_to_state", "_is_duplicate_goal"):
+        for name in ("_should_ignore_empty_path", "_path_goal_matches_last_goal",
+                     "_path_offset_to_state", "_is_path_close_to_state",
+                     "_is_duplicate_goal"):
             setattr(node, name, getattr(DwaPlannerNode, name).__get__(node))
         node._path_xy = DwaPlannerNode._path_xy
         return node
@@ -489,6 +491,14 @@ class TestGlobalPathStaleGuard:
         node = self._make_node()
         node._goal_version = 2
         assert node._should_ignore_empty_path() is False
+
+    def test_ignores_empty_path_when_cached_path_matches_latest_goal(self):
+        node = self._make_node()
+        node._goal_version = 2
+        node._path_goal_xy_global = (5.04, 1.02)
+
+        assert node._should_ignore_empty_path() is True
+        assert node._path_goal_version == 2
 
     def test_rejects_stale_path_far_from_current_pose(self):
         node = self._make_node()
@@ -504,6 +514,6 @@ class TestGlobalPathStaleGuard:
         node = self._make_node()
         assert node._is_duplicate_goal((5.05, 1.02), 0.05) is True
 
-    def test_yaw_changed_goal_creates_new_edge(self):
+    def test_yaw_changed_same_position_does_not_create_new_edge(self):
         node = self._make_node()
-        assert node._is_duplicate_goal((5.0, 1.0), 0.30) is False
+        assert node._is_duplicate_goal((5.0, 1.0), 0.30) is True

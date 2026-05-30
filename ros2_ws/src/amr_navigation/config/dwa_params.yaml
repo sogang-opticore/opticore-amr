@@ -188,9 +188,11 @@ dwa_planner:
     global_path_topic: "/global_path"
     goal_pose_topic: "/goal_pose"
     # DWA는 /goal_pose를 계획에 쓰지 않고 "새 goal edge" 확인용으로만 구독한다.
-    # A* dedup과 같은 기준으로 반복 goal pub(--rate) 노이즈를 무시.
-    # TODO(미확정): A* goal_dedup_*와 함께 시뮬 측정 후 확정.
+    # 최종 yaw는 DWA가 직접 추종하지 않으므로 위치 기준으로 반복 goal pub(--rate)
+    # 노이즈를 무시한다. yaw-only 변경은 A* dedup에서만 새 goal 후보로 다룬다.
+    # TODO(미확정): goal_dedup_dist는 A* 값과 함께 시뮬 측정 후 확정.
     goal_dedup_dist: 0.10
+    # 현재 DWA empty-path guard에서는 사용하지 않는 호환/향후 정밀도킹용 예약값.
     goal_dedup_yaw: 0.10
     scan_topic: "/lidar"
     cmd_vel_topic: "/cmd_vel"

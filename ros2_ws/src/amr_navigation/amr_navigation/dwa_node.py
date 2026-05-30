@@ -422,6 +422,7 @@ class DwaPlannerNode(Node):
         self._path_goal_version = 0
         self._last_goal_xy: Optional[Tuple[float, float]] = None
         self._last_goal_yaw: Optional[float] = None
+        self._path_goal_xy_global: Optional[Tuple[float, float]] = None
 
         # ── NavState 머신 ─────────────────────────────────────────────
         self._nav_state: NavState = NavState.NORMAL
@@ -620,6 +621,7 @@ class DwaPlannerNode(Node):
                 return
             if self._path_local is None or self._path_local.poses:
                 self.get_logger().warn("빈 /global_path 수신 — DWA 정지 모드")
+            self._path_goal_xy_global = None
             empty = Path()
             empty.header.frame_id = self.LOCAL_FRAME
             empty.header.stamp = self.get_clock().now().to_msg()
@@ -635,6 +637,7 @@ class DwaPlannerNode(Node):
             self._path_local = msg
             self._reset_path_state()
             self._path_goal_version = self._goal_version
+            self._path_goal_xy_global = None
             last = msg.poses[-1].pose.position
             self.get_logger().info(
                 f"/global_path 수신 ({src_frame}) — "
@@ -656,6 +659,8 @@ class DwaPlannerNode(Node):
         self._path_local = transformed
         self._reset_path_state()
         self._path_goal_version = self._goal_version
+        src_goal = msg.poses[-1].pose.position
+        self._path_goal_xy_global = (src_goal.x, src_goal.y)
         last = transformed.poses[-1].pose.position
         self.get_logger().info(
             f"/global_path 수신 ({src_frame} → {self.LOCAL_FRAME}) — "
@@ -1378,11 +1383,24 @@ class DwaPlannerNode(Node):
 
     def _should_ignore_empty_path(self) -> bool:
         """새 goal이 아닌 빈 path가 기존 유효 path를 지우지 않도록 한다."""
-        return (
-            self._path_local is not None
-            and bool(self._path_local.poses)
-            and self._path_goal_version == self._goal_version
-        )
+        if self._path_local is None or not self._path_local.poses:
+            return False
+        if self._path_goal_version == self._goal_version:
+            return True
+        if self._path_goal_matches_last_goal():
+            # goal edge가 늦게/중복으로 들어와 version만 어긋난 경우다.
+            # 이미 같은 goal의 유효 path가 있으므로 stale empty가 지우지 못하게 동기화한다.
+            self._path_goal_version = self._goal_version
+            return True
+        return False
+
+    def _path_goal_matches_last_goal(self) -> bool:
+        """수신한 path의 map-frame goal이 마지막 goal_pose와 같은 목표인지 확인한다."""
+        if self._path_goal_xy_global is None or self._last_goal_xy is None:
+            return False
+        dx = self._path_goal_xy_global[0] - self._last_goal_xy[0]
+        dy = self._path_goal_xy_global[1] - self._last_goal_xy[1]
+        return math.hypot(dx, dy) < self.p_goal_dedup_dist
 
     def _is_duplicate_goal(self,
                            new_goal: Tuple[float, float],
@@ -1391,11 +1409,10 @@ class DwaPlannerNode(Node):
             return False
         dx = new_goal[0] - self._last_goal_xy[0]
         dy = new_goal[1] - self._last_goal_xy[1]
-        dyaw = abs(math.atan2(math.sin(new_yaw - self._last_goal_yaw),
-                              math.cos(new_yaw - self._last_goal_yaw)))
+        # DWA는 최종 yaw를 직접 추종하지 않는다. yaw-only goal을 새 edge로 보면
+        # 반복 goal publisher의 미세한 yaw 차이가 stale empty path를 통과시킬 수 있다.
         return (
             math.hypot(dx, dy) < self.p_goal_dedup_dist
-            and dyaw < self.p_goal_dedup_yaw
         )
 
     def _path_offset_to_state(self, path_msg: Path) -> Optional[float]:

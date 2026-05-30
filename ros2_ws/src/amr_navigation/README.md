@@ -99,6 +99,7 @@ pose:
 
 > **[미확정] 최종 yaw**: 현재 A\*/DWA 는 goal 의 최종 yaw 를 **적극 추종하지 않는다**(도착 판정은 거리 기반).
 > A\* 의 goal dedup(2026-05-31)은 yaw 차이를 '새 goal' 판별에만 사용한다(같은 위치 yaw-only 변경을 놓치지 않기 위함).
+> DWA 의 `/goal_pose` 구독은 stale empty path 방어용 goal edge 확인이 목적이므로 위치 기준 dedup만 사용한다.
 > 최종 yaw 추종(정밀 도킹)은 향후 도킹 단계 과제.
 
 **발행 트리거**: RViz2 "2D Goal Pose" 버튼, BT의 NavigateTo 노드, 또는 Mission node가 발행.
