@@ -5,7 +5,13 @@ ROS 노드를 띄우지 않고, AstarPlanner의 실패 처리 헬퍼만 바인�
 
 import types
 
-from amr_navigation.astar_node import AstarPlanner
+from amr_navigation.astar_node import (
+    AstarPlanner,
+    cell_path_length,
+    cells_on_segment,
+    remaining_path_metrics,
+    should_retain_previous_path,
+)
 
 
 class _FakeLogger:
@@ -130,3 +136,70 @@ class TestAstarStatusEventReplan:
         node._on_dwa_status(types.SimpleNamespace(data="STOPPED_NEAR_WALL"))
 
         assert node.plan_calls == []
+
+
+class TestAstarPathHysteresis:
+    def test_retain_previous_when_candidate_improvement_is_tiny(self):
+        previous = [(0, 0), (0, 10), (5, 10)]
+        candidate = [(0, 0), (0, 9), (5, 9)]
+
+        keep, improvement, prev_len, cand_len, offset = should_retain_previous_path(
+            previous_cells=previous,
+            candidate_cells=candidate,
+            start_cell=(0, 0),
+            resolution=0.05,
+            switch_hysteresis=0.35,
+            max_start_offset=0.80,
+        )
+
+        assert keep is True
+        assert improvement < 0.35
+        assert prev_len > cand_len
+        assert offset == 0.0
+
+    def test_candidate_wins_when_improvement_exceeds_hysteresis(self):
+        previous = [(0, 0), (0, 30), (10, 30)]
+        candidate = [(0, 0), (0, 8), (10, 8)]
+
+        keep, improvement, *_ = should_retain_previous_path(
+            previous_cells=previous,
+            candidate_cells=candidate,
+            start_cell=(0, 0),
+            resolution=0.05,
+            switch_hysteresis=0.35,
+            max_start_offset=0.80,
+        )
+
+        assert keep is False
+        assert improvement > 0.35
+
+    def test_hysteresis_releases_when_robot_far_from_previous_path(self):
+        previous = [(0, 0), (0, 10)]
+        candidate = [(20, 0), (20, 10)]
+
+        keep, *_ = should_retain_previous_path(
+            previous_cells=previous,
+            candidate_cells=candidate,
+            start_cell=(20, 0),
+            resolution=0.05,
+            switch_hysteresis=0.35,
+            max_start_offset=0.80,
+        )
+
+        assert keep is False
+
+    def test_remaining_path_metrics_uses_nearest_projection_cell(self):
+        remaining, offset = remaining_path_metrics(
+            cells=[(0, 0), (0, 10), (0, 20)],
+            start_cell=(1, 10),
+            resolution=0.05,
+        )
+
+        assert abs(offset - 0.05) < 1e-9
+        assert abs(remaining - 0.55) < 1e-9
+
+    def test_cells_on_segment_returns_dense_unique_cells(self):
+        cells = cells_on_segment((0, 0), (0, 3))
+
+        assert cells == [(0, 0), (0, 1), (0, 2), (0, 3)]
+        assert abs(cell_path_length(cells, 0.05) - 0.15) < 1e-9

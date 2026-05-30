@@ -283,6 +283,10 @@ angular:
 | `status_replan_cooldown` | 2.0 s | 상태 이벤트 재계획 최소 간격 |
 | `status_replan_states` | `["EMERGENCY", "PATH_LOST", "RECOVERY_DONE"]` | 수신 즉시 현재 pose 기준 A\* 재계획 |
 | `status_replan_after_states` | `["FORWARD_ONLY", "RECOVERY"]` | fallback: 이 상태 뒤 reset 상태가 오면 1회 재계획 |
+| `path_switch_hysteresis` | 0.35 m | 새 주기 재계획 후보가 이만큼 짧지 않으면 기존 path 유지 |
+| `path_switch_max_start_offset` | 0.80 m | 현재 pose가 기존 path에서 이 이상 멀면 hysteresis 해제 |
+| `goal_direct_distance` | 2.0 m | 목표 근처에서 안전한 직선 final approach path 허용 거리 |
+| `goal_direct_min_clearance` | 0.55 m | 직선 final approach segment의 최소 raw obstacle clearance |
 
 ---
 

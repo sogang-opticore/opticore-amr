@@ -30,6 +30,92 @@ def _status_param_to_set(value) -> set[str]:
     return {str(x).strip() for x in value if str(x).strip()}
 
 
+def cell_path_length(cells: list[tuple], resolution: float) -> float:
+    """Grid cell path의 물리 길이[m]를 계산한다."""
+    if len(cells) < 2:
+        return 0.0
+    return sum(
+        math.hypot(b[0] - a[0], b[1] - a[1]) * resolution
+        for a, b in zip(cells, cells[1:])
+    )
+
+
+def remaining_path_metrics(
+    cells: list[tuple],
+    start_cell: tuple,
+    resolution: float,
+) -> tuple[float, float]:
+    """현재 start에서 path 최근접점 이후 남은 길이와 최근접 offset[m]."""
+    if not cells:
+        return float('inf'), float('inf')
+    nearest_idx = min(
+        range(len(cells)),
+        key=lambda i: (
+            cells[i][0] - start_cell[0]) ** 2 + (cells[i][1] - start_cell[1]) ** 2
+    )
+    nearest = cells[nearest_idx]
+    offset = math.hypot(nearest[0] - start_cell[0],
+                        nearest[1] - start_cell[1]) * resolution
+    remaining = offset + cell_path_length(cells[nearest_idx:], resolution)
+    return remaining, offset
+
+
+def should_retain_previous_path(
+    previous_cells: list[tuple] | None,
+    candidate_cells: list[tuple],
+    start_cell: tuple,
+    resolution: float,
+    switch_hysteresis: float,
+    max_start_offset: float,
+) -> tuple[bool, float, float, float, float]:
+    """새 후보가 충분히 좋아지지 않았으면 기존 global path를 유지한다."""
+    if not previous_cells or not candidate_cells:
+        return False, float('inf'), float('inf'), float('inf'), float('inf')
+
+    prev_remaining, prev_offset = remaining_path_metrics(
+        previous_cells, start_cell, resolution)
+    cand_remaining, _ = remaining_path_metrics(
+        candidate_cells, start_cell, resolution)
+    if (not math.isfinite(prev_remaining)
+            or not math.isfinite(cand_remaining)
+            or prev_offset > max_start_offset):
+        return (
+            False,
+            prev_remaining - cand_remaining,
+            prev_remaining,
+            cand_remaining,
+            prev_offset,
+        )
+
+    improvement = prev_remaining - cand_remaining
+    return (
+        improvement < max(0.0, switch_hysteresis),
+        improvement,
+        prev_remaining,
+        cand_remaining,
+        prev_offset,
+    )
+
+
+def cells_on_segment(a: tuple, b: tuple) -> list[tuple]:
+    """두 grid cell 사이의 직선 segment를 중복 없이 촘촘한 cell path로 반환."""
+    dr = int(b[0]) - int(a[0])
+    dc = int(b[1]) - int(a[1])
+    steps = max(abs(dr), abs(dc))
+    if steps == 0:
+        return [a]
+
+    cells: list[tuple] = []
+    for i in range(steps + 1):
+        cell = (
+            int(round(a[0] + dr * i / steps)),
+            int(round(a[1] + dc * i / steps)),
+        )
+        if not cells or cells[-1] != cell:
+            cells.append(cell)
+    return cells
+
+
 class AstarPlanner(Node):
 
     def __init__(self):
@@ -74,6 +160,10 @@ class AstarPlanner(Node):
         # 같은 위치에서 yaw 만 바뀐 goal 은 인터페이스상 '새 goal' 이므로 놓치면 안 됨.
         # TODO(미확정): 0.10 rad(≈5.7°) 초안. 시뮬 측정 후 확정.
         self.declare_parameter('goal_dedup_yaw', 0.10)   # rad
+        self.declare_parameter('path_switch_hysteresis', 0.35)  # m
+        self.declare_parameter('path_switch_max_start_offset', 0.80)  # m
+        self.declare_parameter('goal_direct_distance', 2.0)  # m
+        self.declare_parameter('goal_direct_min_clearance', 0.55)  # m
 
         self.heuristic_type   = self.get_parameter('heuristic').value
         self.allow_diagonal   = self.get_parameter('allow_diagonal').value
@@ -93,6 +183,12 @@ class AstarPlanner(Node):
             self.get_parameter('status_replan_reset_states').value)
         self.goal_dedup_dist  = self.get_parameter('goal_dedup_dist').value
         self.goal_dedup_yaw   = self.get_parameter('goal_dedup_yaw').value
+        self.path_switch_hysteresis = self.get_parameter('path_switch_hysteresis').value
+        self.path_switch_max_start_offset = self.get_parameter(
+            'path_switch_max_start_offset').value
+        self.goal_direct_distance = self.get_parameter('goal_direct_distance').value
+        self.goal_direct_min_clearance = self.get_parameter(
+            'goal_direct_min_clearance').value
 
         # ── 내부 상태 ──────────────────────────────────────────────
         self.map_data: OccupancyGrid | None = None
@@ -105,6 +201,7 @@ class AstarPlanner(Node):
         self._status_replan_armed = True
         self._last_status_replan_time = -float('inf')
         self._last_dwa_status: str | None = None
+        self._last_path_cells: list[tuple] | None = None
 
         # ── TF ────────────────────────────────────────────────────
         self.tf_buffer   = tf2_ros.Buffer()
@@ -183,7 +280,7 @@ class AstarPlanner(Node):
         self._last_status_replan_time = now
         self.get_logger().warn(
             f'DWA 상태 {reason} 감지 — 현재 pose 기준 A* 이벤트 재계획')
-        success = self._plan(clear_on_failure=False)
+        success = self._plan(clear_on_failure=False, allow_path_hysteresis=False)
         if success:
             self._status_replan_armed = False
         return success
@@ -221,7 +318,7 @@ class AstarPlanner(Node):
         if dist_to_goal < 0.30:   # DWA goal_tolerance(0.20) + 마진
             return
 
-        self._plan(clear_on_failure=False)
+        self._plan(clear_on_failure=False, allow_path_hysteresis=True)
 
     # ══════════════════════════════════════════════════════════════
     # 콜백
@@ -279,16 +376,22 @@ class AstarPlanner(Node):
         self.goal = msg
         self._has_valid_path_for_goal = False
         self._status_replan_armed = True
+        self._last_path_cells = None
         self.get_logger().info(
             f'Goal 수신: ({new_goal[0]:.2f}, {new_goal[1]:.2f}, yaw={new_yaw:.2f})'
         )
-        self._plan(clear_on_failure=True)
+        self._plan(clear_on_failure=True, allow_path_hysteresis=False)
 
     # ══════════════════════════════════════════════════════════════
     # 경로 계획 메인
     # ══════════════════════════════════════════════════════════════
 
-    def _plan(self, *, clear_on_failure: bool = True) -> bool:
+    def _plan(
+        self,
+        *,
+        clear_on_failure: bool = True,
+        allow_path_hysteresis: bool = False,
+    ) -> bool:
         """
         A* 경로 계획 메인 함수.
         성공 시 /global_path 발행.
@@ -340,7 +443,15 @@ class AstarPlanner(Node):
                 f'Goal 보정: {goal_cell} (점유/inflation) → {snapped} (인근 free)')
             goal_cell = snapped
 
-        cell_path = self._astar(start_cell, goal_cell)
+        direct_path = self._try_goal_direct_path(
+            start_cell, goal_cell, start_world, goal_world)
+        using_direct_path = direct_path is not None
+        if direct_path is not None:
+            cell_path = direct_path
+            self.get_logger().info(
+                f'goal 직선 접근 path 사용: {len(cell_path)} cells')
+        else:
+            cell_path = self._astar(start_cell, goal_cell)
 
         if cell_path is None:
             self._handle_plan_failure(
@@ -351,9 +462,29 @@ class AstarPlanner(Node):
         if self.smoothing == 'catmull_rom':
             cell_path = self._smooth_catmull_rom(cell_path)
 
+        if (allow_path_hysteresis and not using_direct_path
+                and self._path_is_still_free(self._last_path_cells)):
+            keep, improvement, prev_len, cand_len, offset = should_retain_previous_path(
+                previous_cells=self._last_path_cells,
+                candidate_cells=cell_path,
+                start_cell=start_cell,
+                resolution=self.map_data.info.resolution,
+                switch_hysteresis=self.path_switch_hysteresis,
+                max_start_offset=self.path_switch_max_start_offset,
+            )
+            if keep:
+                self._has_valid_path_for_goal = True
+                self.get_logger().info(
+                    '기존 경로 유지: '
+                    f'개선={improvement:.2f}m < {self.path_switch_hysteresis:.2f}m, '
+                    f'prev={prev_len:.2f}m cand={cand_len:.2f}m offset={offset:.2f}m',
+                    throttle_duration_sec=2.0)
+                return True
+
         path_msg = self._cells_to_path(cell_path)
         self.path_pub.publish(path_msg)
         self._has_valid_path_for_goal = True
+        self._last_path_cells = list(cell_path)
         self.get_logger().info(f'경로 발행: {len(path_msg.poses)} 웨이포인트')
         return True
 
@@ -371,6 +502,7 @@ class AstarPlanner(Node):
             return
 
         self._has_valid_path_for_goal = False
+        self._last_path_cells = None
         self.get_logger().warn(f'{reason} — 빈 path 발행')
         self._publish_empty_path()
 
@@ -595,6 +727,51 @@ class AstarPlanner(Node):
     # ══════════════════════════════════════════════════════════════
     # 경로 스무딩
     # ══════════════════════════════════════════════════════════════
+
+    def _path_is_still_free(self, cells: list[tuple] | None) -> bool:
+        """이전 path가 현재 map에서도 통과 가능한지 확인."""
+        if not cells:
+            return False
+        stride = max(1, len(cells) // 80)
+        sampled = cells[::stride]
+        if sampled[-1] != cells[-1]:
+            sampled.append(cells[-1])
+        if any(not self._is_free_cell(c) for c in sampled):
+            return False
+        return all(
+            self._segment_is_free(a, b)
+            for a, b in zip(sampled, sampled[1:])
+        )
+
+    def _path_min_clearance(self, cells: list[tuple]) -> float:
+        if not cells:
+            return 0.0
+        return min(self._clearance_at_cell(c) for c in cells)
+
+    def _try_goal_direct_path(
+        self,
+        start_cell: tuple,
+        goal_cell: tuple,
+        start_world: tuple,
+        goal_world: tuple,
+    ) -> list[tuple] | None:
+        """목표 근처에서 안전한 직선 segment가 열려 있으면 최종 접근 path로 사용."""
+        if self.goal_direct_distance <= 0.0:
+            return None
+        dist_to_goal = math.hypot(
+            goal_world[0] - start_world[0],
+            goal_world[1] - start_world[1],
+        )
+        if dist_to_goal > self.goal_direct_distance:
+            return None
+        if not self._segment_is_free(start_cell, goal_cell):
+            return None
+
+        direct_cells = cells_on_segment(start_cell, goal_cell)
+        min_clearance = self._path_min_clearance(direct_cells)
+        if min_clearance < self.goal_direct_min_clearance:
+            return None
+        return direct_cells
 
     def _smooth_catmull_rom(self, cells: list, samples: int = 5) -> list:
         """

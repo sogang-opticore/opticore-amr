@@ -66,3 +66,54 @@ class TestAstarSmoothingSafety:
         _bind(node, "_is_free_cell", "_segment_is_free")
 
         assert node._segment_is_free((1, 1), (2, 2)) is False
+
+
+class TestAstarGoalDirectPath:
+    def test_direct_goal_path_is_used_when_near_and_clear(self):
+        node = types.SimpleNamespace()
+        node.goal_direct_distance = 2.0
+        node.goal_direct_min_clearance = 0.55
+        node.inflated_grid = np.zeros((5, 5), dtype=np.uint8)
+        node.clearance_grid = np.ones((5, 5), dtype=np.float32)
+        _bind(
+            node,
+            "_is_free_cell",
+            "_segment_is_free",
+            "_clearance_at_cell",
+            "_path_min_clearance",
+            "_try_goal_direct_path",
+        )
+
+        direct = node._try_goal_direct_path(
+            start_cell=(2, 0),
+            goal_cell=(2, 4),
+            start_world=(0.0, 0.0),
+            goal_world=(0.2, 0.0),
+        )
+
+        assert direct == [(2, 0), (2, 1), (2, 2), (2, 3), (2, 4)]
+
+    def test_direct_goal_path_rejects_low_clearance_segment(self):
+        node = types.SimpleNamespace()
+        node.goal_direct_distance = 2.0
+        node.goal_direct_min_clearance = 0.55
+        node.inflated_grid = np.zeros((5, 5), dtype=np.uint8)
+        node.clearance_grid = np.ones((5, 5), dtype=np.float32)
+        node.clearance_grid[2, 2] = 0.50
+        _bind(
+            node,
+            "_is_free_cell",
+            "_segment_is_free",
+            "_clearance_at_cell",
+            "_path_min_clearance",
+            "_try_goal_direct_path",
+        )
+
+        direct = node._try_goal_direct_path(
+            start_cell=(2, 0),
+            goal_cell=(2, 4),
+            start_world=(0.0, 0.0),
+            goal_world=(0.2, 0.0),
+        )
+
+        assert direct is None

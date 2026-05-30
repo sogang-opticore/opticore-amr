@@ -73,5 +73,17 @@ astar_planner:
     # 참고: 현재 A*/DWA 는 최종 yaw 를 적극 추종하지 않음 → README §3.0 [미확정] 명시.
     goal_dedup_yaw: 0.10
 
+    # 두 갈래 경로가 거의 같은 비용일 때 1Hz 재계획이 통로를 번갈아 선택하지 않도록,
+    # 새 후보가 기존 path의 남은 거리보다 이 값 이상 짧을 때만 갈아탄다.
+    # 0.35m는 0.05m grid 기준 약 7셀이라 AMCL/TF cm급 흔들림과 1~2셀 tie를 충분히 덮는다.
+    # TODO(미확정): RunPod에서 branch 전환 로그를 보고 0.25~0.50m 범위 튜닝.
+    path_switch_hysteresis: 0.35
+    path_switch_max_start_offset: 0.80
+
+    # 목표 근처에서 inflated map 기준 직선 segment가 안전하면 A* 우회 path 대신
+    # goal까지 직선 final approach path를 발행해 목표 주변 배회를 줄인다.
+    goal_direct_distance: 2.0
+    goal_direct_min_clearance: 0.55
+
     # 시뮬레이션 시간 사용 (Ignition Gazebo 필수)
     use_sim_time: true
