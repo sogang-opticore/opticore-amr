@@ -240,6 +240,10 @@ angular:
 | `align_release_angle` | 0.70 rad | ALIGN 중 안전하면 15도까지 기다리지 않고 NORMAL로 조기 복귀 |
 | `rejoin_align_release_angle` | 0.95 rad | REJOIN 중 안전하면 더 이른 각도에서 path 추종으로 복귀 |
 | `align_drive_angle` | 1.57 rad | ALIGN 중 전방 여유가 있으면 저속 turn-in-motion 허용 각도 |
+| `w_brake_alpha_max` | 6.0 rad/s² | 목표 회전량이 작아진 뒤 남은 각속도를 빠르게 감쇠 |
+| `forward_only_dist` | 0.35 m | SPIN 후 위치만 살짝 바꾸는 강제 전진 거리 |
+| `forward_only_settle_w` | 0.20 rad/s | SPIN 직후 회전 관성이 이보다 크면 전진 보류 |
+| `forward_only_rejoin_offset` | 0.25 m | FORWARD_ONLY 중 path에 가까워지면 강제 전진 조기 종료 |
 | `max_path_offset` | 1.0 m | 새 `/global_path`가 현재 pose와 너무 멀면 stale path로 무시 |
 | `path_lost_offset` | 1.8 m | 추종 중 이 이상 path에서 벗어나면 `PATH_LOST` 후 A\* 재계획 유도 |
 

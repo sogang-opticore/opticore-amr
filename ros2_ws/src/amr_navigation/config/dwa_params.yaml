@@ -136,6 +136,9 @@ dwa_planner:
     # 너무 크면 좁은 통로에서 옆 벽을 긁을 수 있음.
     # 0.0 으로 설정하면 기존 동작 (w=κ·v 그대로).
     w_min_rotate: 0.3       # rad/s
+    # 목표 각속도가 작아졌는데 실제 w가 큰 경우 더 빠르게 감쇠한다.
+    # TODO(미확정): RunPod에서 4.0~7.0 rad/s² 범위 튜닝.
+    w_brake_alpha_max: 6.0  # rad/s², 각속도 braking 전용 상한
 
     # ----- 도착 인식 안정화 P4 (2026-05-31, feature/dwa-ys) -----
     # 증상: AMCL drift 로 한 tick α 폭증 시 ALIGN 즉시 진입해 v→0.08 반복.
@@ -183,6 +186,15 @@ dwa_planner:
     #       살짝 나아간 뒤 내비 재탐색. 그래도 막히면 멈춰 재탐색을 기다린다.
     stuck_recovery_sec: 1.5    # s, stuck 판정 시간
     spin_duration: 2.0         # s, spin recovery 지속 시간
+    # SPIN 후 강제 전진은 "위치 살짝 바꾸기" 용도다. 길게 밀고 가면 path 재합류 후에도
+    # 회전 관성/고정 전진 때문에 다시 path를 크게 벗어나므로 짧고 중단 가능하게 둔다.
+    # TODO(미확정): RunPod에서 dist 0.25~0.45m, settle_w 0.15~0.25rad/s 범위 튜닝.
+    forward_only_dist: 0.35
+    forward_only_timeout: 1.2
+    forward_only_speed_scale: 0.35
+    forward_only_settle_w: 0.20
+    forward_only_min_dist: 0.10
+    forward_only_rejoin_offset: 0.25
     # recovery(SPIN/EMERGENCY) 후 stuck 재판정 안 하는 시간. 무한 recovery loop 차단.
     # A* 1Hz 재계획 + PP 새 path 시도 시간 확보.
     recovery_cooldown: 3.0     # s, recovery 후 cooldown

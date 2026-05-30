@@ -27,6 +27,8 @@ from amr_navigation.dwa_node import (
     should_use_rejoin,
     should_release_align,
     clamp_forward_velocity,
+    rate_limit_angular_velocity,
+    should_finish_forward_only,
     project_to_path,
 )
 
@@ -363,6 +365,53 @@ class TestAlignReleaseAndVelocityClamp:
     def test_no_backward_clamp_blocks_negative_velocity(self):
         assert clamp_forward_velocity(-0.2, allow_backward=False) == 0.0
         assert clamp_forward_velocity(-0.2, allow_backward=True) == -0.2
+
+    def test_angular_rate_uses_fast_brake_when_target_drops(self):
+        assert abs(rate_limit_angular_velocity(
+            current_w=0.85,
+            target_w=0.16,
+            accel_step=0.075,
+            brake_step=0.30,
+        ) - 0.55) < 1e-9
+
+    def test_angular_rate_uses_normal_accel_when_speeding_up(self):
+        assert abs(rate_limit_angular_velocity(
+            current_w=0.10,
+            target_w=0.80,
+            accel_step=0.075,
+            brake_step=0.30,
+        ) - 0.175) < 1e-9
+
+
+class TestForwardOnlyFinish:
+    def test_forward_only_finishes_when_path_rejoined(self):
+        done, reason = should_finish_forward_only(
+            now=1.0,
+            until=2.0,
+            dist_moved=0.12,
+            target_dist=0.35,
+            collision_near=False,
+            path_offset=0.18,
+            min_dist_before_path_exit=0.10,
+            path_rejoin_offset=0.25,
+        )
+
+        assert done is True
+        assert "path rejoined" in reason
+
+    def test_forward_only_continues_until_min_distance_before_path_exit(self):
+        done, _ = should_finish_forward_only(
+            now=1.0,
+            until=2.0,
+            dist_moved=0.05,
+            target_dist=0.35,
+            collision_near=False,
+            path_offset=0.18,
+            min_dist_before_path_exit=0.10,
+            path_rejoin_offset=0.25,
+        )
+
+        assert done is False
 
 
 class TestRotationClearanceInline:

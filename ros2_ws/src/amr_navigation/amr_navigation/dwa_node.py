@@ -466,6 +466,43 @@ def clamp_forward_velocity(v_cmd: float, allow_backward: bool) -> float:
     return max(0.0, v_cmd)
 
 
+def rate_limit_angular_velocity(
+    current_w: float,
+    target_w: float,
+    accel_step: float,
+    brake_step: float,
+) -> float:
+    accel_step = max(0.0, accel_step)
+    brake_step = max(accel_step, brake_step)
+    reducing = abs(target_w) < abs(current_w)
+    crossing_zero = current_w * target_w < 0.0
+    step = brake_step if reducing or crossing_zero else accel_step
+    return max(current_w - step, min(current_w + step, target_w))
+
+
+def should_finish_forward_only(
+    now: float,
+    until: float,
+    dist_moved: float,
+    target_dist: float,
+    collision_near: bool,
+    path_offset: Optional[float],
+    min_dist_before_path_exit: float,
+    path_rejoin_offset: float,
+) -> Tuple[bool, str]:
+    if collision_near:
+        return True, "forward obstacle"
+    if dist_moved >= target_dist:
+        return True, f"target distance reached ({dist_moved:.2f}m)"
+    if now >= until:
+        return True, "timeout"
+    if (path_offset is not None
+            and dist_moved >= min_dist_before_path_exit
+            and path_offset <= path_rejoin_offset):
+        return True, f"path rejoined (offset={path_offset:.2f}m)"
+    return False, ""
+
+
 def should_release_align(
     alpha: float,
     is_rejoining: bool,
@@ -670,12 +707,19 @@ class DwaPlannerNode(Node):
         #    사용자 피드백. CLAUDE.md §7.2.0 #4 "후퇴 시 revert".)
         self.declare_parameter("align_trigger_ticks", 3)      # TODO: 시뮬 측정 후 확정(미확정 초안)
         self.declare_parameter("w_min_rotate", 0.3)
+        self.declare_parameter("w_brake_alpha_max", 6.0)
         self.declare_parameter("allow_backward", False)
         self.declare_parameter("max_path_offset", 1.0)
         self.declare_parameter("path_lost_offset", 1.8)
         self.declare_parameter("stuck_recovery_sec", 1.5)
         self.declare_parameter("recovery_cooldown", 3.0)
         self.declare_parameter("spin_duration", 2.0)       # spin recovery 지속 시간
+        self.declare_parameter("forward_only_dist", 0.35)
+        self.declare_parameter("forward_only_timeout", 1.2)
+        self.declare_parameter("forward_only_speed_scale", 0.35)
+        self.declare_parameter("forward_only_settle_w", 0.20)
+        self.declare_parameter("forward_only_min_dist", 0.10)
+        self.declare_parameter("forward_only_rejoin_offset", 0.25)
         self.declare_parameter("robot_radius", 0.20)
         self.declare_parameter("hard_collision_distance", 0.05)
         self.declare_parameter("safety_distance", 0.30)
@@ -837,12 +881,19 @@ class DwaPlannerNode(Node):
         self.p_align_cooldown           = gp("align_cooldown").value
         self.p_align_trigger_ticks      = gp("align_trigger_ticks").value      # P4
         self.p_w_min_rotate             = gp("w_min_rotate").value
+        self.p_w_brake_alpha_max        = gp("w_brake_alpha_max").value
         self.p_allow_backward           = gp("allow_backward").value
         self.p_max_path_offset          = gp("max_path_offset").value
         self.p_path_lost_offset         = gp("path_lost_offset").value
         self.p_stuck_recovery_sec       = gp("stuck_recovery_sec").value
         self.p_recovery_cooldown        = gp("recovery_cooldown").value
         self.p_spin_duration            = gp("spin_duration").value
+        self.p_forward_only_dist        = gp("forward_only_dist").value
+        self.p_forward_only_timeout     = gp("forward_only_timeout").value
+        self.p_forward_only_speed_scale = gp("forward_only_speed_scale").value
+        self.p_forward_only_settle_w    = gp("forward_only_settle_w").value
+        self.p_forward_only_min_dist    = gp("forward_only_min_dist").value
+        self.p_forward_only_rejoin_offset = gp("forward_only_rejoin_offset").value
         self.p_robot_radius             = gp("robot_radius").value
         self.p_hard_collision_distance  = gp("hard_collision_distance").value
         self.p_safety_distance          = gp("safety_distance").value
@@ -1207,6 +1258,7 @@ class DwaPlannerNode(Node):
         period = 1.0 / max(self.p_control_rate, 1.0)
         dv_max = self.p_a_max * period
         dw_max = self.p_alpha_max * period
+        dw_brake_max = self.p_w_brake_alpha_max * period
 
         # ── ALIGN 전이 판정 ──────────────────────────────────────
         # 각도 hysteresis(63° in / 15° out)에 더해, P4 시간 hysteresis:
@@ -1312,8 +1364,8 @@ class DwaPlannerNode(Node):
         v_cmd = max(self._state.v - dv_max,
                     min(self._state.v + dv_max, v_target))
         v_cmd = clamp_forward_velocity(v_cmd, self.p_allow_backward)
-        w_cmd = max(self._state.w - dw_max,
-                    min(self._state.w + dw_max, w_target))
+        w_cmd = rate_limit_angular_velocity(
+            self._state.w, w_target, dw_max, dw_brake_max)
 
         # 최종 충돌 체크
         sim_state = RobotState(x=0.0, y=0.0, theta=0.0,
@@ -1398,6 +1450,7 @@ class DwaPlannerNode(Node):
         period = 1.0 / max(self.p_control_rate, 1.0)
         dv_max = self.p_a_max * period
         dw_max = self.p_alpha_max * period
+        dw_brake_max = self.p_w_brake_alpha_max * period
 
         # ALIGN 종료 → NORMAL 전이
         if abs(alpha) < self.p_align_angle_exit:
@@ -1439,8 +1492,8 @@ class DwaPlannerNode(Node):
         v_cmd = max(self._state.v - dv_max,
                     min(self._state.v + dv_max, v_target))
         v_cmd = clamp_forward_velocity(v_cmd, self.p_allow_backward)
-        w_cmd = max(self._state.w - dw_max,
-                    min(self._state.w + dw_max, w_target))
+        w_cmd = rate_limit_angular_velocity(
+            self._state.w, w_target, dw_max, dw_brake_max)
 
         # align 중 stuck 체크
         is_velocity_blocked = (abs(v_cmd) < 0.02 and
@@ -1501,16 +1554,18 @@ class DwaPlannerNode(Node):
         if spin_done:
             # 전진 가능 → FORWARD_ONLY로 전환 (현재 heading으로 짧게 전진)
             # 위치가 바뀐 후 A* 재계획 → rack 모서리 벗어난 경로 생성
-            self._forward_only_until   = now + 2.0   # 최대 2초
-            self._forward_only_dist    = 0.8          # 목표 0.8m 전진
+            self._forward_only_until   = now + self.p_forward_only_timeout
+            self._forward_only_dist    = self.p_forward_only_dist
             self._forward_only_start_x = self._state.x
             self._forward_only_start_y = self._state.y
             self._nav_state  = NavState.FORWARD_ONLY
             self._stuck_counter = 0
             self._path_local = None   # 기존 path 무효화
             self._path_progress_idx = 0
+            self._publish_cmd(VelocityCommand(v=0.0, w=0.0))
+            self._publish_status_value("FORWARD_ONLY")
             self.get_logger().info(
-                f"spin 완료 → FORWARD_ONLY 0.8m 전진 후 A* 재계획 "
+                f"spin 완료 → FORWARD_ONLY {self._forward_only_dist:.2f}m 전진 후 A* 재계획 "
                 f"(forward_clear={forward_clear:.2f}m)")
         elif spin_unsafe:
             # 회전 공간 없음(몸체 충돌 임박) → 후진 대신 즉시 정지(EMERGENCY).
@@ -1549,21 +1604,39 @@ class DwaPlannerNode(Node):
             obstacles, self.p_v_max * 0.3, 0.0)
         collision_near = forward_clear < self.p_clearance_stop_distance
 
-        # 이동 거리 체크
+        # 이동 거리 / path 복귀 체크
         dist_moved = math.hypot(
             self._state.x - self._forward_only_start_x,
             self._state.y - self._forward_only_start_y)
-        dist_reached = dist_moved >= self._forward_only_dist
+        path_offset = (
+            self._path_offset_to_state(self._path_local)
+            if self._path_local is not None and self._path_local.poses
+            else None
+        )
+        should_finish, reason = should_finish_forward_only(
+            now=now,
+            until=self._forward_only_until,
+            dist_moved=dist_moved,
+            target_dist=self._forward_only_dist,
+            collision_near=collision_near,
+            path_offset=path_offset,
+            min_dist_before_path_exit=self.p_forward_only_min_dist,
+            path_rejoin_offset=self.p_forward_only_rejoin_offset,
+        )
 
-        if (now < self._forward_only_until
-                and not collision_near
-                and not dist_reached):
+        if not should_finish:
+            if abs(self._state.w) > self.p_forward_only_settle_w:
+                self._publish_cmd(VelocityCommand(v=0.0, w=0.0))
+                self._publish_status_value("RECOVERY")
+                self._log_state_throttled()
+                return
             # 현재 heading 유지하며 직진
             period = 1.0 / max(self.p_control_rate, 1.0)
             dv_max = self.p_a_max * period
-            v_target = self.p_v_max * 0.5   # 절반 속도로 안전하게
+            v_target = self.p_v_max * self.p_forward_only_speed_scale
             v_cmd = max(self._state.v - dv_max,
                         min(self._state.v + dv_max, v_target))
+            v_cmd = clamp_forward_velocity(v_cmd, self.p_allow_backward)
             self._publish_cmd(VelocityCommand(v=v_cmd, w=0.0))
             self._publish_status_value("RECOVERY")
             self._log_state_throttled()
@@ -1574,13 +1647,6 @@ class DwaPlannerNode(Node):
         self._nav_state = NavState.NORMAL
         self._stuck_counter = 0
         self._recovery_cooldown_until = now + self.p_recovery_cooldown
-
-        if dist_reached:
-            reason = f"목표 거리 도달 ({dist_moved:.2f}m)"
-        elif collision_near:
-            reason = f"전방 장애물 (forward_clear={forward_clear:.2f}m)"
-        else:
-            reason = "시간 초과"
 
         self._publish_status_value("RECOVERY_DONE")
         self.get_logger().info(
