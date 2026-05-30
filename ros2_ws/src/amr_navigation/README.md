@@ -123,6 +123,10 @@ poses:                         # PoseStamped 배열
 - `poses[-1]` = 목적지 (goal).
 - 점 간격: **0.05 ~ 0.20 m** (DWA가 lookahead 점 선택하기 쉬운 밀도).
 - 빈 path(`poses=[]`)는 **"계획 실패"** 컨벤션 → DWA는 즉시 정지, `status="STOPPED"`.
+- 단, A\*의 **주기 재계획** 실패가 이미 성공한 경로를 가진 상태에서 발생하면 빈 path를 발행하지 않고
+  기존 `/global_path`를 유지한다. 일시적 TF/맵 흔들림이 DWA의 정상 추종을 `STOPPED/NORMAL`로
+  떨리게 만들지 않기 위한 정책이다. 새 goal의 최초 계획 실패처럼 기존 경로를 믿으면 안 되는 경우에는
+  기존처럼 빈 path를 발행한다.
 - 점 수 상한: **500개 권장** (계산 비용·메시지 크기 관점). 초과 시 down-sampling.
 
 ### 3.2 `/cmd_vel` (DWA → Ignition)
@@ -237,6 +241,7 @@ angular:
 |---|---|---|
 | goal이 점유 셀 | 빈 path 발행 + 로그 | — |
 | goal 도달 불가 (장애물로 막힘) | 빈 path 발행 | 정지 |
+| 주기 재계획 실패 + 기존 성공 path 있음 | 빈 path 미발행, 기존 path 유지 | 기존 path 계속 추종 |
 | `/global_path` empty 수신 | — | 즉시 정지, `status="STOPPED"` |
 | 모든 trajectory 후보 충돌 | — | 정지, `status="EMERGENCY"` |
 | 장애물 거리 < `safety_distance` (0.30 m) | — | 즉시 정지 (명세 §7 안전거리) |
@@ -304,7 +309,7 @@ ros2 launch amr_navigation dwa_only.launch.py
 
 # 토픽 확인
 ros2 topic echo /cmd_vel       # 빈 평가함수라 (0,0)이 나와야 함 (Week 1 의도)
-ros2 topic echo /dwa/status    # WAITING_ODOM → STOPPED → PLANNING 상태 변화
+ros2 topic echo /dwa/status    # WAITING_ODOM → STOPPED → NORMAL 상태 변화
 
 # 통합 검증 (warehouse.launch.py가 같이 떠 있을 때)
 ros2 topic pub --once /global_path nav_msgs/msg/Path \
@@ -313,7 +318,7 @@ ros2 topic pub --once /global_path nav_msgs/msg/Path \
      {header: {frame_id: 'map'}, pose: {position: {x: 3.0, y: 0.0, z: 0.0}, orientation: {w: 1.0}}},
      {header: {frame_id: 'map'}, pose: {position: {x: 5.0, y: 0.0, z: 0.0}, orientation: {w: 1.0}}}
   ]}"
-# → /dwa/status가 STOPPED → PLANNING 으로 전환되면 통합 OK
+# → /dwa/status가 STOPPED → NORMAL 으로 전환되면 통합 OK
 ```
 
 ---
@@ -355,7 +360,7 @@ ros2 topic pub --once /global_path nav_msgs/msg/Path \
 2. 양쪽 담당(A\*: HU, DWA: SW)이 동의
 3. 본 README.md 갱신 + §12 변경 이력 한 줄 추가
 4. 양쪽 코드 (`dwa_node.py`, `astar_node.py`, `dwa_params.yaml`, `astar_params.yaml`) 반영
-5. 통합 테스트(mock `/global_path` → DWA `PLANNING` 전이) 통과 후 `dev` 머지
+5. 통합 테스트(mock `/global_path` → DWA `NORMAL` 전이) 통과 후 `dev` 머지
 
 ---
 

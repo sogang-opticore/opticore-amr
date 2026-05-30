@@ -70,6 +70,7 @@ class AstarPlanner(Node):
         self.goal: PoseStamped | None = None
         self._last_goal_xy: tuple[float, float] | None = None  # P1 dedup (2026-05-31)
         self._last_goal_yaw: float | None = None               # P1 dedup yaw (리뷰 반영)
+        self._has_valid_path_for_goal = False
 
         # ── TF ────────────────────────────────────────────────────
         self.tf_buffer   = tf2_ros.Buffer()
@@ -120,15 +121,27 @@ class AstarPlanner(Node):
 
         # 자기 위치가 goal 근처면 replan skip — DWA 의 REACHED 상태 보존.
         # 그렇지 않으면 새 path 가 self._reached 를 False 로 리셋하고 다시 추종 시작.
+        # 단, 주기 재계획 실패가 기존 성공 path 를 빈 path 로 덮어쓰면
+        # DWA status 가 STOPPED/NORMAL 로 출렁이므로 성공 캐시가 있을 때는 보존한다.
         start_world = self._get_robot_position()
-        if start_world is not None:
-            gx = self.goal.pose.position.x
-            gy = self.goal.pose.position.y
-            dist_to_goal = math.hypot(gx - start_world[0], gy - start_world[1])
-            if dist_to_goal < 0.30:   # DWA goal_tolerance(0.20) + 마진
+        if start_world is None:
+            if self._has_valid_path_for_goal:
+                self.get_logger().warn(
+                    '주기 재계획 TF lookup 실패 — 기존 /global_path 유지',
+                    throttle_duration_sec=2.0)
                 return
+            self._handle_plan_failure(
+                'TF lookup 실패 — 경로 계획 중단',
+                clear_on_failure=True)
+            return
 
-        self._plan()
+        gx = self.goal.pose.position.x
+        gy = self.goal.pose.position.y
+        dist_to_goal = math.hypot(gx - start_world[0], gy - start_world[1])
+        if dist_to_goal < 0.30:   # DWA goal_tolerance(0.20) + 마진
+            return
+
+        self._plan(clear_on_failure=False)
 
     # ══════════════════════════════════════════════════════════════
     # 콜백
@@ -184,25 +197,32 @@ class AstarPlanner(Node):
         self._last_goal_xy = new_goal
         self._last_goal_yaw = new_yaw
         self.goal = msg
+        self._has_valid_path_for_goal = False
         self.get_logger().info(
             f'Goal 수신: ({new_goal[0]:.2f}, {new_goal[1]:.2f}, yaw={new_yaw:.2f})'
         )
-        self._plan()
+        self._plan(clear_on_failure=True)
 
     # ══════════════════════════════════════════════════════════════
     # 경로 계획 메인
     # ══════════════════════════════════════════════════════════════
 
-    def _plan(self):
+    def _plan(self, *, clear_on_failure: bool = True):
         """
         A* 경로 계획 메인 함수.
-        성공 시 /global_path 발행, 실패 시 빈 Path 발행 (DWA 정지 트리거).
+        성공 시 /global_path 발행.
+
+        clear_on_failure=True 이면 실패 시 빈 Path를 발행해 DWA를 정지시킨다.
+        새 goal 최초 계획처럼 기존 경로를 더 이상 믿으면 안 되는 경우에 쓴다.
+        clear_on_failure=False 이면 기존 성공 경로가 있을 때 빈 Path를 발행하지 않는다.
+        주기 재계획의 일시적 실패가 DWA의 정상 추종을 STOPPED로 흔드는 것을 막기 위함이다.
         """
         # 현재 로봇 위치 TF lookup (base_footprint → map)
         start_world = self._get_robot_position()
         if start_world is None:
-            self.get_logger().warn('TF lookup 실패 — 경로 계획 중단')
-            self._publish_empty_path()
+            self._handle_plan_failure(
+                'TF lookup 실패 — 경로 계획 중단',
+                clear_on_failure=clear_on_failure)
             return
 
         goal_world = (self.goal.pose.position.x, self.goal.pose.position.y)
@@ -217,9 +237,9 @@ class AstarPlanner(Node):
         if not self._is_free_cell(start_cell):
             snapped = self._snap_to_nearest_free(start_cell)
             if snapped is None:
-                self.get_logger().warn(
-                    f'Start {start_cell}이 점유/맵-밖이고 인근 자유공간 없음 — 빈 path')
-                self._publish_empty_path()
+                self._handle_plan_failure(
+                    f'Start {start_cell}이 점유/맵-밖이고 인근 자유공간 없음',
+                    clear_on_failure=clear_on_failure)
                 return
             self.get_logger().info(
                 f'Start 보정: {start_cell} (점유/inflation) → {snapped} (인근 free)')
@@ -231,9 +251,9 @@ class AstarPlanner(Node):
         if not self._is_free_cell(goal_cell):
             snapped = self._snap_to_nearest_free(goal_cell)
             if snapped is None:
-                self.get_logger().warn(
-                    f'Goal {goal_cell}이 점유/맵-밖이고 인근 자유공간 없음 — 빈 path')
-                self._publish_empty_path()
+                self._handle_plan_failure(
+                    f'Goal {goal_cell}이 점유/맵-밖이고 인근 자유공간 없음',
+                    clear_on_failure=clear_on_failure)
                 return
             self.get_logger().info(
                 f'Goal 보정: {goal_cell} (점유/inflation) → {snapped} (인근 free)')
@@ -242,8 +262,9 @@ class AstarPlanner(Node):
         cell_path = self._astar(start_cell, goal_cell)
 
         if cell_path is None:
-            self.get_logger().warn('경로 없음 — 빈 path 발행')
-            self._publish_empty_path()
+            self._handle_plan_failure(
+                '경로 없음',
+                clear_on_failure=clear_on_failure)
             return
 
         if self.smoothing == 'catmull_rom':
@@ -251,7 +272,25 @@ class AstarPlanner(Node):
 
         path_msg = self._cells_to_path(cell_path)
         self.path_pub.publish(path_msg)
+        self._has_valid_path_for_goal = True
         self.get_logger().info(f'경로 발행: {len(path_msg.poses)} 웨이포인트')
+
+    def _handle_plan_failure(self, reason: str, *, clear_on_failure: bool) -> None:
+        """계획 실패 처리.
+
+        주기 재계획 실패가 이미 발행된 성공 경로를 덮어쓰면 DWA status가
+        NORMAL/STOPPED로 출렁인다. 기존 경로가 유효하고 호출자가 보존을 허용한
+        경우에는 빈 Path를 발행하지 않는다.
+        """
+        if not clear_on_failure and self._has_valid_path_for_goal:
+            self.get_logger().warn(
+                f'{reason} — 기존 /global_path 유지(빈 path 미발행)',
+                throttle_duration_sec=2.0)
+            return
+
+        self._has_valid_path_for_goal = False
+        self.get_logger().warn(f'{reason} — 빈 path 발행')
+        self._publish_empty_path()
 
     # ══════════════════════════════════════════════════════════════
     # A* 알고리즘
