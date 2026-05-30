@@ -576,3 +576,42 @@ class TestGlobalPathStaleGuard:
     def test_yaw_changed_same_position_does_not_create_new_edge(self):
         node = self._make_node()
         assert node._is_duplicate_goal((5.0, 1.0), 0.30) is True
+
+
+class TestPathStateReset:
+    """1Hz path 갱신이 REJOIN 중 recovery 카운터를 지우는 회귀 방지."""
+
+    def _make_node(self, nav_state, stuck_counter=0):
+        import types
+        from amr_navigation.dwa_node import DwaPlannerNode
+
+        node = types.SimpleNamespace()
+        node._reached = False
+        node._path_progress_idx = 7
+        node._in_align_mode = True
+        node._align_trigger_count = 2
+        node._nav_state = nav_state
+        node._stuck_counter = stuck_counter
+        node._reset_path_state = DwaPlannerNode._reset_path_state.__get__(node)
+        return node
+
+    def test_rejoin_path_update_preserves_recovery_counter(self):
+        from amr_navigation.dwa_node import NavState
+
+        node = self._make_node(NavState.REJOIN, stuck_counter=12)
+        node._reset_path_state()
+
+        assert node._nav_state == NavState.REJOIN
+        assert node._stuck_counter == 12
+        assert node._path_progress_idx == 0
+        assert node._in_align_mode is False
+        assert node._align_trigger_count == 0
+
+    def test_emergency_path_update_still_rearms_normal(self):
+        from amr_navigation.dwa_node import NavState
+
+        node = self._make_node(NavState.EMERGENCY, stuck_counter=12)
+        node._reset_path_state()
+
+        assert node._nav_state == NavState.NORMAL
+        assert node._stuck_counter == 0

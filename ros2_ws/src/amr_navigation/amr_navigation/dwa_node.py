@@ -918,8 +918,11 @@ class DwaPlannerNode(Node):
         #   _align_trigger_count(예: 2)가 새 path 로 새어 한 tick 만에 ALIGN 진입 가능.
         #   "N틱 연속" 의미가 path 경계를 넘어가지 않도록.
         self._align_trigger_count = 0
-        # EMERGENCY/REJOIN 중 새 path 오면 NORMAL 복귀 (SPIN/FORWARD_ONLY 는 recovery 완료까지 유지)
-        if self._nav_state in (NavState.EMERGENCY, NavState.REJOIN):
+        # EMERGENCY 중 새 path 오면 NORMAL 복귀 (SPIN/FORWARD_ONLY 는 recovery 완료까지 유지).
+        # REJOIN 은 1Hz path 갱신 때도 유지한다. 여기서 REJOIN/stuck_counter 를 리셋하면
+        # 막힘 상황에서 EMERGENCY status → A* 재계획 → 새 path → counter=0 이 반복되어
+        # SPIN recovery 임계치까지 절대 도달하지 못한다.
+        if self._nav_state in (NavState.EMERGENCY,):
             self._nav_state = NavState.NORMAL
             self._stuck_counter = 0
         # ── 추가 (2026-05-31 SW · P2 보강): REACHED 도 새 path 오면 해제 ──
