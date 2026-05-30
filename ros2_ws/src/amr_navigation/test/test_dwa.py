@@ -25,6 +25,7 @@ from amr_navigation.dwa_node import (
     sample_path_from_projection,
     choose_rejoin_target,
     should_use_rejoin,
+    predict_signed_path_offset,
     should_release_align,
     clamp_forward_velocity,
     rate_limit_angular_velocity,
@@ -339,6 +340,52 @@ class TestPathProjectionLookahead:
             exit_offset=0.18,
             exit_heading=0.45,
         ) is True
+
+
+# ── Predictive REJOIN guard 검증 (Codex, 2026-05-31) ────────────────────
+
+class TestPredictiveRejoin:
+    def test_predict_signed_path_offset_catches_diverging_heading(self):
+        predicted = predict_signed_path_offset(
+            signed_offset=-0.10,
+            heading_error=math.radians(40.0),
+            speed=1.5,
+            horizon=0.55,
+        )
+
+        assert abs(predicted) > 0.60
+
+    def test_rejoin_enters_by_predicted_offset(self):
+        assert should_use_rejoin(
+            path_offset=0.18,
+            heading_error=0.0,
+            was_rejoining=False,
+            entry_offset=0.30,
+            exit_offset=0.18,
+            exit_heading=0.45,
+            predicted_offset=0.52,
+        ) is True
+
+    def test_rejoin_target_uses_predicted_offset_for_merge_distance(self):
+        path = [(0.0, 0.0), (5.0, 0.0)]
+        robot = RobotState(x=0.0, y=0.15, theta=0.0, v=1.2, w=0.0)
+        proj = project_to_path(path, (robot.x, robot.y), 0)
+
+        target = choose_rejoin_target(
+            path_xy=path,
+            robot=robot,
+            projection=proj,
+            min_lookahead=0.80,
+            max_lookahead=3.50,
+            step=0.25,
+            heading_weight=1.2,
+            distance_weight=0.12,
+            curvature_weight=0.18,
+            effective_offset=0.75,
+        )
+
+        assert target is not None
+        assert target.desired_distance > 2.8
 
 
 # ── v/w 커플링 해제 패치 검증 (YS, 2026-05-29) ──────────────────────────

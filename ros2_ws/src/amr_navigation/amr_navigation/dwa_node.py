@@ -452,12 +452,27 @@ def should_use_rejoin(
     entry_offset: float,
     exit_offset: float,
     exit_heading: float,
+    predicted_offset: Optional[float] = None,
 ) -> bool:
-    if path_offset > entry_offset:
+    entry_metric = path_offset
+    if predicted_offset is not None:
+        entry_metric = max(entry_metric, predicted_offset)
+    if entry_metric > entry_offset:
         return True
     if not was_rejoining:
         return False
     return path_offset > exit_offset or abs(heading_error) > exit_heading
+
+
+def predict_signed_path_offset(
+    signed_offset: float,
+    heading_error: float,
+    speed: float,
+    horizon: float,
+) -> float:
+    """Estimate short-horizon lateral error in the current path tangent frame."""
+    forward_speed = max(0.0, speed)
+    return signed_offset - forward_speed * math.sin(heading_error) * max(0.0, horizon)
 
 
 def clamp_forward_velocity(v_cmd: float, allow_backward: bool) -> float:
@@ -525,6 +540,7 @@ def choose_rejoin_target(
     heading_weight: float,
     distance_weight: float,
     curvature_weight: float,
+    effective_offset: Optional[float] = None,
 ) -> Optional[RejoinTarget]:
     """가장 가까운 점이 아니라, 작은 조향으로 합류 가능한 미래 path 점을 고른다."""
     if not path_xy:
@@ -534,11 +550,14 @@ def choose_rejoin_target(
     min_lookahead = max(0.0, min_lookahead)
     max_lookahead = max(min_lookahead, max_lookahead)
     count = int((max_lookahead - min_lookahead) / step) + 1
+    offset_for_distance = projection.offset
+    if effective_offset is not None:
+        offset_for_distance = max(offset_for_distance, effective_offset)
     desired_distance = min(
         max_lookahead,
         max(
             min_lookahead,
-            0.8 + 2.2 * projection.offset + 0.5 * max(0.0, robot.v),
+            0.8 + 2.2 * offset_for_distance + 0.5 * max(0.0, robot.v),
         ),
     )
 
@@ -675,6 +694,7 @@ class DwaPlannerNode(Node):
         self.declare_parameter("path_cross_track_gain", 0.8)
         self.declare_parameter("path_error_slowdown_offset", 0.25)
         self.declare_parameter("path_error_min_speed_scale", 0.35)
+        self.declare_parameter("path_error_predict_time", 0.55)
         self.declare_parameter("rejoin_entry_offset", 0.30)
         self.declare_parameter("rejoin_exit_offset", 0.18)
         self.declare_parameter("rejoin_exit_heading", 0.45)
@@ -853,6 +873,7 @@ class DwaPlannerNode(Node):
         self.p_path_cross_track_gain    = gp("path_cross_track_gain").value
         self.p_path_error_slowdown_offset = gp("path_error_slowdown_offset").value
         self.p_path_error_min_speed_scale = gp("path_error_min_speed_scale").value
+        self.p_path_error_predict_time  = gp("path_error_predict_time").value
         self.p_rejoin_entry_offset      = gp("rejoin_entry_offset").value
         self.p_rejoin_exit_offset       = gp("rejoin_exit_offset").value
         self.p_rejoin_exit_heading      = gp("rejoin_exit_heading").value
@@ -1148,6 +1169,13 @@ class DwaPlannerNode(Node):
 
         path_offset = projection.offset
         projection_heading_error = normalize_angle(projection.yaw - self._state.theta)
+        predicted_signed_path_offset = predict_signed_path_offset(
+            projection.signed_offset,
+            projection_heading_error,
+            self._state.v,
+            self.p_path_error_predict_time,
+        )
+        predicted_path_offset = abs(predicted_signed_path_offset)
         if path_offset > self.p_path_lost_offset:
             self._stop_robot("path_offset_too_large")
             self._publish_status_value("PATH_LOST")
@@ -1164,6 +1192,7 @@ class DwaPlannerNode(Node):
             entry_offset=self.p_rejoin_entry_offset,
             exit_offset=self.p_rejoin_exit_offset,
             exit_heading=self.p_rejoin_exit_heading,
+            predicted_offset=predicted_path_offset,
         )
         rejoin_target: Optional[RejoinTarget] = None
         if rejoin_requested:
@@ -1177,6 +1206,7 @@ class DwaPlannerNode(Node):
                 heading_weight=self.p_rejoin_heading_weight,
                 distance_weight=self.p_rejoin_distance_weight,
                 curvature_weight=self.p_rejoin_curvature_weight,
+                effective_offset=predicted_path_offset,
             )
 
         # Adaptive lookahead (approach scaling)
@@ -1191,7 +1221,7 @@ class DwaPlannerNode(Node):
             lookahead = rejoin_target.point
             target_path_yaw = rejoin_target.yaw
         else:
-            if path_offset > self.p_path_error_slowdown_offset:
+            if max(path_offset, predicted_path_offset) > self.p_path_error_slowdown_offset:
                 effective_lookahead = min(effective_lookahead, self.p_lookahead_dist)
             lookahead = pick_lookahead_from_projection(
                 path_xy, projection, effective_lookahead)
@@ -1215,6 +1245,8 @@ class DwaPlannerNode(Node):
             "nearest_idx": nearest_idx,
             "path_offset": path_offset,
             "signed_path_offset": projection.signed_offset,
+            "predicted_path_offset": predicted_path_offset,
+            "predicted_signed_path_offset": predicted_signed_path_offset,
             "path_heading_error": path_heading_error,
             "effective_lookahead": effective_lookahead,
             "is_rejoining": rejoin_target is not None,
@@ -1247,6 +1279,7 @@ class DwaPlannerNode(Node):
         obstacles   = ctx["obstacles_local"]
         path_offset = ctx["path_offset"]
         signed_path_offset = ctx["signed_path_offset"]
+        predicted_path_offset = ctx.get("predicted_path_offset", path_offset)
         path_heading_error = ctx["path_heading_error"]
         is_rejoining = ctx.get("is_rejoining", False)
 
@@ -1324,12 +1357,15 @@ class DwaPlannerNode(Node):
         v_target *= heading_factor
 
         # (v) path 이탈 감속 — 경로에서 벌어질수록 속도를 낮춰 복귀 회전을 우선한다.
-        if path_offset > self.p_path_error_slowdown_offset:
+        path_error_for_speed = max(path_offset, predicted_path_offset)
+        if path_error_for_speed > self.p_path_error_slowdown_offset:
             denom = max(
                 self.p_path_lost_offset - self.p_path_error_slowdown_offset,
                 1e-3,
             )
-            scale = 1.0 - (path_offset - self.p_path_error_slowdown_offset) / denom
+            scale = 1.0 - (
+                path_error_for_speed - self.p_path_error_slowdown_offset
+            ) / denom
             scale = max(self.p_path_error_min_speed_scale, min(1.0, scale))
             v_target *= scale
 
@@ -1433,6 +1469,7 @@ class DwaPlannerNode(Node):
                 f"α={math.degrees(alpha):+.1f}° κ={kappa:+.2f} "
                 f"v={v_cmd:+.2f}/{v_target:.2f} w={w_cmd:+.2f}/{w_target:+.2f} "
                 f"cte={path_offset:.2f}/{signed_path_offset:+.2f} "
+                f"pcte={predicted_path_offset:.2f} "
                 f"rj={ctx['rejoin_distance']:.2f}/"
                 f"{math.degrees(ctx['rejoin_arrival_error']):+.1f}° "
                 f"ψ={math.degrees(path_heading_error):+.1f}° "

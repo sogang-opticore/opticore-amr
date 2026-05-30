@@ -226,6 +226,7 @@ angular:
 | `path_cross_track_gain` | 0.8 | path 횡오차 복귀 보정 |
 | `path_error_slowdown_offset` | 0.25 m | 이 이상 path에서 벌어지면 속도 감속 시작 |
 | `path_error_min_speed_scale` | 0.35 | path 복귀 중 최소 속도 스케일 |
+| `path_error_predict_time` | 0.55 s | 현재 heading/speed로 미래 횡오차를 예측해 선제 REJOIN/감속 |
 | `rejoin_entry_offset` | 0.30 m | 이 이상 path에서 벗어나면 `REJOIN` 후보 선택 |
 | `rejoin_exit_offset` | 0.18 m | `REJOIN` 해제 hysteresis 거리 |
 | `rejoin_exit_heading` | 0.45 rad | path heading 오차가 남아 있으면 `REJOIN` 유지 |
