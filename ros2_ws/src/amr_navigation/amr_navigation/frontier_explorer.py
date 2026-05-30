@@ -341,10 +341,13 @@ class FrontierExplorerNode(Node):
     def _is_goal_done(self) -> bool:
         """현재 goal이 도착(또는 실패)했는지 판정.
 
-        판정 규칙:
-          (a) /dwa/status 가 'STOPPED' 이고 그 상태가 arrival_settle_time 이상 유지
-              → A* 가 '계획 실패'(빈 path) 발행했거나 DWA가 goal 도달 후 stop.
-          (b) goal_timeout 초과 → 실패로 간주.
+        판정 규칙 (2026-05-31 리뷰 반영, DWA P2 GOAL_REACHED 도입 대응):
+          (성공) /dwa/status 가 'GOAL_REACHED'(도착 edge, 1회) → 즉시 완료.
+          (성공) 'REACHED'(도착 후 1Hz 정상 상태)가 arrival_settle_time 이상 유지 → 완료.
+          (실패) 'STOPPED'(path 없음/계획 실패, README §3.3)가 settle 이상 유지 → 이 frontier 포기.
+          (실패) goal_timeout 초과.
+        ※ 이전 구현은 'STOPPED' 만 봤는데, P2 이후 DWA 는 도착 시 GOAL_REACHED→REACHED 를
+           발행(STOPPED 아님) → 도착을 못 알아채고 timeout 까지 대기하던 문제(Codex 리뷰) 수정.
         """
         if self._goal_sent_time is None:
             return False
@@ -354,12 +357,23 @@ class FrontierExplorerNode(Node):
                 f"Goal timeout ({elapsed:.1f}s ≥ {self.p_goal_timeout:.1f}s) — 스킵"
             )
             return True
-        if (
-            self._dwa_status == "STOPPED"
-            and self._dwa_status_since is not None
+
+        # 성공성 도착 — GOAL_REACHED 는 edge 라 즉시 완료
+        if self._dwa_status == "GOAL_REACHED":
+            self.get_logger().info("Goal 도착(GOAL_REACHED) — 완료")
+            return True
+
+        settled = (
+            self._dwa_status_since is not None
             and (self._now() - self._dwa_status_since) >= self.p_arrival_settle_time
-            and elapsed > self.p_arrival_settle_time  # goal 발행 직후 잔존 STOPPED 제외
-        ):
+            and elapsed > self.p_arrival_settle_time  # goal 발행 직후 잔존 상태 제외
+        )
+        if self._dwa_status == "REACHED" and settled:
+            self.get_logger().info("Goal 도착(REACHED 유지) — 완료")
+            return True
+        if self._dwa_status == "STOPPED" and settled:
+            # STOPPED = path 없음/계획 실패(성공 아님) → 이 frontier 는 도달 불가로 보고 스킵
+            self.get_logger().warn("DWA STOPPED 유지(계획 실패 추정) — frontier 스킵")
             return True
         return False
 

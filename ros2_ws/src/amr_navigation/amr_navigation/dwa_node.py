@@ -376,6 +376,11 @@ class DwaPlannerNode(Node):
         self.declare_parameter("align_kd", 0.5)
         self.declare_parameter("align_v_blend_max", 0.3)
         self.declare_parameter("align_cooldown", 1.0)
+        # 2026-05-31 추가 (SW · dwa-ys):
+        #   P4 ALIGN 진입 시간 hysteresis — |alpha|>thresh 가 N틱 연속일 때만 진입.
+        #   P3 v_target 저주파 필터 계수 (0~1, 작을수록 부드럽게 lag).
+        self.declare_parameter("align_trigger_ticks", 3)      # TODO: 시뮬 측정 후 확정(미확정 초안)
+        self.declare_parameter("v_target_lpf_alpha", 0.30)    # TODO: 시뮬 측정 후 확정(미확정 초안)
         self.declare_parameter("w_min_rotate", 0.3)
         self.declare_parameter("allow_backward", False)
         self.declare_parameter("max_path_offset", 2.0)
@@ -422,6 +427,8 @@ class DwaPlannerNode(Node):
         # ALIGN 전용
         self._in_align_mode = False      # 하위 호환 (path 콜백에서 리셋)
         self._align_cooldown_until = 0.0
+        self._align_trigger_count = 0    # P4: ALIGN 진입 연속 tick 카운터 (2026-05-31)
+        self._v_target_filtered = None   # P3: v_target LPF 상태 Optional[float] (2026-05-31)
 
         # SPIN 전용
         self._spin_until = 0.0
@@ -517,6 +524,8 @@ class DwaPlannerNode(Node):
         self.p_align_kd                 = gp("align_kd").value
         self.p_align_v_blend_max        = gp("align_v_blend_max").value
         self.p_align_cooldown           = gp("align_cooldown").value
+        self.p_align_trigger_ticks      = gp("align_trigger_ticks").value      # P4
+        self.p_v_target_lpf_alpha       = gp("v_target_lpf_alpha").value       # P3
         self.p_w_min_rotate             = gp("w_min_rotate").value
         self.p_allow_backward           = gp("allow_backward").value
         self.p_max_path_offset          = gp("max_path_offset").value
@@ -626,10 +635,27 @@ class DwaPlannerNode(Node):
         self._reached = False
         self._path_progress_idx = 0
         self._in_align_mode = False
+        # [리뷰 Codex] P4 카운터를 새 path 경계에서 리셋 — 안 하면 직전 path 에서 쌓인
+        #   _align_trigger_count(예: 2)가 새 path 로 새어 한 tick 만에 ALIGN 진입 가능.
+        #   "N틱 연속" 의미가 path 경계를 넘어가지 않도록.
+        #   (참고: _v_target_filtered 는 여기서 리셋 안 함 — _reset_path_state 는 1Hz replan
+        #    마다 호출되므로 매번 리셋하면 P3 smoothing 이 무력화됨. Fix A 의 하향-즉시로
+        #    안전성은 이미 확보, cross-goal carry 는 무해.)
+        self._align_trigger_count = 0
         # EMERGENCY/SPIN/BACKUP 중이어도 새 path 오면 NORMAL 복귀
         if self._nav_state in (NavState.EMERGENCY,):
             self._nav_state = NavState.NORMAL
             self._stuck_counter = 0
+        # ── 추가 (2026-05-31 SW · P2 보강): REACHED 도 새 path 오면 해제 ──
+        # rationale: P1 dedup 이 '같은 goal' 재계획을 막으므로, 여기 도달하는 새 path 는
+        #            사실상 '진짜 다른 goal'. REACHED 를 안 풀면 도착 후 첫 새 goal 에서
+        #            로봇이 _control_loop 의 reached_hold 에 갇혀 움직이지 않는다(잠재 버그).
+        #            REACHED→NORMAL 복귀로 GOAL_REACHED edge 도 재무장되어 다음 도착 때
+        #            다시 한 번 발행됨.
+        #            ※ P1 과 짝을 이뤄야 안전 — dedup 없이는 같은 goal 짧은 path 가
+        #              REACHED 를 계속 풀어 도착 지점에서 재추종/떨림을 유발할 수 있음.
+        if self._nav_state == NavState.REACHED:
+            self._nav_state = NavState.NORMAL
 
     def _on_scan(self, msg: LaserScan) -> None:
         self._latest_scan = msg
@@ -677,10 +703,22 @@ class DwaPlannerNode(Node):
 
         # REACHED 전이
         if ctx["dist_to_goal"] < self.p_goal_tolerance:
+            # ── 추가 (2026-05-31 SW · P2): 도착 "순간"에만 GOAL_REACHED edge 신호 ──
+            # rationale: NavState.REACHED 진입은 했지만 /dwa/status 에 명시적 도착
+            #            신호가 없어 외부(Foxglove·BT·모니터)에서 도착 확인이 어려웠음.
+            #            1Hz 타이머(_publish_status)는 이후 "REACHED" 정상 상태를 계속
+            #            발행하므로, 여기서는 상승 edge 로 "GOAL_REACHED" 를 한 번만 publish.
+            #            (_reset_path_state 가 새 path 시 REACHED 를 풀어 edge 가 재무장됨)
+            if self._nav_state != NavState.REACHED:
+                self._publish_status_value("GOAL_REACHED")
+                self.get_logger().info(
+                    f'goal 도착 — 정지 '
+                    f'(d={ctx["dist_to_goal"]:.2f}m, '
+                    f'pos=({self._state.x:.2f}, {self._state.y:.2f}))'
+                )
             self._nav_state = NavState.REACHED
             self._reached = True
             self._stop_robot("goal_reached")
-            self._goal_reached_logged_once()
             return
 
         # 상태별 실행
@@ -766,12 +804,21 @@ class DwaPlannerNode(Node):
         dw_max = self.p_alpha_max * period
 
         # ── ALIGN 전이 판정 ──────────────────────────────────────
+        # 각도 hysteresis(45° in / 15° out)에 더해, P4 시간 hysteresis:
+        #   |alpha|>thresh 가 align_trigger_ticks(기본 3틱 ≈ 150ms) 연속이어야 진입.
+        #   AMCL drift 로 한 tick 만 α 폭증해도 즉시 ALIGN 진입하지 않게 함.
         if self._in_align_mode:
             if abs(alpha) < self.p_align_angle_exit:
                 self._in_align_mode = False
+                self._align_trigger_count = 0
         else:
             if abs(alpha) > self.p_align_angle_thresh and L > 0.1:
-                self._in_align_mode = True
+                self._align_trigger_count += 1
+                if self._align_trigger_count >= self.p_align_trigger_ticks:
+                    self._in_align_mode = True
+                    self._align_trigger_count = 0
+            else:
+                self._align_trigger_count = 0   # 연속성 끊김 → 리셋
 
         if self._in_align_mode:
             self._nav_state = NavState.ALIGN
@@ -811,7 +858,21 @@ class DwaPlannerNode(Node):
         heading_factor = max(0.3, math.cos(alpha))
         v_target *= heading_factor
 
-        # w 계산 (v/w 커플링 해제)
+        # ── 한계 + P3 v_target LPF (2026-05-31, 리뷰 반영으로 재구성) ─────────
+        # [리뷰 Codex] 안전/정지 하향 제한(v_goal·v_clear·heading)까지 LPF 로 lag 되면
+        #   감속이 늦어지고, 옛 필터값이 남아 v_cmd 가 되레 증가할 수 있음.
+        #   → 하향(감속/정지)은 즉시 반영하고, 상향(가속)만 smooth 한다.
+        #     v_target = min(raw, filtered): 올라갈 땐 filtered(부드럽게), 내려갈 땐 raw(즉시).
+        raw_v_target = max(0.0, min(self.p_v_max, v_target))
+        if self._v_target_filtered is None or raw_v_target < self._v_target_filtered:
+            self._v_target_filtered = raw_v_target          # 하향(감속/정지)은 즉시
+        else:
+            a = self.p_v_target_lpf_alpha
+            self._v_target_filtered = a * raw_v_target + (1.0 - a) * self._v_target_filtered
+        v_target = min(raw_v_target, self._v_target_filtered)
+
+        # w 계산 (v/w 커플링 해제) — [리뷰결과 🟡] LPF '뒤'에서 필터된 v_target 으로 계산해
+        #   실행 곡률 w_cmd/v_cmd ≈ κ 정합 유지 (이전엔 필터 이전 v_target 으로 계산해 어긋남).
         w_pp = kappa * v_target
         if (self.p_w_min_rotate > 0.0
                 and abs(alpha) > self.p_align_angle_exit
@@ -820,8 +881,7 @@ class DwaPlannerNode(Node):
         else:
             w_target = w_pp
 
-        # 한계 + 가속도 제한
-        v_target = max(0.0, min(self.p_v_max, v_target))
+        # 가속도 제한
         w_target = max(-self.p_w_max, min(self.p_w_max, w_target))
         v_cmd = max(self._state.v - dv_max,
                     min(self._state.v + dv_max, v_target))
@@ -1383,10 +1443,9 @@ class DwaPlannerNode(Node):
                 f"yaw={math.degrees(self._state.theta):.1f}°), "
                 f"v={self._state.v:+.2f} w={self._state.w:+.2f}")
 
-    def _goal_reached_logged_once(self) -> None:
-        if not getattr(self, "_goal_logged", False):
-            self.get_logger().info("goal 도착 — 정지")
-            self._goal_logged = True
+    # (2026-05-31 SW) _goal_reached_logged_once() 제거 —
+    #   P2 의 REACHED 전이 inline edge 가드(self._nav_state != NavState.REACHED)가
+    #   "도착 한 번만 로그 + GOAL_REACHED publish" 를 모두 처리하므로 불필요해짐.
 
     # ───────────────────────────────────────────────────────────────
     # 시각화

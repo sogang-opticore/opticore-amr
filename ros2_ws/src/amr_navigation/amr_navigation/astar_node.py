@@ -43,17 +43,33 @@ class AstarPlanner(Node):
         # 비유: GPS 내비가 한 번만 길 안내하지 않고, 잘못 빠지면 "재탐색" 하는 것.
         self.declare_parameter('replan_period', 1.0)   # s, 0=비활성
 
+        # 2026-05-31 추가 (SW · dwa-ys, 도착 인식 안정화 P1):
+        # goal dedup — 같은 goal 재수신 시 재계획 스킵 임계값 [m].
+        # `ros2 topic pub --rate 0.5 /goal_pose ...` 로 같은 goal 을 반복 송신해도
+        # 이 거리 이내면 무시하고 기존 path 유지 → DWA 의 도착(REACHED) 신호가 안정됨.
+        # 비유: 내비에 같은 목적지를 1초마다 다시 찍어도 경로를 재탐색하지 않는 것.
+        # TODO: 0.10 은 미확정 초안(그리드 해상도 ~0.05m 의 2배). 시뮬 측정 후 확정.
+        self.declare_parameter('goal_dedup_dist', 0.10)
+        # 2026-05-31 리뷰 반영(Codex): dedup 에 도착 방향(yaw) 차이도 포함.
+        # 같은 위치에서 yaw 만 바뀐 goal 은 인터페이스상 '새 goal' 이므로 놓치면 안 됨.
+        # TODO(미확정): 0.10 rad(≈5.7°) 초안. 시뮬 측정 후 확정.
+        self.declare_parameter('goal_dedup_yaw', 0.10)   # rad
+
         self.heuristic_type   = self.get_parameter('heuristic').value
         self.allow_diagonal   = self.get_parameter('allow_diagonal').value
         self.inflation_radius = self.get_parameter('inflation_radius').value
         self.smoothing        = self.get_parameter('smoothing').value
         self.goal_snap_radius = self.get_parameter('goal_snap_radius').value
         self.replan_period    = self.get_parameter('replan_period').value
+        self.goal_dedup_dist  = self.get_parameter('goal_dedup_dist').value
+        self.goal_dedup_yaw   = self.get_parameter('goal_dedup_yaw').value
 
         # ── 내부 상태 ──────────────────────────────────────────────
         self.map_data: OccupancyGrid | None = None
         self.inflated_grid: np.ndarray | None = None
         self.goal: PoseStamped | None = None
+        self._last_goal_xy: tuple[float, float] | None = None  # P1 dedup (2026-05-31)
+        self._last_goal_yaw: float | None = None               # P1 dedup yaw (리뷰 반영)
 
         # ── TF ────────────────────────────────────────────────────
         self.tf_buffer   = tf2_ros.Buffer()
@@ -135,13 +151,41 @@ class AstarPlanner(Node):
         """
         /goal_pose 수신 시 호출.
         맵이 없으면 goal 무시, 있으면 즉시 경로 계획 시작.
+        같은 goal(goal_dedup_dist 이내) 재수신 시 재계획 스킵 — dedup (2026-05-31 SW).
         """
         if self.map_data is None:
             self.get_logger().warn('맵 미수신 — goal 무시')
             return
+
+        new_goal = (msg.pose.position.x, msg.pose.position.y)
+        # 도착 방향(yaw) — 평면 quaternion → yaw
+        q = msg.pose.orientation
+        new_yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y),
+                             1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+
+        # ── dedup (2026-05-31 SW · P1, 리뷰 반영: XY + yaw) ──────────────
+        # rationale: `--rate 0.5` 로 같은 goal 을 반복 송신하면 매번 _plan() 이 호출돼
+        #            2초마다 새(짧은) path 가 발행되고, DWA 의 도착 신호가 흔들린다.
+        #            직전 goal 과 위치·방향 모두 임계값 이내면 재계획을 건너뛴다.
+        # [리뷰 Codex] XY 만 비교하면 같은 위치에서 yaw 만 바뀐 goal 을 놓침(계약 위반).
+        #            → yaw 차이도 함께 본다.
+        # 주의: _replan_timer(1Hz) 의 주기적 재계획과는 별개 — 그쪽은 goal 0.30m 이내면
+        #       skip 하지만, 이 콜백은 goal 위치와 무관하게 매번 _plan() 했었음.
+        # [미확정] 현재 A*/DWA 는 최종 yaw 를 적극 추종하지 않음(도착 판정은 거리 기반).
+        #          yaw 는 dedup '새 goal 판별' 용으로만 사용. 최종 yaw 추종은 향후 과제. (README §3.0)
+        if self._last_goal_xy is not None and self._last_goal_yaw is not None:
+            dx = new_goal[0] - self._last_goal_xy[0]
+            dy = new_goal[1] - self._last_goal_xy[1]
+            dyaw = abs(math.atan2(math.sin(new_yaw - self._last_goal_yaw),
+                                  math.cos(new_yaw - self._last_goal_yaw)))
+            if math.hypot(dx, dy) < self.goal_dedup_dist and dyaw < self.goal_dedup_yaw:
+                return  # 같은 goal(위치+방향) — 재계획 스킵, 기존 path 유지
+
+        self._last_goal_xy = new_goal
+        self._last_goal_yaw = new_yaw
         self.goal = msg
         self.get_logger().info(
-            f'Goal 수신: ({msg.pose.position.x:.2f}, {msg.pose.position.y:.2f})'
+            f'Goal 수신: ({new_goal[0]:.2f}, {new_goal[1]:.2f}, yaw={new_yaw:.2f})'
         )
         self._plan()
 

@@ -38,5 +38,19 @@ astar_planner:
     # 비유: GPS 가 한 번만 길 안내 안 하고, 잘못 빠지면 "재탐색" 자동 수행.
     replan_period: 1.0
 
+    # 2026-05-31 추가 (SW · dwa-ys, 도착 인식 안정화 P1):
+    # goal dedup 임계값 [m] — 같은 goal 재수신 시 재계획 스킵.
+    # `ros2 topic pub --rate 0.5 /goal_pose ...` 로 같은 goal 을 반복 송신해도
+    # 이 거리 이내면 무시 → DWA 의 GOAL_REACHED 신호가 흔들리지 않음.
+    # TODO(미확정): 0.10 = A* 그리드 해상도(~0.05m)의 2배 초안. 시뮬 측정 후 확정.
+    #   더 작으면 floating-point noise 로 dedup 미동작, 더 크면 진짜 다른 goal 도 무시.
+    goal_dedup_dist: 0.10
+
+    # 2026-05-31 리뷰 반영(Codex): dedup 에 도착 방향(yaw) 차이도 포함 [rad].
+    # 같은 위치에서 yaw 만 바뀐 goal 을 '새 goal' 로 인식(놓치지 않게).
+    # TODO(미확정): 0.10 rad(≈5.7°) 초안. 시뮬 측정 후 확정.
+    # 참고: 현재 A*/DWA 는 최종 yaw 를 적극 추종하지 않음 → README §3.0 [미확정] 명시.
+    goal_dedup_yaw: 0.10
+
     # 시뮬레이션 시간 사용 (Ignition Gazebo 필수)
     use_sim_time: true

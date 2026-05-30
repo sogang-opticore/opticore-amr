@@ -96,8 +96,12 @@ pose:
   orientation: { x, y, z, w }  # 도착 시 로봇 방향 (도킹 정밀도 명세 §4.2)
 ```
 
+> **[미확정] 최종 yaw**: 현재 A\*/DWA 는 goal 의 최종 yaw 를 **적극 추종하지 않는다**(도착 판정은 거리 기반).
+> A\* 의 goal dedup(2026-05-31)은 yaw 차이를 '새 goal' 판별에만 사용한다(같은 위치 yaw-only 변경을 놓치지 않기 위함).
+> 최종 yaw 추종(정밀 도킹)은 향후 도킹 단계 과제.
+
 **발행 트리거**: RViz2 "2D Goal Pose" 버튼, BT의 NavigateTo 노드, 또는 Mission node가 발행.
-**A\* 동작**: 새 `/goal_pose` 수신 시 즉시 이전 계획을 폐기하고 재계획 시작.
+**A\* 동작**: 새 `/goal_pose` 수신 시 즉시 이전 계획을 폐기하고 재계획 시작(단, dedup 임계 이내 동일 goal 은 스킵).
 
 ### 3.1 `/global_path` (A\* → DWA)
 
@@ -138,14 +142,19 @@ angular:
 
 ### 3.3 `/dwa/status` (DWA → 모니터링)
 
-`std_msgs/String`의 `data` 값으로 다음 4개 상태 중 하나를 1Hz로 발행:
+`std_msgs/String`의 `data` 값으로 상태를 1Hz로 발행(도착 순간엔 `GOAL_REACHED` edge 1회 추가 발행):
 
 | 값 | 조건 |
 |---|---|
 | `WAITING_ODOM` | 초기 부팅 직후 — `/odometry/filtered` 미수신 |
-| `STOPPED` | odom 수신 완료, 그러나 `/global_path` 없음 또는 빈 path |
+| `STOPPED` | odom 수신 완료, 그러나 `/global_path` 없음 또는 빈 path (계획 실패) |
 | `PLANNING` | path 수신 완료, 정상 평가 루프 실행 중 |
+| `GOAL_REACHED` | **도착 순간 1회(edge)** — goal_tolerance 진입 시 (2026-05-31 P2 추가) |
+| `REACHED` | 도착 후 정지 유지 상태 (1Hz 정상 발행) |
 | `EMERGENCY` | 모든 trajectory 후보가 충돌 또는 안전거리(0.30m) 침범 → 즉시 정지 |
+
+> 그 외 내부 NavState(`ALIGN`/`RECOVERY`/`STOPPED_NEAR_WALL`/`PATH_LOST` 등)도 해당 상태일 때 그 값이 그대로 발행될 수 있다.
+> 도착 판정 소비자(예: `frontier_explorer`)는 **성공 = `GOAL_REACHED`/`REACHED`**, **실패·대기 = `STOPPED`** 로 구분한다.
 
 ### 3.4 stamp 정책 ⭐
 
