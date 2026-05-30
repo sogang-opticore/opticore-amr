@@ -69,7 +69,7 @@
 | `/cmd_vel` | `geometry_msgs/Twist` | **DWA 단독** ★ | 20 Hz (control_rate) | Reliable, depth 10 | Ignition DiffDrive 입력 |
 | `/dwa/trajectories` | `visualization_msgs/MarkerArray` | DWA | 5 Hz | Reliable | 후보 trajectory 시각화 (Foxglove) |
 | `/dwa/best_trajectory` | `visualization_msgs/Marker` | DWA | 5 Hz | Reliable | 선택된 trajectory 강조 |
-| `/dwa/status` | `std_msgs/String` | DWA | 1 Hz | Reliable | "WAITING_ODOM" / "STOPPED" / "PLANNING" / "EMERGENCY" |
+| `/dwa/status` | `std_msgs/String` | DWA | 1 Hz | Reliable | 상태 문자열 — 상세는 §3.3 (`NORMAL`/`ALIGN`/`RECOVERY`/`EMERGENCY`/`STOPPED_NEAR_WALL`/`REACHED`/`GOAL_REACHED` 등) |
 
 > ★ **`/cmd_vel`은 DWA만 발행한다.** A\*은 경로만 만들고 운동 명령은 만들지 않는다. 이중 발행자가 생기면 Twist가 충돌하므로 절대 금지.
 
@@ -148,12 +148,12 @@ angular:
 |---|---|
 | `WAITING_ODOM` | 초기 부팅 직후 — `/odometry/filtered` 미수신 |
 | `STOPPED` | odom 수신 완료, 그러나 `/global_path` 없음 또는 빈 path (계획 실패) |
-| `PLANNING` | path 수신 완료, 정상 평가 루프 실행 중 |
+| `NORMAL` | path 수신 완료, Pure Pursuit 정상 추종 루프 실행 중 (코드가 발행하는 실제 값; 구 문서 `PLANNING`) |
 | `GOAL_REACHED` | **도착 순간 1회(edge)** — goal_tolerance 진입 시 (2026-05-31 P2 추가) |
 | `REACHED` | 도착 후 정지 유지 상태 (1Hz 정상 발행) |
 | `EMERGENCY` | 모든 trajectory 후보가 충돌 또는 안전거리(0.30m) 침범 → 즉시 정지 |
 
-> 그 외 내부 NavState(`ALIGN`/`RECOVERY`/`STOPPED_NEAR_WALL`/`PATH_LOST` 등)도 해당 상태일 때 그 값이 그대로 발행될 수 있다.
+> 그 외 내부 NavState(`ALIGN`/`RECOVERY`/`STOPPED_NEAR_WALL`/`PATH_LOST`/`EMERGENCY` 등)도 해당 상태일 때 그 값이 그대로 발행된다. (`RECOVERY` = SPIN/FORWARD_ONLY 복구 중. 2026-05-31 후진 제거 → 회전 전용)
 > 도착 판정 소비자(예: `frontier_explorer`)는 **성공 = `GOAL_REACHED`/`REACHED`**, **실패·대기 = `STOPPED`** 로 구분한다.
 
 ### 3.4 stamp 정책 ⭐

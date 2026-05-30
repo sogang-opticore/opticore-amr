@@ -354,3 +354,55 @@ class TestWMinRotate:
             w_target = w_pp
 
         assert w_target == 0.0   # w_min_rotate=0 → floor 없음
+
+
+class TestTriggerRecoverySpinEntry:
+    """[Codex T4 P1] SPIN 진입 임계 회귀 방지.
+
+    `_rotation_clearance_inline` 은 이미 (장애물 중심거리 - robot_radius) 한 '여유 거리'다.
+    따라서 SPIN 진입 조건을 robot_radius 와 비교하면 중심이 ~2·robot_radius 밖이어야 해서
+    과도하게 보수적이었다. 후진(BACKUP) 제거 후엔 이 false negative 가 곧 '회전도 안 하고
+    EMERGENCY 정지'가 된다. 수정: 여유 > hard_collision 마진이면(=몸체가 안 닿으면) SPIN.
+    """
+
+    def _make_node(self):
+        import types
+        from amr_navigation.dwa_node import DwaPlannerNode, NavState
+
+        node = types.SimpleNamespace()
+        node.p_robot_radius = 0.20
+        node.p_hard_collision_distance = 0.05
+        node.p_spin_duration = 2.0
+        node.p_recovery_cooldown = 3.0
+        node._spin_direction = 1.0
+        node._spin_until = 0.0
+        node._nav_state = NavState.NORMAL
+        node._stuck_counter = 5
+        node._recovery_cooldown_until = 0.0
+        node._sec_now = lambda: 0.0
+
+        class _NullLogger:
+            def warn(self, *a, **k):
+                pass
+
+            def info(self, *a, **k):
+                pass
+
+        node.get_logger = lambda: _NullLogger()
+        for name in ("_trigger_recovery", "_rotation_clearance_inline",
+                     "_escape_turn_bias"):
+            setattr(node, name, getattr(DwaPlannerNode, name).__get__(node))
+        return node, NavState
+
+    def test_spin_entered_when_body_clears_small_margin(self):
+        """중심 0.30m → 여유 0.10m(>0.05). 구버전(>robot_radius=0.20)이면 EMERGENCY 였지만
+        몸체가 안 닿으므로 SPIN 으로 들어가야 한다."""
+        node, NavState = self._make_node()
+        node._trigger_recovery([(0.30, 0.0)], motion_clear=0.0)
+        assert node._nav_state == NavState.SPIN
+
+    def test_emergency_when_no_rotation_room(self):
+        """중심 0.22m → 여유 0.02m(<0.05). 회전 공간 없음 → EMERGENCY."""
+        node, NavState = self._make_node()
+        node._trigger_recovery([(0.22, 0.0)], motion_clear=0.0)
+        assert node._nav_state == NavState.EMERGENCY

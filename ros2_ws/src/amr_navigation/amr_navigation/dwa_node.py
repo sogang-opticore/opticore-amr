@@ -24,18 +24,21 @@ NavState 전이 규칙:
     NORMAL  → EMERGENCY   : collision_imminent
     NORMAL  → SPIN        : is_velocity_blocked (stuck 1.5s)
     ALIGN   → NORMAL      : |α| < align_exit
-    SPIN    → NORMAL      : spin 완료 + fwd_clear 확보
-    SPIN    → BACKUP      : spin 완료 + fwd_clear 여전히 막힘
-    BACKUP  → NORMAL      : backup 완료
-    BACKUP  → EMERGENCY   : backup 중 후방 위험
+    SPIN    → FORWARD_ONLY: spin 완료 + 전방 확보 → 짧게 전진 후 재계획
+    SPIN    → EMERGENCY   : 회전해도 전방 미확보 (정지 + A* 재계획 대기)
+    FORWARD_ONLY → NORMAL : 짧은 전진 완료 → A* 재계획 대기
     EMERGENCY → NORMAL    : 외부 트리거 (A* 새 path)
     * → REACHED           : dist_to_goal < tolerance
+
+2026-05-31 (SW · dwa-ys): Recovery 를 제자리 회전(SPIN)만으로 단순화.
+    후진(BACKUP) 분기·파라미터 제거 — stuck/EMERGENCY 복구는 회전 → (전방 열리면)
+    짧은 전진 → A* 재계획, 회전해도 안 열리면 EMERGENCY 정지.
+    (사용자 지시: 후진 거동이 번거로워 회전만으로 복귀. CLAUDE.md §7.2.0.)
 
 각 상태 실행 함수:
     _execute_normal()   Pure Pursuit + adaptive velocity
     _execute_align()    In-place PD 회전
     _execute_spin()     Recovery spin (제자리 회전)
-    _execute_backup()   Recovery backup (후진)
     _execute_emergency() 완전 정지 + A* 재계획 대기
 
 외부 인터페이스 (토픽, 파라미터) 는 기존과 완전 동일.
@@ -99,8 +102,7 @@ class NavState(Enum):
     ALIGN        = "ALIGN"         # in-place 회전 (heading 오차 큼)
     SPIN         = "SPIN"          # spin recovery (stuck → 제자리 회전 탈출)
     FORWARD_ONLY = "FORWARD_ONLY"  # spin 완료 후 현재 heading으로 짧게 전진
-    BACKUP       = "BACKUP"        # backup recovery (후진)
-    EMERGENCY    = "EMERGENCY"     # 충돌 임박 / 전후방 막힘
+    EMERGENCY    = "EMERGENCY"     # 충돌 임박 / 회전해도 전방 막힘
     REACHED   = "REACHED"     # goal 도달
 
 
@@ -378,17 +380,13 @@ class DwaPlannerNode(Node):
         self.declare_parameter("align_cooldown", 1.0)
         # 2026-05-31 추가 (SW · dwa-ys):
         #   P4 ALIGN 진입 시간 hysteresis — |alpha|>thresh 가 N틱 연속일 때만 진입.
-        #   P3 v_target 저주파 필터 계수 (0~1, 작을수록 부드럽게 lag).
+        #   (P3 v_target LPF 는 2026-05-31 제거 — 상향 재가속 lag 로 주행이 둔하다는
+        #    사용자 피드백. CLAUDE.md §7.2.0 #4 "후퇴 시 revert".)
         self.declare_parameter("align_trigger_ticks", 3)      # TODO: 시뮬 측정 후 확정(미확정 초안)
-        self.declare_parameter("v_target_lpf_alpha", 0.30)    # TODO: 시뮬 측정 후 확정(미확정 초안)
         self.declare_parameter("w_min_rotate", 0.3)
         self.declare_parameter("allow_backward", False)
         self.declare_parameter("max_path_offset", 2.0)
         self.declare_parameter("stuck_recovery_sec", 1.5)
-        self.declare_parameter("backup_velocity", -0.25)
-        self.declare_parameter("backup_duration", 1.5)
-        self.declare_parameter("backup_turn_gain", 0.8)
-        self.declare_parameter("backup_turn_max", 0.45)
         self.declare_parameter("recovery_cooldown", 3.0)
         self.declare_parameter("spin_duration", 2.0)       # spin recovery 지속 시간
         self.declare_parameter("robot_radius", 0.20)
@@ -428,7 +426,6 @@ class DwaPlannerNode(Node):
         self._in_align_mode = False      # 하위 호환 (path 콜백에서 리셋)
         self._align_cooldown_until = 0.0
         self._align_trigger_count = 0    # P4: ALIGN 진입 연속 tick 카운터 (2026-05-31)
-        self._v_target_filtered = None   # P3: v_target LPF 상태 Optional[float] (2026-05-31)
 
         # SPIN 전용
         self._spin_until = 0.0
@@ -440,10 +437,7 @@ class DwaPlannerNode(Node):
         self._forward_only_start_x = 0.0 # 전진 시작 위치 x
         self._forward_only_start_y = 0.0 # 전진 시작 위치 y
 
-        # BACKUP 전용
-        self._backup_until = 0.0
-
-        # RECOVERY 공통 (SPIN/BACKUP 완료 후 cooldown)
+        # RECOVERY 공통 (SPIN/FORWARD_ONLY 완료 후 cooldown)
         self._recovery_cooldown_until = 0.0
         self._stuck_counter = 0
 
@@ -525,15 +519,10 @@ class DwaPlannerNode(Node):
         self.p_align_v_blend_max        = gp("align_v_blend_max").value
         self.p_align_cooldown           = gp("align_cooldown").value
         self.p_align_trigger_ticks      = gp("align_trigger_ticks").value      # P4
-        self.p_v_target_lpf_alpha       = gp("v_target_lpf_alpha").value       # P3
         self.p_w_min_rotate             = gp("w_min_rotate").value
         self.p_allow_backward           = gp("allow_backward").value
         self.p_max_path_offset          = gp("max_path_offset").value
         self.p_stuck_recovery_sec       = gp("stuck_recovery_sec").value
-        self.p_backup_velocity          = gp("backup_velocity").value
-        self.p_backup_duration          = gp("backup_duration").value
-        self.p_backup_turn_gain         = gp("backup_turn_gain").value
-        self.p_backup_turn_max          = gp("backup_turn_max").value
         self.p_recovery_cooldown        = gp("recovery_cooldown").value
         self.p_spin_duration            = gp("spin_duration").value
         self.p_robot_radius             = gp("robot_radius").value
@@ -638,11 +627,8 @@ class DwaPlannerNode(Node):
         # [리뷰 Codex] P4 카운터를 새 path 경계에서 리셋 — 안 하면 직전 path 에서 쌓인
         #   _align_trigger_count(예: 2)가 새 path 로 새어 한 tick 만에 ALIGN 진입 가능.
         #   "N틱 연속" 의미가 path 경계를 넘어가지 않도록.
-        #   (참고: _v_target_filtered 는 여기서 리셋 안 함 — _reset_path_state 는 1Hz replan
-        #    마다 호출되므로 매번 리셋하면 P3 smoothing 이 무력화됨. Fix A 의 하향-즉시로
-        #    안전성은 이미 확보, cross-goal carry 는 무해.)
         self._align_trigger_count = 0
-        # EMERGENCY/SPIN/BACKUP 중이어도 새 path 오면 NORMAL 복귀
+        # EMERGENCY 중 새 path 오면 NORMAL 복귀 (SPIN/FORWARD_ONLY 는 recovery 완료까지 유지)
         if self._nav_state in (NavState.EMERGENCY,):
             self._nav_state = NavState.NORMAL
             self._stuck_counter = 0
@@ -673,17 +659,13 @@ class DwaPlannerNode(Node):
             return
 
         # ── NavState 디스패치 ─────────────────────────────────────
-        # SPIN/FORWARD_ONLY/BACKUP 은 path 없이도 실행 (recovery 우선)
+        # SPIN/FORWARD_ONLY 은 path 없이도 실행 (recovery 우선)
         if self._nav_state == NavState.SPIN:
             self._execute_spin()
             return
 
         if self._nav_state == NavState.FORWARD_ONLY:
             self._execute_forward_only()
-            return
-
-        if self._nav_state == NavState.BACKUP:
-            self._execute_backup()
             return
 
         # path 필요한 상태
@@ -858,21 +840,15 @@ class DwaPlannerNode(Node):
         heading_factor = max(0.3, math.cos(alpha))
         v_target *= heading_factor
 
-        # ── 한계 + P3 v_target LPF (2026-05-31, 리뷰 반영으로 재구성) ─────────
-        # [리뷰 Codex] 안전/정지 하향 제한(v_goal·v_clear·heading)까지 LPF 로 lag 되면
-        #   감속이 늦어지고, 옛 필터값이 남아 v_cmd 가 되레 증가할 수 있음.
-        #   → 하향(감속/정지)은 즉시 반영하고, 상향(가속)만 smooth 한다.
-        #     v_target = min(raw, filtered): 올라갈 땐 filtered(부드럽게), 내려갈 땐 raw(즉시).
-        raw_v_target = max(0.0, min(self.p_v_max, v_target))
-        if self._v_target_filtered is None or raw_v_target < self._v_target_filtered:
-            self._v_target_filtered = raw_v_target          # 하향(감속/정지)은 즉시
-        else:
-            a = self.p_v_target_lpf_alpha
-            self._v_target_filtered = a * raw_v_target + (1.0 - a) * self._v_target_filtered
-        v_target = min(raw_v_target, self._v_target_filtered)
+        # ── 최종 한계 (2026-05-31: P3 v_target LPF 제거 — 반응성 회복) ─────────
+        # P3 LPF 는 상향(재가속)을 smooth 하느라 직선·감속 후 재가속이 굼떠
+        # 주행이 "빠릿"하지 않다는 사용자 피드백 → revert. v_target 즉시 반영.
+        # (실제 명령 v_cmd 는 아래에서 가속도 제한 dv_max 로 여전히 부드럽게 변함.)
+        # (CLAUDE.md §7.2.0 #4: 이전보다 후퇴한 수정은 revert.)
+        v_target = max(0.0, min(self.p_v_max, v_target))
 
-        # w 계산 (v/w 커플링 해제) — [리뷰결과 🟡] LPF '뒤'에서 필터된 v_target 으로 계산해
-        #   실행 곡률 w_cmd/v_cmd ≈ κ 정합 유지 (이전엔 필터 이전 v_target 으로 계산해 어긋남).
+        # w 계산 (v/w 커플링 해제) — 곡률 감속이 반영된 v_target 으로 ω 를 계산해
+        #   실행 곡률 w_cmd/v_cmd ≈ κ 정합 유지.
         w_pp = kappa * v_target
         if (self.p_w_min_rotate > 0.0
                 and abs(alpha) > self.p_align_angle_exit
@@ -1011,23 +987,24 @@ class DwaPlannerNode(Node):
         """NavState.SPIN — Recovery spin (제자리 회전으로 탈출 방향 확보).
 
         종료 조건 분리:
-          spin_unsafe  : 회전 arc 자체가 위험 (몸체 충돌) → 즉시 종료
-          spin_done    : 직진 arc 가 열렸음 (전진 가능) → 종료
-          그 외         : 계속 회전
+          spin_unsafe  : 몸체 반경 기준 회전 공간 없음(충돌 임박) → 즉시 정지(EMERGENCY)
+          spin_done    : 직진 arc 가 열렸음 (전진 가능) → FORWARD_ONLY
+          그 외         : 계속 회전 (spin_duration 초과 시 EMERGENCY)
 
-        "전방이 열렸다"의 기준 = trajectory_clearance(v>0, w=0).
-        오른쪽 벽이 가까워도 직진 arc 위에 없으면 열린 것으로 판단.
-        측면 벽 때문에 spin이 무한 지속되지 않음.
+        "회전이 안전한가" 기준 = _rotation_clearance_inline (제자리 회전, 실제 명령 v=0 과 일치).
+        "전방이 열렸다" 기준 = trajectory_clearance(v>0, w=0).
+        측면 벽 때문에 spin이 무한 지속되지 않음(spin_duration 으로도 상한).
         """
         now = self._sec_now()
         obstacles = self._extract_obstacles_from_scan()
 
-        # 회전 자체가 안전한가 — 몸체 반경 기준
-        spin_probe_v = max(0.05, self.p_v_max * 0.3)
-        spin_probe_w = self._spin_direction * self.p_w_max
-        arc_clear = self._trajectory_clearance_margin(
-            obstacles, spin_probe_v, spin_probe_w)
-        spin_unsafe = arc_clear < self.p_robot_radius
+        # 회전 자체가 안전한가 — 제자리 회전(실제 명령 v=0)이므로 전진 arc 가 아니라
+        # 몸체 반경 기준 clearance 로 판단한다.
+        # [Codex T4 P1] 이전엔 전진 0.45m/s arc(_trajectory_clearance_margin)로 검사해,
+        #   전방에 가까운 장애물이 있으면 제자리 회전은 안전한데도 EMERGENCY 로 오판했음.
+        #   _rotation_clearance_inline 은 명령(v=0)과 일치하는 몸체-반경 기준 여유거리.
+        rotate_clear = self._rotation_clearance_inline(obstacles)
+        spin_unsafe = rotate_clear < self.p_hard_collision_distance
 
         # 전진 가능해졌는가 — 직진 arc 기준 (측면 벽 무시)
         fwd_probe_v = max(0.05, self.p_v_max * 0.3)
@@ -1061,35 +1038,26 @@ class DwaPlannerNode(Node):
                 f"spin 완료 → FORWARD_ONLY 0.8m 전진 후 A* 재계획 "
                 f"(forward_clear={forward_clear:.2f}m)")
         elif spin_unsafe:
-            # 회전 자체가 위험 → BACKUP 또는 EMERGENCY
-            bwd_clear = self._backward_clearance_inline(obstacles)
-            if bwd_clear > self.p_safety_distance:
-                self._nav_state = NavState.BACKUP
-                self._backup_until = now + self.p_backup_duration
-                self._stuck_counter = 0
-                self.get_logger().warn(
-                    f"spin 중 회전 위험 → BACKUP "
-                    f"(arc={arc_clear:.2f}m, bwd={bwd_clear:.2f}m)")
-            else:
-                self._nav_state = NavState.EMERGENCY
-                self._stuck_counter = 0
-                self.get_logger().warn(
-                    f"spin 중 전후방 막힘 → EMERGENCY")
+            # 회전 공간 없음(몸체 충돌 임박) → 후진 대신 즉시 정지(EMERGENCY).
+            # [Codex T4 P2] 위험 판정 tick 에 같은 tick 으로 정지 명령을 발행한다
+            #   (안 하면 다음 tick _execute_emergency 까지 이전 회전 명령이 1 tick 유지됨).
+            self._publish_cmd(VelocityCommand(v=0.0, w=0.0))
+            self._publish_status_value("EMERGENCY")
+            self._nav_state = NavState.EMERGENCY
+            self._stuck_counter = 0
+            self._recovery_cooldown_until = now + self.p_recovery_cooldown
+            self.get_logger().warn(
+                f"spin 중 회전 공간 없음 → EMERGENCY (clear={rotate_clear:.2f}m). A* 재계획 대기.")
         else:
-            # spin_duration 초과인데 전방 미확보 → BACKUP 시도
-            bwd_clear = self._backward_clearance_inline(obstacles)
-            if bwd_clear > self.p_safety_distance:
-                self._nav_state = NavState.BACKUP
-                self._backup_until = now + self.p_backup_duration
-                self._stuck_counter = 0
-                self.get_logger().warn(
-                    f"spin timeout → BACKUP "
-                    f"(forward={forward_clear:.2f}m, bwd={bwd_clear:.2f}m)")
-            else:
-                self._nav_state = NavState.EMERGENCY
-                self._stuck_counter = 0
-                self.get_logger().warn(
-                    f"spin timeout + 후방 막힘 → EMERGENCY")
+            # spin_duration 초과인데 전방 미확보 → 같은 tick 즉시 정지(EMERGENCY) + 재계획 대기.
+            # (2026-05-31: 후진 대신 회전만 시도했고 전방이 안 열렸으므로 정지.)
+            self._publish_cmd(VelocityCommand(v=0.0, w=0.0))
+            self._publish_status_value("EMERGENCY")
+            self._nav_state = NavState.EMERGENCY
+            self._stuck_counter = 0
+            self._recovery_cooldown_until = now + self.p_recovery_cooldown
+            self.get_logger().warn(
+                f"spin timeout → EMERGENCY (forward={forward_clear:.2f}m). A* 재계획 대기.")
 
     def _execute_forward_only(self) -> None:
         """NavState.FORWARD_ONLY — spin 완료 후 현재 heading으로 짧게 전진.
@@ -1142,45 +1110,6 @@ class DwaPlannerNode(Node):
         self.get_logger().info(
             f"FORWARD_ONLY 완료 → A* 재계획 대기 ({reason})")
 
-    def _execute_backup(self) -> None:
-        """NavState.BACKUP — Recovery backup (후진)."""
-        now = self._sec_now()
-        obstacles = self._extract_obstacles_from_scan()
-
-        if now < self._backup_until:
-            bwd_clear = self._backward_clearance_inline(obstacles)
-            if bwd_clear < self.p_safety_distance / 2.0:
-                # 후방 위험 → EMERGENCY
-                self._backup_until = 0.0
-                self._nav_state = NavState.EMERGENCY
-                self._publish_cmd(VelocityCommand(v=0.0, w=0.0))
-                self._publish_status_value("EMERGENCY")
-                self.get_logger().warn(
-                    f"backup 중 후방 위험 → EMERGENCY (bwd={bwd_clear:.2f}m)")
-                return
-
-            period = 1.0 / max(self.p_control_rate, 1.0)
-            dv_max = self.p_a_max * period
-            dw_max = self.p_alpha_max * period
-            v_cmd_bk = max(self._state.v - dv_max,
-                           min(self._state.v + dv_max, self.p_backup_velocity))
-            w_target_bk = self._escape_turn_rate(obstacles)
-            w_cmd_bk = max(self._state.w - dw_max,
-                           min(self._state.w + dw_max, w_target_bk))
-            self._publish_cmd(VelocityCommand(v=v_cmd_bk, w=w_cmd_bk))
-            self._publish_status_value("RECOVERY")
-            self._log_state_throttled()
-            return
-
-        # backup 완료 → NORMAL 복귀
-        self._backup_until = 0.0
-        self._nav_state = NavState.NORMAL
-        self._stuck_counter = 0
-        self._recovery_cooldown_until = now + self.p_recovery_cooldown
-        self.get_logger().info(
-            f"backup recovery 완료 → NORMAL "
-            f"(cooldown {self.p_recovery_cooldown}s)")
-
     def _execute_emergency(self, ctx: dict) -> None:
         """NavState.EMERGENCY — 완전 정지 + A* 재계획 대기."""
         self._publish_cmd(VelocityCommand(v=0.0, w=0.0))
@@ -1194,15 +1123,24 @@ class DwaPlannerNode(Node):
     # Recovery 트리거 — stuck 임계치 초과 시 호출
     # ───────────────────────────────────────────────────────────────
     def _trigger_recovery(self, obstacles_local, motion_clear: float) -> None:
-        """Recovery 우선순위: SPIN → BACKUP → EMERGENCY."""
+        """Recovery 우선순위: SPIN → EMERGENCY (2026-05-31: 후진 BACKUP 제거).
+
+        stuck 시 제자리 회전(SPIN)으로만 탈출을 시도한다. 회전 공간조차 없으면
+        후진하지 않고 즉시 EMERGENCY 정지 → A* 재계획을 기다린다.
+        (사용자 지시: 후진 거동이 번거로워 회전만으로 복귀. CLAUDE.md §7.2.0.)
+        """
         now = self._sec_now()
 
         # Step 1: spin recovery 시도
-        # 제자리 회전은 이동 없음 → 몸체(robot_radius)에 안 닿으면 회전 가능
+        # 제자리 회전은 이동 없음 → 몸체(robot_radius)에 안 닿으면 회전 가능.
+        # [Codex T4 P1] _rotation_clearance_inline 은 이미 (중심거리 - robot_radius) 한
+        #   '여유 거리'다. robot_radius 와 비교하면 중심이 ~2·robot_radius 밖이어야 해서
+        #   과도하게 보수적 → 후진이 없는 지금, 회전 가능한데도 EMERGENCY 로 가버린다.
+        #   여유가 hard_collision 마진보다 크면(=몸체가 안 닿으면) SPIN 시도.
         rotate_clear = self._rotation_clearance_inline(obstacles_local)
-        if rotate_clear > self.p_robot_radius:
+        if rotate_clear > self.p_hard_collision_distance:
             self._spin_direction = (
-                1.0 if self._escape_turn_rate(obstacles_local) >= 0.0 else -1.0
+                1.0 if self._escape_turn_bias(obstacles_local) >= 0.0 else -1.0
             )
             self._spin_until = now + self.p_spin_duration
             self._nav_state = NavState.SPIN
@@ -1214,23 +1152,13 @@ class DwaPlannerNode(Node):
                 f"dir={'LEFT' if self._spin_direction > 0 else 'RIGHT'})")
             return
 
-        # Step 2: backup 시도
-        bwd_clear = self._backward_clearance_inline(obstacles_local)
-        if bwd_clear > self.p_safety_distance:
-            self._backup_until = now + self.p_backup_duration
-            self._nav_state = NavState.BACKUP
-            self._stuck_counter = 0
-            self.get_logger().warn(
-                f"stuck → BACKUP recovery {self.p_backup_duration}s "
-                f"(bwd_clear={bwd_clear:.2f}m, motion_clear={motion_clear:.2f}m)")
-            return
-
-        # Step 3: 전후방 모두 막힘
+        # Step 2: 회전 공간조차 없음 → 후진 대신 즉시 EMERGENCY 정지
         self._nav_state = NavState.EMERGENCY
         self._stuck_counter = 0
+        self._recovery_cooldown_until = now + self.p_recovery_cooldown
         self.get_logger().warn(
-            f"stuck + 전후방 막힘 → EMERGENCY "
-            f"(rotate_clear={rotate_clear:.2f}m, bwd_clear={bwd_clear:.2f}m). "
+            f"stuck + 회전 공간 없음 → EMERGENCY "
+            f"(rotate_clear={rotate_clear:.2f}m, motion_clear={motion_clear:.2f}m). "
             f"A* 재계획 대기.",
             throttle_duration_sec=2.0)
 
@@ -1279,26 +1207,6 @@ class DwaPlannerNode(Node):
             return float("inf")
         return max(0.0, center_dist - self.p_robot_radius)
 
-    def _backward_clearance_inline(
-        self,
-        obstacles_local: List[Tuple[float, float]],
-        half_angle: float = math.pi / 3.0,
-    ) -> float:
-        """후방 ±half_angle 부채꼴 최단 장애물 거리."""
-        if not obstacles_local:
-            return float("inf")
-        best = float("inf")
-        for ox, oy in obstacles_local:
-            if ox > 0.0:
-                continue
-            ang = math.atan2(oy, -ox)
-            if abs(ang) > half_angle:
-                continue
-            d_eff = max(0.0, math.hypot(ox, oy) - self.p_robot_radius)
-            if d_eff < best:
-                best = d_eff
-        return best
-
     def _rotation_clearance_inline(
         self,
         obstacles_local: List[Tuple[float, float]],
@@ -1307,7 +1215,7 @@ class DwaPlannerNode(Node):
 
         기존 전방향 safety_distance 체크의 문제:
           옆 벽(0.4m 거리)도 위험으로 판정 → rotate_clear < safety_distance
-          → SPIN 불가 → 즉시 BACKUP → 뒤 벽 데드락.
+          → SPIN 불가 → 데드락(과거엔 즉시 BACKUP 했으나 2026-05-31 후진 제거).
 
         수정: 제자리 회전은 이동이 없으므로 몸체(robot_radius)에
           실제로 닿는 점만 위험. 옆 벽은 닿지 않으면 회전 가능.
@@ -1324,8 +1232,14 @@ class DwaPlannerNode(Node):
                 best = d
         return max(0.0, best - self.p_robot_radius)
 
-    def _escape_turn_rate(self, obstacles_local: List[Tuple[float, float]]) -> float:
-        """Recovery 중 벽 반대쪽 yaw rate."""
+    def _escape_turn_bias(self, obstacles_local: List[Tuple[float, float]]) -> float:
+        """SPIN 회전 방향 결정용 부호. 양수 → 왼쪽(+), 음수 → 오른쪽(-) 회전.
+
+        전방 근처(1.2m 이내) 장애물의 좌/우 분포를 모아 가까운 벽의 *반대쪽*으로
+        도는 방향을 고른다. 크기는 무의미하고 부호만 쓰인다(_trigger_recovery 가
+        `>= 0` 으로 LEFT/RIGHT 선택). 2026-05-31: 후진 BACKUP 제거로 backup_turn_*
+        파라미터 의존을 끊고 순수 방향 함수로 단순화(이전: _escape_turn_rate).
+        """
         if not obstacles_local:
             return 0.0
         side_bias = 0.0
@@ -1336,10 +1250,8 @@ class DwaPlannerNode(Node):
             if d < 1e-3 or d > 1.2:
                 continue
             side_bias += (1.0 if oy >= 0.0 else -1.0) / d
-        if abs(side_bias) < 1e-3:
-            return 0.0
-        target = -self.p_backup_turn_gain * side_bias
-        return max(-self.p_backup_turn_max, min(self.p_backup_turn_max, target))
+        # 가까운 벽 반대쪽으로 회전: 벽이 왼쪽(side_bias>0)이면 오른쪽(-)으로 → 부호 반전.
+        return -side_bias
 
     # ───────────────────────────────────────────────────────────────
     # path 변환 (기존과 동일)

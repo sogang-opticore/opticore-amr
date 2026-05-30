@@ -5,6 +5,7 @@ ros2_ws/log/
 build/
 install/
 log/
+.venv-codex/
 
 # TF 스냅샷
 *.gv

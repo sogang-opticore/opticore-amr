@@ -117,16 +117,13 @@ dwa_planner:
     # 0.0 으로 설정하면 기존 동작 (w=κ·v 그대로).
     w_min_rotate: 0.3       # rad/s
 
-    # ----- 도착 인식 안정화 P3/P4 (2026-05-31, feature/dwa-ys) -----
-    # 증상: A* 가 매 0.5~1초 새 path → v_target 이 0.5→1.3→0.9 들쭉날쭉,
-    #       AMCL drift 로 한 tick α 폭증 시 ALIGN 즉시 진입해 v→0.08 반복.
+    # ----- 도착 인식 안정화 P4 (2026-05-31, feature/dwa-ys) -----
+    # 증상: AMCL drift 로 한 tick α 폭증 시 ALIGN 즉시 진입해 v→0.08 반복.
     #
-    # P3 v_target LPF: v_target(5항 min 결과)만 1차 저주파 필터로 부드럽게 lag.
-    #   filtered = a·raw + (1-a)·filtered. a 작을수록 부드럽되 반응 느림.
-    #   실제 명령(v_cmd)은 그대로 가속도 제한 → 응답성 유지. 비유: 액셀 답력을
-    #   살짝 뭉개 가감속을 매끄럽게(target 만, 브레이크 응답은 그대로).
-    #   TODO(미확정): 0.20/0.30/0.50 시뮬 비교 후 확정. 초안 0.30.
-    v_target_lpf_alpha: 0.30   # 0~1
+    # (P3 v_target LPF 는 2026-05-31 제거 — v_target 상향(재가속)을 smooth 하느라
+    #  직선·감속 후 재가속이 굼떠 주행이 "빠릿"하지 않다는 사용자 피드백.
+    #  CLAUDE.md §7.2.0 #4 "이전보다 후퇴하면 revert" 원칙으로 되돌림.
+    #  v_cmd 는 가속도 제한(dv_max=a_max/rate)으로 여전히 부드럽게 변함.)
     #
     # P4 ALIGN 진입 시간 hysteresis: |α|>thresh 가 N틱 연속일 때만 ALIGN 진입.
     #   기존 각도 hysteresis(45° in/15° out)에 시간 조건을 더해, 일시적 α 노이즈
@@ -148,28 +145,26 @@ dwa_planner:
     allow_backward: false
     max_path_offset: 2.0   # m, path 와 이 이상 떨어지면 정지 + PATH_LOST status
 
-    # ----- Stuck Recovery (16차, 표준 Nav2 BackUp 패턴) -----
+    # ----- Stuck Recovery (제자리 회전 SPIN 전용, 2026-05-31 후진 제거) -----
     # Pure Pursuit 의 w=κ·v 공식은 v=0 이면 w=0 → 벽 inflation 안에서 trap.
-    # (0,5) 시나리오에서 robot 이 (-1.01, 1.35) 에 25초+ 멈춤 → 16차 추가.
+    # (0,5) 시나리오에서 robot 이 (-1.01, 1.35) 에 25초+ 멈춤 → 16차 SPIN 추가.
     #
     # 작동: v ≈ 0 + fwd_clear < safety 가 stuck_recovery_sec 이상 지속되면
-    #       후방 clearance 확인 → 후방 free 면 backup_duration 동안 후진 →
-    #       A* 의 1Hz 재계획이 새 path 발행 → 자동 재시도.
-    #       후방도 막힘이면 정지 유지 (사람 개입 대기).
+    #       제자리 회전(SPIN, spin_duration)으로 전방을 연다 → 열리면 짧게 전진
+    #       (FORWARD_ONLY) 후 A* 재계획 → 자동 재시도.
+    #       회전 공간조차 없거나 회전해도 안 열리면 EMERGENCY 정지(A* 재계획 대기).
     #
-    # 비유: 차가 막다른 골목에 코박았으면 운전자가 후진 후 다른 길 찾기.
-    #       allow_backward 와 별개 — recovery 는 항상 가능 (안전 우선).
+    # 2026-05-31: 후진(BACKUP) recovery 제거 — 후진 거동이 번거롭다는 사용자
+    #       피드백으로 "회전만으로 복귀"로 단순화. backup_velocity/backup_duration/
+    #       backup_turn_gain/backup_turn_max 파라미터 삭제. (CLAUDE.md §7.2.0)
+    #
+    # 비유: 막다른 곳에 코박으면 후진하지 말고 제자리에서 돌아 다른 길을 보고
+    #       살짝 나아간 뒤 내비 재탐색. 그래도 막히면 멈춰 재탐색을 기다린다.
     stuck_recovery_sec: 1.5    # s, stuck 판정 시간
-    backup_velocity: -0.25     # m/s, 후진 속도 (음수) [18차: -0.2 → -0.25]
-    backup_duration: 1.5       # s, 후진 지속 시간 [18차: 1.0→1.5, 0.375m 이동]
-    backup_turn_gain: 0.8      # rad/s, recovery 중 가까운 벽 반대쪽으로 트는 강도
-    backup_turn_max: 0.45      # rad/s, recovery 중 최대 회전 속도
-    # 18차 추가: backup 완료 후 stuck 재판정 안 하는 시간.
-    # 무한 backup loop 차단. A* 1Hz × 3회 재계획 + PP 새 path 시도 시간 확보.
-    # 이전 (17차 후): 같은 위치 backup→stuck→backup 무한 반복.
-    # 비유: 막다른 골목 후진 후 "내비 재탐색" 기다림. 바로 또 박지 말 것.
+    spin_duration: 2.0         # s, spin recovery 지속 시간
+    # recovery(SPIN/EMERGENCY) 후 stuck 재판정 안 하는 시간. 무한 recovery loop 차단.
+    # A* 1Hz 재계획 + PP 새 path 시도 시간 확보.
     recovery_cooldown: 3.0     # s, recovery 후 cooldown
-    spin_duration: 2.0    # s, spin recovery 지속 시간
     # ----- 안전 -----
     robot_radius: 0.20             # m, URDF chassis_width 0.40 / 2
     hard_collision_distance: 0.05  # m, 거부 게이트 — 진짜 충돌 직전
