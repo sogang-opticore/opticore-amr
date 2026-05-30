@@ -481,6 +481,23 @@ def clamp_forward_velocity(v_cmd: float, allow_backward: bool) -> float:
     return max(0.0, v_cmd)
 
 
+def rate_limit_linear_velocity(
+    current_v: float,
+    target_v: float,
+    accel_step: float,
+    brake_step: float,
+    allow_backward: bool,
+) -> float:
+    target_v = clamp_forward_velocity(target_v, allow_backward)
+    accel_step = max(0.0, accel_step)
+    brake_step = max(accel_step, brake_step)
+    reducing = abs(target_v) < abs(current_v)
+    crossing_zero = current_v * target_v < 0.0
+    step = brake_step if reducing or crossing_zero else accel_step
+    v_cmd = max(current_v - step, min(current_v + step, target_v))
+    return clamp_forward_velocity(v_cmd, allow_backward)
+
+
 def should_rearm_reached_with_path(
     reached: bool,
     robot_xy: Optional[Tuple[float, float]],
@@ -492,6 +509,74 @@ def should_rearm_reached_with_path(
     dx = path_goal_xy[0] - robot_xy[0]
     dy = path_goal_xy[1] - robot_xy[1]
     return math.hypot(dx, dy) > max(0.0, min_goal_separation)
+
+
+def speed_limit_from_clearance(
+    clearance: float,
+    stop_distance: float,
+    acceleration: float,
+) -> float:
+    if math.isinf(clearance):
+        return float("inf")
+    free_distance = max(0.0, clearance - max(0.0, stop_distance))
+    acceleration = max(0.0, acceleration)
+    if acceleration <= 0.0 or free_distance <= 0.0:
+        return 0.0
+    return math.sqrt(2.0 * acceleration * free_distance)
+
+
+def turn_demand_intensity(
+    alpha: float,
+    path_heading_error: float,
+    w_target: float,
+    w_max: float,
+    brake_angle: float,
+) -> float:
+    angle_scale = max(abs(alpha), abs(path_heading_error)) / max(brake_angle, 1e-3)
+    angular_scale = abs(w_target) / max(abs(w_max), 1e-3)
+    return max(0.0, min(1.0, max(angle_scale, angular_scale)))
+
+
+def turn_clearance_speed_limit(
+    v_target: float,
+    forward_clearance: float,
+    stop_distance: float,
+    acceleration: float,
+    turn_intensity: float,
+) -> float:
+    if v_target <= 0.0 or turn_intensity <= 0.0 or math.isinf(forward_clearance):
+        return max(0.0, v_target)
+    clearance_limit = speed_limit_from_clearance(
+        forward_clearance, stop_distance, acceleration)
+    if clearance_limit >= v_target:
+        return v_target
+    t = max(0.0, min(1.0, turn_intensity))
+    return max(0.0, (1.0 - t) * v_target + t * clearance_limit)
+
+
+def goal_approach_speed_limit(
+    dist_to_goal: float,
+    goal_tolerance: float,
+    approach_distance: float,
+    approach_speed: float,
+) -> float:
+    if approach_distance <= goal_tolerance or dist_to_goal >= approach_distance:
+        return float("inf")
+    ratio = max(0.0, dist_to_goal - goal_tolerance) / \
+        max(approach_distance - goal_tolerance, 1e-3)
+    return max(0.0, approach_speed) * ratio
+
+
+def safe_forward_only_distance(
+    forward_clearance: float,
+    stop_distance: float,
+    margin: float,
+    desired_distance: float,
+) -> float:
+    if math.isinf(forward_clearance):
+        return max(0.0, desired_distance)
+    free_distance = forward_clearance - max(0.0, stop_distance) - max(0.0, margin)
+    return max(0.0, min(max(0.0, desired_distance), free_distance))
 
 
 def rate_limit_angular_velocity(
@@ -689,6 +774,7 @@ class DwaPlannerNode(Node):
         self.declare_parameter("v_min", -1.0)
         self.declare_parameter("w_max", 1.5)
         self.declare_parameter("a_max", 1.0)
+        self.declare_parameter("v_brake_a_max", 3.0)
         self.declare_parameter("alpha_max", 1.5)
         self.declare_parameter("a_lat_max", 1.0)
         self.declare_parameter("sample_v_n", 11)
@@ -721,8 +807,12 @@ class DwaPlannerNode(Node):
         self.declare_parameter("rejoin_align_angle_thresh", 1.75)
         self.declare_parameter("max_clearance", 1.0)
         self.declare_parameter("goal_tolerance", 0.20)
+        self.declare_parameter("goal_approach_distance", 1.20)
+        self.declare_parameter("goal_approach_speed", 0.80)
+        self.declare_parameter("goal_align_stop_distance", 1.50)
         self.declare_parameter("clearance_slowdown_distance", 0.80)
         self.declare_parameter("clearance_stop_distance", 0.30)
+        self.declare_parameter("turn_clearance_brake_angle", 0.45)
         self.declare_parameter("near_wall_creep_speed", 0.12)
         self.declare_parameter("align_angle_thresh", 1.10)
         self.declare_parameter("align_angle_exit", 0.262)
@@ -753,6 +843,7 @@ class DwaPlannerNode(Node):
         self.declare_parameter("forward_only_settle_w", 0.20)
         self.declare_parameter("forward_only_min_dist", 0.10)
         self.declare_parameter("forward_only_rejoin_offset", 0.25)
+        self.declare_parameter("spin_forward_clearance_margin", 0.15)
         self.declare_parameter("robot_radius", 0.20)
         self.declare_parameter("hard_collision_distance", 0.05)
         self.declare_parameter("safety_distance", 0.30)
@@ -869,6 +960,7 @@ class DwaPlannerNode(Node):
         self.p_v_min                    = gp("v_min").value
         self.p_w_max                    = gp("w_max").value
         self.p_a_max                    = gp("a_max").value
+        self.p_v_brake_a_max            = gp("v_brake_a_max").value
         self.p_alpha_max                = gp("alpha_max").value
         self.p_a_lat_max                = gp("a_lat_max").value
         self.p_sample_v_n               = gp("sample_v_n").value
@@ -901,8 +993,12 @@ class DwaPlannerNode(Node):
         self.p_rejoin_align_angle_thresh = gp("rejoin_align_angle_thresh").value
         self.p_max_clearance            = gp("max_clearance").value
         self.p_goal_tolerance           = gp("goal_tolerance").value
+        self.p_goal_approach_distance   = gp("goal_approach_distance").value
+        self.p_goal_approach_speed      = gp("goal_approach_speed").value
+        self.p_goal_align_stop_distance = gp("goal_align_stop_distance").value
         self.p_clearance_slowdown_distance = gp("clearance_slowdown_distance").value
         self.p_clearance_stop_distance  = gp("clearance_stop_distance").value
+        self.p_turn_clearance_brake_angle = gp("turn_clearance_brake_angle").value
         self.p_near_wall_creep_speed    = gp("near_wall_creep_speed").value
         self.p_align_angle_thresh       = gp("align_angle_thresh").value
         self.p_align_angle_exit         = gp("align_angle_exit").value
@@ -929,6 +1025,7 @@ class DwaPlannerNode(Node):
         self.p_forward_only_settle_w    = gp("forward_only_settle_w").value
         self.p_forward_only_min_dist    = gp("forward_only_min_dist").value
         self.p_forward_only_rejoin_offset = gp("forward_only_rejoin_offset").value
+        self.p_spin_forward_clearance_margin = gp("spin_forward_clearance_margin").value
         self.p_robot_radius             = gp("robot_radius").value
         self.p_hard_collision_distance  = gp("hard_collision_distance").value
         self.p_safety_distance          = gp("safety_distance").value
@@ -1364,6 +1461,7 @@ class DwaPlannerNode(Node):
         # ── Pure Pursuit ─────────────────────────────────────────
         kappa = 2.0 * ly / (L * L) if L >= 1e-3 else 0.0
         self._last_kappa = kappa
+        fwd_clear = self._forward_clearance_inline(obstacles, kappa=kappa)
 
         v_target = self.p_v_max
 
@@ -1393,6 +1491,13 @@ class DwaPlannerNode(Node):
         v_goal = math.sqrt(2.0 * self.p_a_max *
                            max(0.0, dist_to_goal - self.p_goal_tolerance))
         v_target = min(v_target, v_goal)
+        v_goal_approach = goal_approach_speed_limit(
+            dist_to_goal,
+            self.p_goal_tolerance,
+            self.p_goal_approach_distance,
+            self.p_goal_approach_speed,
+        )
+        v_target = min(v_target, v_goal_approach)
 
         # (iv) heading 감속
         heading_factor = max(0.3, math.cos(alpha))
@@ -1439,9 +1544,37 @@ class DwaPlannerNode(Node):
 
         # 가속도 제한
         w_target = max(-self.p_w_max, min(self.p_w_max, w_target))
-        v_cmd = max(self._state.v - dv_max,
-                    min(self._state.v + dv_max, v_target))
-        v_cmd = clamp_forward_velocity(v_cmd, self.p_allow_backward)
+        turn_intensity = turn_demand_intensity(
+            alpha,
+            path_heading_error,
+            w_target,
+            self.p_w_max,
+            self.p_turn_clearance_brake_angle,
+        )
+        turn_brake_before = v_target
+        v_target = turn_clearance_speed_limit(
+            v_target,
+            fwd_clear,
+            self.p_clearance_stop_distance,
+            self.p_a_max,
+            turn_intensity,
+        )
+        turn_brake_active = v_target < turn_brake_before - 1e-3
+        if turn_brake_active:
+            w_pp = kappa * v_target
+            w_target_raw = w_pp + w_path
+            if (self.p_w_min_rotate > 0.0
+                    and abs(alpha) > self.p_align_angle_exit
+                    and abs(w_target_raw) < self.p_w_min_rotate):
+                turn_ref = alpha if abs(alpha) >= abs(path_heading_error) else path_heading_error
+                w_target = math.copysign(self.p_w_min_rotate, turn_ref)
+            else:
+                w_target = w_target_raw
+            w_target = max(-self.p_w_max, min(self.p_w_max, w_target))
+
+        dv_brake_max = max(dv_max, self.p_v_brake_a_max * period)
+        v_cmd = rate_limit_linear_velocity(
+            self._state.v, v_target, dv_max, dv_brake_max, self.p_allow_backward)
         w_cmd = rate_limit_angular_velocity(
             self._state.w, w_target, dw_max, dw_brake_max)
 
@@ -1517,6 +1650,7 @@ class DwaPlannerNode(Node):
                 f"ψ={math.degrees(path_heading_error):+.1f}° "
                 f"clr={motion_clear:.2f} fwd={fwd_clear:.2f} "
                 f"d_goal={dist_to_goal:.2f}"
+                f"{' tbrake=1' if turn_brake_active else ''}"
                 f"{' creep=1' if near_wall_creep else ''}")
 
     def _execute_align(self, ctx: dict) -> None:
@@ -1525,6 +1659,7 @@ class DwaPlannerNode(Node):
         fwd_clear = ctx["fwd_clear"]
         obstacles = ctx["obstacles_local"]
         is_rejoining = ctx.get("is_rejoining", False)
+        fwd_clear = self._forward_clearance_inline(obstacles, kappa=0.0)
 
         period = 1.0 / max(self.p_control_rate, 1.0)
         dv_max = self.p_a_max * period
@@ -1560,17 +1695,20 @@ class DwaPlannerNode(Node):
         drive_angle = max(self.p_align_drive_angle, self.p_align_angle_exit + 1e-3)
         if (self.p_align_v_blend_max > 0.0 and
                 rotate_clear > self.p_clearance_slowdown_distance and
+                fwd_clear > self.p_clearance_slowdown_distance and
                 abs(alpha) < drive_angle):
             blend = 1.0 - (abs(alpha) - self.p_align_angle_exit) / \
                 max(drive_angle - self.p_align_angle_exit, 1e-3)
             v_target = self.p_align_v_blend_max * max(0.0, min(1.0, blend))
+        if ctx["dist_to_goal"] < self.p_goal_align_stop_distance:
+            v_target = 0.0
 
         w_target = (self.p_align_kp * alpha - self.p_align_kd * self._state.w)
         w_target = max(-self.p_w_max * 0.7, min(self.p_w_max * 0.7, w_target))
 
-        v_cmd = max(self._state.v - dv_max,
-                    min(self._state.v + dv_max, v_target))
-        v_cmd = clamp_forward_velocity(v_cmd, self.p_allow_backward)
+        dv_brake_max = max(dv_max, self.p_v_brake_a_max * period)
+        v_cmd = rate_limit_linear_velocity(
+            self._state.v, v_target, dv_max, dv_brake_max, self.p_allow_backward)
         w_cmd = rate_limit_angular_velocity(
             self._state.w, w_target, dw_max, dw_brake_max)
 
@@ -1617,7 +1755,13 @@ class DwaPlannerNode(Node):
         fwd_probe_v = max(0.05, self.p_v_max * 0.3)
         forward_clear = self._trajectory_clearance_margin(
             obstacles, fwd_probe_v, 0.0)
-        spin_done = forward_clear > self.p_clearance_stop_distance
+        safe_forward_dist = safe_forward_only_distance(
+            forward_clear,
+            self.p_clearance_stop_distance,
+            self.p_spin_forward_clearance_margin,
+            self.p_forward_only_dist,
+        )
+        spin_done = safe_forward_dist >= self.p_forward_only_min_dist
 
         if now < self._spin_until and not spin_unsafe and not spin_done:
             # 회전 안전 + 전방 아직 막힘 → 계속 회전
@@ -1634,7 +1778,7 @@ class DwaPlannerNode(Node):
             # 전진 가능 → FORWARD_ONLY로 전환 (현재 heading으로 짧게 전진)
             # 위치가 바뀐 후 A* 재계획 → rack 모서리 벗어난 경로 생성
             self._forward_only_until   = now + self.p_forward_only_timeout
-            self._forward_only_dist    = self.p_forward_only_dist
+            self._forward_only_dist    = safe_forward_dist
             self._forward_only_start_x = self._state.x
             self._forward_only_start_y = self._state.y
             self._nav_state  = NavState.FORWARD_ONLY
@@ -1645,7 +1789,7 @@ class DwaPlannerNode(Node):
             self._publish_status_value("FORWARD_ONLY")
             self.get_logger().info(
                 f"spin 완료 → FORWARD_ONLY {self._forward_only_dist:.2f}m 전진 후 A* 재계획 "
-                f"(forward_clear={forward_clear:.2f}m)")
+                f"(forward_clear={forward_clear:.2f}m, margin={self.p_spin_forward_clearance_margin:.2f}m)")
         elif spin_unsafe:
             # 회전 공간 없음(몸체 충돌 임박) → 후진 대신 즉시 정지(EMERGENCY).
             # [Codex T4 P2] 위험 판정 tick 에 같은 tick 으로 정지 명령을 발행한다
@@ -1713,9 +1857,9 @@ class DwaPlannerNode(Node):
             period = 1.0 / max(self.p_control_rate, 1.0)
             dv_max = self.p_a_max * period
             v_target = self.p_v_max * self.p_forward_only_speed_scale
-            v_cmd = max(self._state.v - dv_max,
-                        min(self._state.v + dv_max, v_target))
-            v_cmd = clamp_forward_velocity(v_cmd, self.p_allow_backward)
+            dv_brake_max = max(dv_max, self.p_v_brake_a_max * period)
+            v_cmd = rate_limit_linear_velocity(
+                self._state.v, v_target, dv_max, dv_brake_max, self.p_allow_backward)
             self._publish_cmd(VelocityCommand(v=v_cmd, w=0.0))
             self._publish_status_value("RECOVERY")
             self._log_state_throttled()

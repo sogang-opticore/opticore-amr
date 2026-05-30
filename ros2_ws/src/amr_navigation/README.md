@@ -202,6 +202,7 @@ angular:
 | `v_min` | -1.0 m/s | 후진 제한 (운영 정책) |
 | `w_max` | **1.5 rad/s** | 명세 "최대 회전 속도 1.5 rad/s" |
 | `a_max` | **1.0 m/s²** | 명세 "최대 가속도 1.0 m/s²" |
+| `v_brake_a_max` | 3.0 m/s² | goal/장애물 앞 감속 반응을 빠르게 하는 감속 전용 상한. **TODO 시뮬레이션 튜닝** |
 | `alpha_max` | 1.5 rad/s² | 명세 미명시 — **TODO 시뮬레이션 측정 후 갱신** |
 
 > ⚠ `alpha_max`는 명세에 없음. 임시값 사용. `cmd_vel` 스텝 응답으로 측정 후 확정.
@@ -227,6 +228,9 @@ angular:
 | `path_error_slowdown_offset` | 0.25 m | 이 이상 path에서 벌어지면 속도 감속 시작 |
 | `path_error_min_speed_scale` | 0.35 | path 복귀 중 최소 속도 스케일 |
 | `path_error_predict_time` | 0.55 s | 현재 heading/speed로 미래 횡오차를 예측해 선제 REJOIN/감속 |
+| `goal_approach_distance` | 1.20 m | 목표 근처에서 선형 속도 상한을 추가로 낮춰 goal 주변 배회를 줄임 |
+| `goal_approach_speed` | 0.80 m/s | `goal_approach_distance` 지점의 접근 속도 상한 |
+| `goal_align_stop_distance` | 1.50 m | 목표 근처 ALIGN에서는 turn-in-motion을 막고 먼저 자세를 정렬 |
 | `rejoin_entry_offset` | 0.30 m | 이 이상 path에서 벗어나면 `REJOIN` 후보 선택 |
 | `rejoin_exit_offset` | 0.18 m | `REJOIN` 해제 hysteresis 거리 |
 | `rejoin_exit_heading` | 0.45 rad | path heading 오차가 남아 있으면 `REJOIN` 유지 |
@@ -241,10 +245,12 @@ angular:
 | `align_release_angle` | 0.70 rad | ALIGN 중 안전하면 15도까지 기다리지 않고 NORMAL로 조기 복귀 |
 | `rejoin_align_release_angle` | 0.95 rad | REJOIN 중 안전하면 더 이른 각도에서 path 추종으로 복귀 |
 | `align_drive_angle` | 1.57 rad | ALIGN 중 전방 여유가 있으면 저속 turn-in-motion 허용 각도 |
+| `turn_clearance_brake_angle` | 0.45 rad | 큰 회전 수요에서 전방 LiDAR 여유가 짧으면 제동거리 기반으로 속도 제한 |
 | `w_brake_alpha_max` | 6.0 rad/s² | 목표 회전량이 작아진 뒤 남은 각속도를 빠르게 감쇠 |
 | `forward_only_dist` | 0.35 m | SPIN 후 위치만 살짝 바꾸는 강제 전진 거리 |
 | `forward_only_settle_w` | 0.20 rad/s | SPIN 직후 회전 관성이 이보다 크면 전진 보류 |
 | `forward_only_rejoin_offset` | 0.25 m | FORWARD_ONLY 중 path에 가까워지면 강제 전진 조기 종료 |
+| `spin_forward_clearance_margin` | 0.15 m | SPIN 후 FORWARD_ONLY 시작 전 전방 여유에 추가로 요구하는 안전 마진 |
 | `max_path_offset` | 1.0 m | 새 `/global_path`가 현재 pose와 너무 멀면 stale path로 무시 |
 | `reached_new_path_rearm_dist` | 0.75 m | `REACHED` 중 새 path endpoint가 현재 위치와 충분히 멀면 다음 목표로 보고 재무장 |
 | `path_lost_offset` | 1.8 m | 추종 중 이 이상 path에서 벗어나면 `PATH_LOST` 후 A\* 재계획 유도 |

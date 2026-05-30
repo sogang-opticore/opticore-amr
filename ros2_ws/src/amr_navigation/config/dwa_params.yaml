@@ -37,6 +37,9 @@ dwa_planner:
     v_min: -1.0         # m/s, 후진 운영 정책
     w_max: 1.5          # rad/s, 명세 §4.1
     a_max: 1.0          # m/s², 명세 §4.1
+    # 감속은 가속보다 빠르게 허용해 goal overshoot와 벽 앞 관성 전진을 줄인다.
+    # TODO(미확정): RunPod에서 2.0~3.5m/s² 범위 튜닝.
+    v_brake_a_max: 3.0
     alpha_max: 1.5      # rad/s², ⚠ 명세 미명시 — 시뮬 측정 후 갱신
     # 횡가속 한계 (Pure Pursuit v_curve 캐핑). 명세 미명시.
     # 기본 = a_max (보수적). 회전 구간 v 가 작아 보이면 1.5~2.0 으로 시험.
@@ -96,6 +99,12 @@ dwa_planner:
 
     max_clearance: 1.0       # m, [unused] 호환 위해 유지
     goal_tolerance: 0.20     # m, 도착 판정
+    # Goal 근처에서는 sqrt 제동만으로는 20Hz 제어/재계획 지연 때문에 지나친 뒤
+    # 다시 도는 경우가 있어, 마지막 1.2m는 선형 속도 상한을 한 번 더 건다.
+    # TODO(미확정): RunPod 왕복 주행으로 distance 1.0~1.5m, speed 0.6~0.9m/s 범위 튜닝.
+    goal_approach_distance: 1.20
+    goal_approach_speed: 0.80
+    goal_align_stop_distance: 1.50
 
     # ----- Clearance 기반 속도 제한 (2026-05-28 보강) -----
     # 기존에는 전방 ±60° 부채꼴 안 최단점을 fwd_clear 로 써서, 통로 옆 벽도
@@ -104,6 +113,9 @@ dwa_planner:
     # 주변 clearance 로만 감속한다.
     clearance_stop_distance: 0.30      # m, 이 여유보다 작으면 v_clear=0
     clearance_slowdown_distance: 0.80  # m, 이 여유부터 선형 감속 시작
+    # 큰 조향/회전 명령 중 전방 LiDAR 여유가 짧으면 v <= sqrt(2*a*d_free)로 감속한다.
+    # TODO(미확정): 0.35~0.60rad 범위에서 RunPod 벽 밀착 로그로 튜닝.
+    turn_clearance_brake_angle: 0.45
     # 전방은 열렸지만 측면/초기 arc clearance 때문에 v_clear가 0에 붙는 경우,
     # 충돌권 밖이면 벽 옆을 빠져나오기 위한 최소 creep 속도.
     # TODO(미확정): RunPod 주행 로그로 0.08~0.15m/s 범위 튜닝.
@@ -196,6 +208,7 @@ dwa_planner:
     forward_only_settle_w: 0.20
     forward_only_min_dist: 0.10
     forward_only_rejoin_offset: 0.25
+    spin_forward_clearance_margin: 0.15
     # recovery(SPIN/EMERGENCY) 후 stuck 재판정 안 하는 시간. 무한 recovery loop 차단.
     # A* 1Hz 재계획 + PP 새 path 시도 시간 확보.
     recovery_cooldown: 3.0     # s, recovery 후 cooldown

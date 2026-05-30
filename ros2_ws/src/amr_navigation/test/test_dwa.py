@@ -28,7 +28,13 @@ from amr_navigation.dwa_node import (
     predict_signed_path_offset,
     should_release_align,
     clamp_forward_velocity,
+    rate_limit_linear_velocity,
     should_rearm_reached_with_path,
+    speed_limit_from_clearance,
+    turn_demand_intensity,
+    turn_clearance_speed_limit,
+    goal_approach_speed_limit,
+    safe_forward_only_distance,
     rate_limit_angular_velocity,
     should_finish_forward_only,
     project_to_path,
@@ -414,6 +420,24 @@ class TestAlignReleaseAndVelocityClamp:
         assert clamp_forward_velocity(-0.2, allow_backward=False) == 0.0
         assert clamp_forward_velocity(-0.2, allow_backward=True) == -0.2
 
+    def test_linear_rate_uses_fast_brake_when_target_drops(self):
+        assert abs(rate_limit_linear_velocity(
+            current_v=1.0,
+            target_v=0.2,
+            accel_step=0.05,
+            brake_step=0.15,
+            allow_backward=False,
+        ) - 0.85) < 1e-9
+
+    def test_linear_rate_uses_normal_accel_when_speeding_up(self):
+        assert abs(rate_limit_linear_velocity(
+            current_v=0.2,
+            target_v=1.0,
+            accel_step=0.05,
+            brake_step=0.15,
+            allow_backward=False,
+        ) - 0.25) < 1e-9
+
     def test_angular_rate_uses_fast_brake_when_target_drops(self):
         assert abs(rate_limit_angular_velocity(
             current_w=0.85,
@@ -460,6 +484,83 @@ class TestForwardOnlyFinish:
         )
 
         assert done is False
+
+
+class TestClearanceAwareSpeedCaps:
+    def test_speed_limit_from_clearance_uses_braking_distance(self):
+        assert speed_limit_from_clearance(
+            clearance=0.30,
+            stop_distance=0.30,
+            acceleration=1.0,
+        ) == 0.0
+        assert abs(speed_limit_from_clearance(
+            clearance=0.80,
+            stop_distance=0.30,
+            acceleration=1.0,
+        ) - 1.0) < 1e-9
+
+    def test_turn_brake_blends_only_when_turn_demand_is_high(self):
+        limited = turn_clearance_speed_limit(
+            v_target=1.2,
+            forward_clearance=0.50,
+            stop_distance=0.30,
+            acceleration=1.0,
+            turn_intensity=1.0,
+        )
+        assert abs(limited - math.sqrt(0.4)) < 1e-9
+
+        unchanged = turn_clearance_speed_limit(
+            v_target=1.2,
+            forward_clearance=0.50,
+            stop_distance=0.30,
+            acceleration=1.0,
+            turn_intensity=0.0,
+        )
+        assert unchanged == 1.2
+
+    def test_turn_demand_uses_heading_or_angular_rate(self):
+        assert turn_demand_intensity(
+            alpha=0.45,
+            path_heading_error=0.0,
+            w_target=0.0,
+            w_max=1.5,
+            brake_angle=0.45,
+        ) == 1.0
+        assert turn_demand_intensity(
+            alpha=0.0,
+            path_heading_error=0.0,
+            w_target=0.75,
+            w_max=1.5,
+            brake_angle=0.45,
+        ) == 0.5
+
+    def test_goal_approach_speed_tapers_near_goal(self):
+        assert goal_approach_speed_limit(
+            dist_to_goal=1.2,
+            goal_tolerance=0.2,
+            approach_distance=1.2,
+            approach_speed=0.8,
+        ) == float("inf")
+        assert abs(goal_approach_speed_limit(
+            dist_to_goal=0.7,
+            goal_tolerance=0.2,
+            approach_distance=1.2,
+            approach_speed=0.8,
+        ) - 0.4) < 1e-9
+
+    def test_spin_forward_distance_keeps_extra_clearance_margin(self):
+        assert safe_forward_only_distance(
+            forward_clearance=0.31,
+            stop_distance=0.30,
+            margin=0.15,
+            desired_distance=0.35,
+        ) == 0.0
+        assert abs(safe_forward_only_distance(
+            forward_clearance=0.80,
+            stop_distance=0.30,
+            margin=0.15,
+            desired_distance=0.35,
+        ) - 0.35) < 1e-9
 
 
 class TestRotationClearanceInline:
