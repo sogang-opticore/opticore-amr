@@ -23,6 +23,17 @@ astar_planner:
     #   즉 17차 inflation + 18차 cooldown = 모든 좋은 부분의 합집합.
     inflation_radius: 0.50
 
+    # 벽 근접 비용 [m] — inflation 바깥 free 셀도 모두 같은 비용으로 보지 않고,
+    # raw obstacle 기준 이 거리 안쪽은 추가 비용을 줘 통로 중앙을 선호한다.
+    # DWA robot_radius(0.20) + clearance_slowdown_distance(0.80) ≈ 1.0m와 맞춘 초안.
+    # TODO(미확정): RunPod 주행 로그로 0.8~1.2m 범위 튜닝.
+    preferred_clearance: 1.00
+
+    # clearance 비용 가중치. 0이면 기존처럼 shortest path만 선호.
+    # 너무 낮으면 벽 경계 path가 남고, 너무 높으면 긴 우회를 과하게 선호할 수 있다.
+    # TODO(미확정): 4~8 범위 튜닝.
+    clearance_cost_weight: 6.0
+
     # 경로 스무딩: none / catmull_rom / bezier
     smoothing: "catmull_rom"
 

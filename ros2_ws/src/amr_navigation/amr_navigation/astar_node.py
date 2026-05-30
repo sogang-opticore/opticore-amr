@@ -31,6 +31,8 @@ class AstarPlanner(Node):
         self.declare_parameter('heuristic', 'octile')
         self.declare_parameter('allow_diagonal', True)
         self.declare_parameter('inflation_radius', 0.50)  # robot_radius(0.20) + clearance_stop(0.30)
+        self.declare_parameter('preferred_clearance', 1.00)  # robot_radius + DWA slowdown 여유
+        self.declare_parameter('clearance_cost_weight', 6.0)
         self.declare_parameter('smoothing', 'catmull_rom')
         # 2026-05-24 보강(SW, HU 보강-1):
         #   goal 셀이 inflation/점유로 막혔을 때 nearest free cell로 자동 보정.
@@ -58,6 +60,8 @@ class AstarPlanner(Node):
         self.heuristic_type   = self.get_parameter('heuristic').value
         self.allow_diagonal   = self.get_parameter('allow_diagonal').value
         self.inflation_radius = self.get_parameter('inflation_radius').value
+        self.preferred_clearance = self.get_parameter('preferred_clearance').value
+        self.clearance_cost_weight = self.get_parameter('clearance_cost_weight').value
         self.smoothing        = self.get_parameter('smoothing').value
         self.goal_snap_radius = self.get_parameter('goal_snap_radius').value
         self.replan_period    = self.get_parameter('replan_period').value
@@ -67,6 +71,7 @@ class AstarPlanner(Node):
         # ── 내부 상태 ──────────────────────────────────────────────
         self.map_data: OccupancyGrid | None = None
         self.inflated_grid: np.ndarray | None = None
+        self.clearance_grid: np.ndarray | None = None
         self.goal: PoseStamped | None = None
         self._last_goal_xy: tuple[float, float] | None = None  # P1 dedup (2026-05-31)
         self._last_goal_yaw: float | None = None               # P1 dedup yaw (리뷰 반영)
@@ -331,7 +336,8 @@ class AstarPlanner(Node):
                     continue
 
                 # g(n) = 현재까지의 실제 이동 비용
-                tentative_g = g_score[current] + movement_cost(current, neighbor)
+                step = movement_cost(current, neighbor)
+                tentative_g = g_score[current] + step * (1.0 + self._clearance_cost(neighbor))
 
                 if tentative_g < g_score.get(neighbor, float('inf')):
                     came_from[neighbor] = current
@@ -366,11 +372,38 @@ class AstarPlanner(Node):
             if self.allow_diagonal
             else [(-1,0),(0,-1),(0,1),(1,0)]
         )
-        return [
-            (row + dr, col + dc)
-            for dr, dc in deltas
-            if self._is_free_cell((row + dr, col + dc))
-        ]
+        neighbors = []
+        for dr, dc in deltas:
+            candidate = (row + dr, col + dc)
+            if not self._is_free_cell(candidate):
+                continue
+            if dr != 0 and dc != 0:
+                # 대각선으로 벽 모서리를 스치며 통과하지 않도록 양 옆 직교 셀도 확인.
+                if (not self._is_free_cell((row + dr, col)) or
+                        not self._is_free_cell((row, col + dc))):
+                    continue
+            neighbors.append(candidate)
+        return neighbors
+
+    def _clearance_at_cell(self, cell: tuple) -> float:
+        """raw obstacle 기준 셀 중심 clearance[m]. 없으면 inf."""
+        if self.clearance_grid is None:
+            return float('inf')
+        row, col = cell
+        h, w = self.clearance_grid.shape
+        if row < 0 or col < 0 or row >= h or col >= w:
+            return 0.0
+        return float(self.clearance_grid[row, col])
+
+    def _clearance_cost(self, cell: tuple) -> float:
+        """벽 가까운 free 셀에 부드러운 비용을 부여해 중앙 경로를 선호한다."""
+        if self.clearance_cost_weight <= 0.0 or self.preferred_clearance <= 0.0:
+            return 0.0
+        clearance = self._clearance_at_cell(cell)
+        if not math.isfinite(clearance) or clearance >= self.preferred_clearance:
+            return 0.0
+        ratio = (self.preferred_clearance - clearance) / self.preferred_clearance
+        return self.clearance_cost_weight * ratio * ratio
 
     def _snap_to_nearest_free(self, cell: tuple) -> tuple | None:
         """막힌 셀에 대해 BFS로 인근 자유공간 셀 찾기 (HU 보강-1, 2026-05-24).
@@ -396,10 +429,17 @@ class AstarPlanner(Node):
         deltas = (
             (-1,-1),(-1,0),(-1,1),(0,-1),(0,1),(1,-1),(1,0),(1,1)
         )
+        best_cell = None
+        best_key = (-1.0, -float('inf'))
         while q:
             r, c, d = q.popleft()
             if 0 <= r < h and 0 <= c < w and self.inflated_grid[r, c] == 0:
-                return (r, c)
+                clearance = min(self._clearance_at_cell((r, c)), self.preferred_clearance)
+                dist = math.hypot(r - r0, c - c0) * res
+                key = (clearance, -dist)
+                if key > best_key:
+                    best_key = key
+                    best_cell = (r, c)
             if d >= max_radius:
                 continue
             for dr, dc in deltas:
@@ -408,7 +448,7 @@ class AstarPlanner(Node):
                     continue
                 visited.add((nr, nc))
                 q.append((nr, nc, d + 1))
-        return None
+        return best_cell
 
     def _is_free_cell(self, cell: tuple) -> bool:
         """
@@ -428,30 +468,52 @@ class AstarPlanner(Node):
 
     def _build_inflated_grid(self, msg: OccupancyGrid) -> np.ndarray:
         """
-        OccupancyGrid → 2D numpy 배열 변환 + 원형 커널 inflation 적용.
+        OccupancyGrid → 2D numpy 배열 변환 + 거리장 기반 inflation 적용.
         로봇이 벽/선반에 너무 가깝게 붙지 않도록 장애물 주변을 팽창.
 
         점유(>=50) 또는 unknown(-1) 셀을 blocked으로 처리.
 
-        # 보강 필요: 현재는 binary dilation (단순 팽창).
-        # 거리 기반 비용 그라디언트로 바꾸면 DWA clearance와 더 잘 맞음.
+        clearance_grid는 raw obstacle 중심까지의 거리[m]다. A* 비용에서
+        preferred_clearance 안쪽 free 셀에 페널티를 줘 벽 경계 대신 통로 중앙을 선호한다.
         """
-        from scipy.ndimage import binary_dilation
+        from scipy.ndimage import distance_transform_edt
 
         w   = msg.info.width
         h   = msg.info.height
         res = msg.info.resolution
 
         raw     = np.array(msg.data, dtype=np.int8).reshape((h, w))
-        blocked = (raw >= 50) | (raw == -1)
+        raw_blocked = (raw >= 50) | (raw == -1)
 
-        radius_cells = int(math.ceil(self.inflation_radius / res))
-        if radius_cells > 0:
-            y, x    = np.ogrid[-radius_cells:radius_cells+1, -radius_cells:radius_cells+1]
-            kernel  = (x*x + y*y <= radius_cells*radius_cells)
-            blocked = binary_dilation(blocked, structure=kernel)
+        clearance = distance_transform_edt(~raw_blocked) * res
+        self.clearance_grid = clearance.astype(np.float32)
+        blocked = raw_blocked | (clearance <= self.inflation_radius)
 
         return blocked.astype(np.uint8)
+
+    def _segment_is_free(self, a: tuple, b: tuple) -> bool:
+        """두 셀 사이 직선 구간이 inflated obstacle을 지나지 않는지 확인."""
+        dr = int(b[0]) - int(a[0])
+        dc = int(b[1]) - int(a[1])
+        steps = max(abs(dr), abs(dc))
+        if steps == 0:
+            return self._is_free_cell(a)
+
+        prev = None
+        for i in range(steps + 1):
+            r = int(round(a[0] + dr * i / steps))
+            c = int(round(a[1] + dc * i / steps))
+            cell = (r, c)
+            if not self._is_free_cell(cell):
+                return False
+            if prev is not None:
+                pr, pc = prev
+                if abs(r - pr) == 1 and abs(c - pc) == 1:
+                    if (not self._is_free_cell((r, pc)) or
+                            not self._is_free_cell((pr, c))):
+                        return False
+            prev = cell
+        return True
 
     # ══════════════════════════════════════════════════════════════
     # 경로 스무딩
@@ -494,15 +556,10 @@ class AstarPlanner(Node):
         if self.inflated_grid is None:
             return smoothed
 
-        h, w = self.inflated_grid.shape
-
-        def _is_free(cell):
-            r, c = int(cell[0]), int(cell[1])
-            return 0 <= r < h and 0 <= c < w and self.inflated_grid[r, c] == 0
-
         validated = []
         for si, cell in enumerate(smoothed):
-            if _is_free(cell):
+            if self._is_free_cell(cell) and (
+                    not validated or self._segment_is_free(validated[-1], cell)):
                 validated.append(cell)
             else:
                 # blocked → 해당 구간의 raw A* 점으로 대체
@@ -511,7 +568,9 @@ class AstarPlanner(Node):
                 raw_start = min(raw_seg, len(cells) - 1)
                 raw_end   = min(raw_seg + 1, len(cells) - 1)
                 for raw_cell in cells[raw_start:raw_end + 1]:
-                    if not validated or validated[-1] != raw_cell:
+                    if ((not validated or validated[-1] != raw_cell) and
+                            self._is_free_cell(raw_cell) and
+                            (not validated or self._segment_is_free(validated[-1], raw_cell))):
                         validated.append(raw_cell)
 
         return validated if len(validated) > 1 else cells

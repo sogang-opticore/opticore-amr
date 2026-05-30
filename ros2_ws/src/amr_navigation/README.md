@@ -122,6 +122,8 @@ poses:                         # PoseStamped 배열
 - `poses[0]` = 현재 로봇 위치(`base_footprint`)와 가까운 셀의 중심 (start).
 - `poses[-1]` = 목적지 (goal).
 - 점 간격: **0.05 ~ 0.20 m** (DWA가 lookahead 점 선택하기 쉬운 밀도).
+- A\*는 binary inflation 바깥 free 셀도 장애물 거리장 비용으로 다시 평가해,
+  가능한 경우 벽 경계보다 통로 중앙에 가까운 경로를 선호한다.
 - 빈 path(`poses=[]`)는 **"계획 실패"** 컨벤션 → DWA는 즉시 정지, `status="STOPPED"`.
 - 단, A\*의 **주기 재계획** 실패가 이미 성공한 경로를 가진 상태에서 발생하면 빈 path를 발행하지 않고
   기존 `/global_path`를 유지한다. 일시적 TF/맵 흔들림이 DWA의 정상 추종을 `STOPPED/NORMAL`로
@@ -230,7 +232,9 @@ angular:
 |---|---|---|
 | `heuristic` | `"octile"` | `manhattan` / `euclidean` / `octile` (heuristics.py 등록됨) |
 | `allow_diagonal` | `true` | 8-connected |
-| `inflation_radius` | 0.30 m | 로봇 폭 0.40 m + 여유 0.10 m |
+| `inflation_radius` | 0.50 m | 로봇 반경 0.20 m + DWA 정지 여유 0.30 m |
+| `preferred_clearance` | 1.00 m | 이 거리 안쪽 free 셀에 비용을 부여해 벽 경계 path를 피함. **TODO 미확정, RunPod 튜닝 필요** |
+| `clearance_cost_weight` | 6.0 | clearance 비용 가중치. 0이면 shortest path 우선 |
 | `smoothing` | `"catmull_rom"` | `none` / `catmull_rom` / `bezier` |
 | `replan_period` | 0.0 s | 0이면 goal 입력 시에만 1회, > 0이면 주기적 재계획 |
 

@@ -93,6 +93,10 @@ if(BUILD_TESTING)
     test/test_astar_replan.py
     TIMEOUT 60
   )
+  ament_add_pytest_test(test_astar_clearance
+    test/test_astar_clearance.py
+    TIMEOUT 60
+  )
   ament_add_pytest_test(test_dwa
     test/test_dwa.py
     TIMEOUT 60
