@@ -246,6 +246,7 @@ angular:
 | `forward_only_settle_w` | 0.20 rad/s | SPIN 직후 회전 관성이 이보다 크면 전진 보류 |
 | `forward_only_rejoin_offset` | 0.25 m | FORWARD_ONLY 중 path에 가까워지면 강제 전진 조기 종료 |
 | `max_path_offset` | 1.0 m | 새 `/global_path`가 현재 pose와 너무 멀면 stale path로 무시 |
+| `reached_new_path_rearm_dist` | 0.75 m | `REACHED` 중 새 path endpoint가 현재 위치와 충분히 멀면 다음 목표로 보고 재무장 |
 | `path_lost_offset` | 1.8 m | 추종 중 이 이상 path에서 벗어나면 `PATH_LOST` 후 A\* 재계획 유도 |
 
 > T14부터 DWA는 nearest point가 아니라 path 선분 위 투영점을 기준으로 lookahead를 고른다. T15부터 path 이탈 시에는 `REJOIN` 상태로 들어가 가장 가까운 점 대신 현재 조향각, 합류 지점 heading mismatch, 이동 거리를 함께 최소화하는 미래 path 점으로 부드럽게 재합류한다.
@@ -285,6 +286,7 @@ angular:
 | `status_replan_after_states` | `["FORWARD_ONLY", "RECOVERY"]` | fallback: 이 상태 뒤 reset 상태가 오면 1회 재계획 |
 | `path_switch_hysteresis` | 0.35 m | 새 주기 재계획 후보가 이만큼 짧지 않으면 기존 path 유지 |
 | `path_switch_max_start_offset` | 0.80 m | 현재 pose가 기존 path에서 이 이상 멀면 hysteresis 해제 |
+| `new_goal_force_publish_sec` | 5.0 s | 새 goal 직후 이 시간 동안 hysteresis를 건너뛰어 `/global_path` 재수신 기회 확보 |
 | `goal_direct_distance` | 2.0 m | 목표 근처에서 안전한 직선 final approach path 허용 거리 |
 | `goal_direct_min_clearance` | 0.55 m | 직선 final approach segment의 최소 raw obstacle clearance |
 

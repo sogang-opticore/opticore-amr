@@ -481,6 +481,19 @@ def clamp_forward_velocity(v_cmd: float, allow_backward: bool) -> float:
     return max(0.0, v_cmd)
 
 
+def should_rearm_reached_with_path(
+    reached: bool,
+    robot_xy: Optional[Tuple[float, float]],
+    path_goal_xy: Optional[Tuple[float, float]],
+    min_goal_separation: float,
+) -> bool:
+    if not reached or robot_xy is None or path_goal_xy is None:
+        return False
+    dx = path_goal_xy[0] - robot_xy[0]
+    dy = path_goal_xy[1] - robot_xy[1]
+    return math.hypot(dx, dy) > max(0.0, min_goal_separation)
+
+
 def rate_limit_angular_velocity(
     current_w: float,
     target_w: float,
@@ -753,6 +766,7 @@ class DwaPlannerNode(Node):
         self.declare_parameter("goal_pose_topic", "/goal_pose")
         self.declare_parameter("goal_dedup_dist", 0.10)
         self.declare_parameter("goal_dedup_yaw", 0.10)
+        self.declare_parameter("reached_new_path_rearm_dist", 0.75)
         self.declare_parameter("scan_topic", "/lidar")
         self.declare_parameter("cmd_vel_topic", "/cmd_vel")
         self.declare_parameter("state_log_period", 1.0)
@@ -928,6 +942,7 @@ class DwaPlannerNode(Node):
         self.p_goal_pose_topic          = gp("goal_pose_topic").value
         self.p_goal_dedup_dist          = gp("goal_dedup_dist").value
         self.p_goal_dedup_yaw           = gp("goal_dedup_yaw").value
+        self.p_reached_new_path_rearm_dist = gp("reached_new_path_rearm_dist").value
         self.p_scan_topic               = gp("scan_topic").value
         self.p_cmd_vel_topic            = gp("cmd_vel_topic").value
         self.p_state_log_period         = gp("state_log_period").value
@@ -1012,11 +1027,26 @@ class DwaPlannerNode(Node):
         if src_frame == self.LOCAL_FRAME:
             if not self._is_path_close_to_state(msg):
                 return
+            last = msg.poses[-1].pose.position
+            rearm_from_reached = should_rearm_reached_with_path(
+                self._nav_state == NavState.REACHED,
+                self._current_xy(),
+                (last.x, last.y),
+                self.p_reached_new_path_rearm_dist,
+            )
+            if self._nav_state == NavState.REACHED and not rearm_from_reached:
+                self._path_goal_version = self._goal_version
+                self.get_logger().warn(
+                    "same-goal local /global_path ignored while REACHED hold is valid",
+                    throttle_duration_sec=2.0)
+                return
+            if rearm_from_reached:
+                self.get_logger().info(
+                    "REACHED hold released by new local /global_path endpoint")
             self._path_local = msg
             self._reset_path_state()
             self._path_goal_version = self._goal_version
             self._path_goal_xy_global = None
-            last = msg.poses[-1].pose.position
             self.get_logger().info(
                 f"/global_path 수신 ({src_frame}) — "
                 f"{len(msg.poses)}점, goal=({last.x:.2f},{last.y:.2f})")
@@ -1036,10 +1066,22 @@ class DwaPlannerNode(Node):
 
         src_goal = msg.poses[-1].pose.position
         path_goal_xy_global = (src_goal.x, src_goal.y)
-        if not self._is_path_goal_close_to_latest_goal(path_goal_xy_global):
-            return
-        if self._should_ignore_path_while_reached(path_goal_xy_global, transformed):
-            return
+        local_goal = transformed.poses[-1].pose.position
+        rearm_from_reached = should_rearm_reached_with_path(
+            self._nav_state == NavState.REACHED,
+            self._current_xy(),
+            (local_goal.x, local_goal.y),
+            self.p_reached_new_path_rearm_dist,
+        )
+        if not rearm_from_reached:
+            if not self._is_path_goal_close_to_latest_goal(path_goal_xy_global):
+                return
+            if self._should_ignore_path_while_reached(path_goal_xy_global, transformed):
+                return
+        else:
+            self._adopt_path_goal_if_needed(path_goal_xy_global)
+            self.get_logger().info(
+                "REACHED hold released by new /global_path endpoint")
 
         self._path_local = transformed
         self._reset_path_state()
@@ -1926,6 +1968,32 @@ class DwaPlannerNode(Node):
         dy = self._path_goal_xy_global[1] - self._last_goal_xy[1]
         return math.hypot(dx, dy) < self.p_goal_dedup_dist
 
+    def _current_xy(self) -> Optional[Tuple[float, float]]:
+        if self._state is None:
+            return None
+        return (self._state.x, self._state.y)
+
+    def _goal_match_radius(self) -> float:
+        return max(
+            self.p_goal_dedup_dist * 3.0,
+            self.p_goal_tolerance + 0.10,
+            0.75,
+        )
+
+    def _adopt_path_goal_if_needed(
+        self,
+        path_goal_xy_global: Tuple[float, float],
+    ) -> None:
+        if self._last_goal_xy is not None:
+            dx = path_goal_xy_global[0] - self._last_goal_xy[0]
+            dy = path_goal_xy_global[1] - self._last_goal_xy[1]
+            if math.hypot(dx, dy) <= self._goal_match_radius():
+                return
+        self._last_goal_xy = path_goal_xy_global
+        if self._last_goal_yaw is None:
+            self._last_goal_yaw = 0.0
+        self._goal_version += 1
+
     def _is_duplicate_goal(self,
                            new_goal: Tuple[float, float],
                            new_yaw: float) -> bool:
@@ -1951,11 +2019,7 @@ class DwaPlannerNode(Node):
 
         goal_dx = path_goal_xy_global[0] - self._last_goal_xy[0]
         goal_dy = path_goal_xy_global[1] - self._last_goal_xy[1]
-        goal_match_radius = max(
-            self.p_goal_dedup_dist * 3.0,
-            self.p_goal_tolerance + 0.10,
-            0.75,
-        )
+        goal_match_radius = self._goal_match_radius()
         if math.hypot(goal_dx, goal_dy) >= goal_match_radius:
             return False
 
@@ -1982,11 +2046,7 @@ class DwaPlannerNode(Node):
             return True
         dx = path_goal_xy_global[0] - self._last_goal_xy[0]
         dy = path_goal_xy_global[1] - self._last_goal_xy[1]
-        tolerance = max(
-            self.p_goal_dedup_dist * 3.0,
-            self.p_goal_tolerance + 0.10,
-            0.75,
-        )
+        tolerance = self._goal_match_radius()
         if math.hypot(dx, dy) <= tolerance:
             return True
         self.get_logger().warn(

@@ -10,6 +10,7 @@ from amr_navigation.astar_node import (
     cell_path_length,
     cells_on_segment,
     remaining_path_metrics,
+    should_apply_path_hysteresis,
     should_retain_previous_path,
 )
 
@@ -139,6 +140,22 @@ class TestAstarStatusEventReplan:
 
 
 class TestAstarPathHysteresis:
+    def test_new_goal_force_publish_temporarily_bypasses_hysteresis(self):
+        assert should_apply_path_hysteresis(
+            True,
+            False,
+            now=12.0,
+            force_publish_until=15.0,
+        ) is False
+
+    def test_path_hysteresis_rearms_after_force_publish_window(self):
+        assert should_apply_path_hysteresis(
+            True,
+            False,
+            now=15.0,
+            force_publish_until=15.0,
+        ) is True
+
     def test_retain_previous_when_candidate_improvement_is_tiny(self):
         previous = [(0, 0), (0, 10), (5, 10)]
         candidate = [(0, 0), (0, 9), (5, 9)]

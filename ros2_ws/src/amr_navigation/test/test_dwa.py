@@ -28,6 +28,7 @@ from amr_navigation.dwa_node import (
     predict_signed_path_offset,
     should_release_align,
     clamp_forward_velocity,
+    should_rearm_reached_with_path,
     rate_limit_angular_velocity,
     should_finish_forward_only,
     project_to_path,
@@ -696,6 +697,7 @@ class TestGlobalPathStaleGuard:
         for name in ("_should_ignore_empty_path", "_path_goal_matches_last_goal",
                      "_should_ignore_path_while_reached",
                      "_is_path_goal_close_to_latest_goal",
+                     "_goal_match_radius",
                      "_path_offset_to_state", "_is_path_close_to_state",
                      "_is_duplicate_goal"):
             setattr(node, name, getattr(DwaPlannerNode, name).__get__(node))
@@ -759,6 +761,22 @@ class TestGlobalPathStaleGuard:
         assert node._should_ignore_path_while_reached(
             (7.0, 3.0),
             near_goal_path,
+        ) is False
+
+    def test_reached_rearms_when_path_endpoint_is_far_from_robot(self):
+        assert should_rearm_reached_with_path(
+            True,
+            (26.55, 15.97),
+            (0.0, -10.0),
+            0.75,
+        ) is True
+
+    def test_reached_holds_when_path_endpoint_is_still_current_goal(self):
+        assert should_rearm_reached_with_path(
+            True,
+            (26.55, 15.97),
+            (26.71, 16.03),
+            0.75,
         ) is False
 
     def test_rejects_path_goal_for_old_goal(self):

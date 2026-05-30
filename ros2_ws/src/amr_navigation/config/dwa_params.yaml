@@ -224,6 +224,9 @@ dwa_planner:
     goal_dedup_dist: 0.10
     # 현재 DWA empty-path guard에서는 사용하지 않는 호환/향후 정밀도킹용 예약값.
     goal_dedup_yaw: 0.10
+    # REACHED 상태에서 endpoint가 현재 위치와 이 거리보다 멀면 새 goal path로 보고 재무장.
+    # goal_pose 콜백과 global_path 콜백 순서가 어긋나도 다음 목표에서 멈춰 있지 않게 한다.
+    reached_new_path_rearm_dist: 0.75
     scan_topic: "/lidar"
     cmd_vel_topic: "/cmd_vel"
 

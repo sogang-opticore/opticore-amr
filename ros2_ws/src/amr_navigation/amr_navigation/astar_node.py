@@ -116,6 +116,19 @@ def cells_on_segment(a: tuple, b: tuple) -> list[tuple]:
     return cells
 
 
+def should_apply_path_hysteresis(
+    allow_path_hysteresis: bool,
+    using_direct_path: bool,
+    now: float,
+    force_publish_until: float,
+) -> bool:
+    return (
+        allow_path_hysteresis
+        and not using_direct_path
+        and now >= force_publish_until
+    )
+
+
 class AstarPlanner(Node):
 
     def __init__(self):
@@ -162,6 +175,7 @@ class AstarPlanner(Node):
         self.declare_parameter('goal_dedup_yaw', 0.10)   # rad
         self.declare_parameter('path_switch_hysteresis', 0.35)  # m
         self.declare_parameter('path_switch_max_start_offset', 0.80)  # m
+        self.declare_parameter('new_goal_force_publish_sec', 5.0)  # s
         self.declare_parameter('goal_direct_distance', 2.0)  # m
         self.declare_parameter('goal_direct_min_clearance', 0.55)  # m
 
@@ -186,6 +200,8 @@ class AstarPlanner(Node):
         self.path_switch_hysteresis = self.get_parameter('path_switch_hysteresis').value
         self.path_switch_max_start_offset = self.get_parameter(
             'path_switch_max_start_offset').value
+        self.new_goal_force_publish_sec = self.get_parameter(
+            'new_goal_force_publish_sec').value
         self.goal_direct_distance = self.get_parameter('goal_direct_distance').value
         self.goal_direct_min_clearance = self.get_parameter(
             'goal_direct_min_clearance').value
@@ -202,6 +218,7 @@ class AstarPlanner(Node):
         self._last_status_replan_time = -float('inf')
         self._last_dwa_status: str | None = None
         self._last_path_cells: list[tuple] | None = None
+        self._force_publish_until = -float('inf')
 
         # ── TF ────────────────────────────────────────────────────
         self.tf_buffer   = tf2_ros.Buffer()
@@ -377,6 +394,8 @@ class AstarPlanner(Node):
         self._has_valid_path_for_goal = False
         self._status_replan_armed = True
         self._last_path_cells = None
+        self._force_publish_until = (
+            self._sec_now() + max(0.0, float(self.new_goal_force_publish_sec)))
         self.get_logger().info(
             f'Goal 수신: ({new_goal[0]:.2f}, {new_goal[1]:.2f}, yaw={new_yaw:.2f})'
         )
@@ -462,7 +481,12 @@ class AstarPlanner(Node):
         if self.smoothing == 'catmull_rom':
             cell_path = self._smooth_catmull_rom(cell_path)
 
-        if (allow_path_hysteresis and not using_direct_path
+        now = self._sec_now()
+        if (should_apply_path_hysteresis(
+                allow_path_hysteresis,
+                using_direct_path,
+                now,
+                self._force_publish_until)
                 and self._path_is_still_free(self._last_path_cells)):
             keep, improvement, prev_len, cand_len, offset = should_retain_previous_path(
                 previous_cells=self._last_path_cells,
