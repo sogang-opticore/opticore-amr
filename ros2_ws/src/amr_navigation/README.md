@@ -287,8 +287,14 @@ angular:
 | `dynamic_layer_ttl_sec` | 300.0 s | 한 번 관찰한 동적 장애물 영역을 임시 no-go로 유지할 최대 시간 |
 | `dynamic_layer_min_hold_sec` | 5.0 s | 사라진 것처럼 보여도 최소 이 시간 동안은 block 유지 |
 | `dynamic_layer_clear_confirm_sec` | 2.0 s | block 위치가 다시 관찰 가능하고 비어 있음을 확인해야 해제하는 시간 |
-| `dynamic_layer_radius_margin` | 0.55 m | 관찰 반경에 로봇 반경/안전 여유를 더해 점유 영역을 확장 |
-| `dynamic_layer_prediction_horizon` | 2.0 s | 움직이는 track의 속도 방향으로 추가 점유 capsule을 예측할 시간 |
+| `dynamic_layer_radius_margin` | 0.95 m | 관찰 반경에 로봇 반경/안전 여유를 더해 점유 영역을 확장 |
+| `dynamic_layer_min_radius` | 0.85 m | cluster가 작게 잡혀도 최소 이 반경만큼 no-go 처리 |
+| `dynamic_layer_max_radius` | 2.25 m | 큰 cluster/merge가 과도하게 커지는 것을 막는 상한 |
+| `dynamic_layer_prediction_horizon` | 4.0 s | 움직이는 track의 속도 방향으로 추가 점유 capsule을 예측할 시간 |
+| `dynamic_layer_prediction_max_distance` | 3.0 m | 예측 capsule이 한 번에 너무 길어지지 않도록 제한 |
+| `dynamic_layer_trail_ttl_sec` | 300.0 s | 동적 장애물이 지나간 관측 궤적을 no-go corridor로 유지할 시간 |
+| `dynamic_layer_trail_min_distance` | 0.25 m | trail point를 새로 남기는 최소 이동 거리 |
+| `dynamic_layer_escape_distance` | 1.20 m | layer 재계획 대기 중이어도 접근 장애물이 이 거리 안이면 짧은 escape 허용 |
 | `align_release_angle` | 0.70 rad | ALIGN 중 안전하면 15도까지 기다리지 않고 NORMAL로 조기 복귀 |
 | `rejoin_align_release_angle` | 0.95 rad | REJOIN 중 안전하면 더 이른 각도에서 path 추종으로 복귀 |
 | `align_drive_angle` | 1.57 rad | ALIGN 중 전방 여유가 있으면 저속 turn-in-motion 허용 각도 |

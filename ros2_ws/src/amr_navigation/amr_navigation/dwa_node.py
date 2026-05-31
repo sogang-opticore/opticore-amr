@@ -47,7 +47,7 @@ NavState 전이 규칙:
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import List, Optional, Tuple
 
@@ -190,6 +190,7 @@ class DynamicObstacleMapBlock:
     last_seen: float
     expire_at: float
     clear_since: Optional[float] = None
+    trail: List[Tuple[float, float, float]] = field(default_factory=list)
 
 
 @dataclass
@@ -1687,13 +1688,19 @@ class DwaPlannerNode(Node):
         self.declare_parameter("dynamic_layer_ttl_sec", 300.0)
         self.declare_parameter("dynamic_layer_min_hold_sec", 5.0)
         self.declare_parameter("dynamic_layer_clear_confirm_sec", 2.0)
-        self.declare_parameter("dynamic_layer_radius_margin", 0.55)
-        self.declare_parameter("dynamic_layer_min_radius", 0.45)
-        self.declare_parameter("dynamic_layer_max_radius", 1.25)
+        self.declare_parameter("dynamic_layer_radius_margin", 0.95)
+        self.declare_parameter("dynamic_layer_min_radius", 0.85)
+        self.declare_parameter("dynamic_layer_max_radius", 2.25)
         self.declare_parameter("dynamic_layer_observation_range", 6.0)
         self.declare_parameter("dynamic_layer_clear_range", 7.0)
-        self.declare_parameter("dynamic_layer_prediction_horizon", 2.0)
-        self.declare_parameter("dynamic_layer_prediction_max_distance", 1.50)
+        self.declare_parameter("dynamic_layer_prediction_horizon", 4.0)
+        self.declare_parameter("dynamic_layer_prediction_max_distance", 3.00)
+        self.declare_parameter("dynamic_layer_prediction_speed_max", 1.50)
+        self.declare_parameter("dynamic_layer_trail_ttl_sec", 300.0)
+        self.declare_parameter("dynamic_layer_trail_min_distance", 0.25)
+        self.declare_parameter("dynamic_layer_trail_max_points", 80)
+        self.declare_parameter("dynamic_layer_escape_distance", 1.20)
+        self.declare_parameter("dynamic_layer_escape_t_cpa", 1.00)
         self.declare_parameter("dynamic_layer_occupied_value", 100)
         self.declare_parameter("rejoin_predicted_exit_offset", 0.42)
         self.declare_parameter("rejoin_align_angle_thresh", 1.75)
@@ -2012,6 +2019,18 @@ class DwaPlannerNode(Node):
             "dynamic_layer_prediction_horizon").value
         self.p_dynamic_layer_prediction_max_distance = gp(
             "dynamic_layer_prediction_max_distance").value
+        self.p_dynamic_layer_prediction_speed_max = gp(
+            "dynamic_layer_prediction_speed_max").value
+        self.p_dynamic_layer_trail_ttl_sec = gp(
+            "dynamic_layer_trail_ttl_sec").value
+        self.p_dynamic_layer_trail_min_distance = gp(
+            "dynamic_layer_trail_min_distance").value
+        self.p_dynamic_layer_trail_max_points = gp(
+            "dynamic_layer_trail_max_points").value
+        self.p_dynamic_layer_escape_distance = gp(
+            "dynamic_layer_escape_distance").value
+        self.p_dynamic_layer_escape_t_cpa = gp(
+            "dynamic_layer_escape_t_cpa").value
         self.p_dynamic_layer_occupied_value = gp(
             "dynamic_layer_occupied_value").value
         self.p_rejoin_predicted_exit_offset = gp(
@@ -2590,6 +2609,34 @@ class DwaPlannerNode(Node):
             min(self.p_dynamic_layer_max_radius, radius),
         )
 
+    def _append_dynamic_layer_trail(
+        self,
+        block: DynamicObstacleMapBlock,
+        map_xy: Tuple[float, float],
+        now: float,
+    ) -> None:
+        min_distance = max(0.0, self.p_dynamic_layer_trail_min_distance)
+        if not block.trail:
+            block.trail.append((map_xy[0], map_xy[1], now))
+        else:
+            last_x, last_y, last_t = block.trail[-1]
+            moved = math.hypot(map_xy[0] - last_x, map_xy[1] - last_y)
+            if moved >= min_distance or now - last_t >= 1.0:
+                block.trail.append((map_xy[0], map_xy[1], now))
+
+        ttl = max(0.0, self.p_dynamic_layer_trail_ttl_sec)
+        if ttl > 0.0:
+            block.trail = [
+                point for point in block.trail
+                if now - point[2] <= ttl
+            ]
+        if not block.trail:
+            block.trail.append((map_xy[0], map_xy[1], now))
+
+        max_points = max(2, int(self.p_dynamic_layer_trail_max_points))
+        if len(block.trail) > max_points:
+            block.trail = block.trail[-max_points:]
+
     def _upsert_dynamic_layer_block(
         self,
         map_xy: Tuple[float, float],
@@ -2620,10 +2667,12 @@ class DwaPlannerNode(Node):
                 first_seen=now,
                 last_seen=now,
                 expire_at=expire_at,
+                trail=[(map_xy[0], map_xy[1], now)],
             )
             return
 
         block = self._dynamic_layer_blocks[best_id]
+        self._append_dynamic_layer_trail(block, map_xy, now)
         alpha = 0.60
         block.x = (1.0 - alpha) * block.x + alpha * map_xy[0]
         block.y = (1.0 - alpha) * block.y + alpha * map_xy[1]
@@ -2804,12 +2853,30 @@ class DwaPlannerNode(Node):
         data = [0] * (width * height)
         horizon = max(0.0, self.p_dynamic_layer_prediction_horizon)
         max_prediction = max(0.0, self.p_dynamic_layer_prediction_max_distance)
+        max_speed = max(0.0, self.p_dynamic_layer_prediction_speed_max)
 
         for block in self._dynamic_layer_blocks.values():
-            speed = math.hypot(block.vx, block.vy)
+            if len(block.trail) >= 2:
+                for start, end in zip(block.trail, block.trail[1:]):
+                    self._paint_dynamic_layer_segment(
+                        data,
+                        (start[0], start[1]),
+                        (end[0], end[1]),
+                        block.radius,
+                        value,
+                    )
+            elif block.trail:
+                self._paint_dynamic_layer_disc(
+                    data, (block.trail[-1][0], block.trail[-1][1]),
+                    block.radius, value)
+
+            raw_speed = math.hypot(block.vx, block.vy)
+            speed = raw_speed
+            if max_speed > 0.0:
+                speed = min(speed, max_speed)
             travel = min(speed * horizon, max_prediction)
-            if travel > 0.05 and speed > 1e-6:
-                scale = travel / speed
+            if travel > 0.05 and raw_speed > 1e-6:
+                scale = travel / raw_speed
                 end = (block.x + block.vx * scale, block.y + block.vy * scale)
                 self._paint_dynamic_layer_segment(
                     data, (block.x, block.y), end, block.radius, value)
@@ -2825,6 +2892,7 @@ class DwaPlannerNode(Node):
             self.get_logger().warn(
                 "dynamic obstacle layer published "
                 f"(blocks={len(self._dynamic_layer_blocks)}, "
+                f"cells={sum(1 for cell in data if cell >= value)}, "
                 f"ttl={self.p_dynamic_layer_ttl_sec:.0f}s)",
                 throttle_duration_sec=2.0)
 
@@ -3212,8 +3280,16 @@ class DwaPlannerNode(Node):
 
         if dynamic_blocked and not is_dynamic_avoiding:
             prefer_layer_replan = ctx.get("dynamic_layer_prefer_global_replan", False)
+            close_approach_escape = (
+                prefer_layer_replan
+                and dynamic_motion_state == "APPROACHING"
+                and ctx.get("dynamic_motion_distance", float("inf"))
+                <= self.p_dynamic_layer_escape_distance
+                and ctx.get("dynamic_motion_t_cpa", float("inf"))
+                <= self.p_dynamic_layer_escape_t_cpa
+            )
             if (dynamic_motion_state == "APPROACHING" and
-                    not prefer_layer_replan and
+                    (not prefer_layer_replan or close_approach_escape) and
                     self._execute_dynamic_approach_escape(ctx)):
                 return
             status_value = self._dynamic_wait_nav_state(dynamic_motion_state).value

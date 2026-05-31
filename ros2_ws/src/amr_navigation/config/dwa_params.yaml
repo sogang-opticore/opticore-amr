@@ -314,13 +314,19 @@ dwa_planner:
     dynamic_layer_ttl_sec: 300.0
     dynamic_layer_min_hold_sec: 5.0
     dynamic_layer_clear_confirm_sec: 2.0
-    dynamic_layer_radius_margin: 0.55
-    dynamic_layer_min_radius: 0.45
-    dynamic_layer_max_radius: 1.25
+    dynamic_layer_radius_margin: 0.95
+    dynamic_layer_min_radius: 0.85
+    dynamic_layer_max_radius: 2.25
     dynamic_layer_observation_range: 6.0
     dynamic_layer_clear_range: 7.0
-    dynamic_layer_prediction_horizon: 2.0
-    dynamic_layer_prediction_max_distance: 1.50
+    dynamic_layer_prediction_horizon: 4.0
+    dynamic_layer_prediction_max_distance: 3.00
+    dynamic_layer_prediction_speed_max: 1.50
+    dynamic_layer_trail_ttl_sec: 300.0
+    dynamic_layer_trail_min_distance: 0.25
+    dynamic_layer_trail_max_points: 80
+    dynamic_layer_escape_distance: 1.20
+    dynamic_layer_escape_t_cpa: 1.00
     dynamic_layer_occupied_value: 100
 
     # ----- 진단 로그 throttle (s) -----
