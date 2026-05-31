@@ -310,10 +310,12 @@ dwa_planner:
     dynamic_layer_enabled: true
     dynamic_layer_prefer_global_replan: true
     dynamic_layer_topic: "/dynamic_obstacle_layer"
-    dynamic_layer_publish_period: 0.50
+    dynamic_layer_publish_period: 1.00
     dynamic_layer_ttl_sec: 300.0
     dynamic_layer_min_hold_sec: 5.0
     dynamic_layer_clear_confirm_sec: 2.0
+    dynamic_layer_position_alpha: 0.35
+    dynamic_layer_velocity_alpha: 0.25
     dynamic_layer_radius_margin: 0.95
     dynamic_layer_min_radius: 0.85
     dynamic_layer_max_radius: 2.25

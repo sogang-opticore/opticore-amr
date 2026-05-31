@@ -25,6 +25,7 @@ from amr_navigation.dwa_node import (
     pick_lookahead_from_projection,
     sample_path_from_projection,
     DynamicPathBlockage,
+    DynamicObstacleMapBlock,
     DynamicObstacleTrack,
     detect_path_corridor_blockage,
     cluster_obstacle_points,
@@ -1260,6 +1261,64 @@ class TestNearWallEscapeAdjustment:
         assert active is False
         assert speed_floor == 0.0
         assert turn_bias == 0.0
+
+
+class TestDynamicLayerTemporalSmoothing:
+    def _make_node(self):
+        from amr_navigation.dwa_node import DwaPlannerNode
+
+        node = SimpleNamespace()
+        node._dynamic_layer_blocks = {
+            1: DynamicObstacleMapBlock(
+                block_id=1,
+                x=0.0,
+                y=0.0,
+                radius=1.0,
+                vx=0.0,
+                vy=0.0,
+                first_seen=0.0,
+                last_seen=0.0,
+                expire_at=10.0,
+                trail=[(0.0, 0.0, 0.0)],
+            )
+        }
+        node._next_dynamic_layer_block_id = 2
+        node.p_dynamic_layer_ttl_sec = 300.0
+        node.p_dynamic_layer_trail_min_distance = 0.25
+        node.p_dynamic_layer_trail_ttl_sec = 300.0
+        node.p_dynamic_layer_trail_max_points = 80
+        node.p_dynamic_layer_position_alpha = 0.35
+        node.p_dynamic_layer_velocity_alpha = 0.25
+        node._bounded_alpha = DwaPlannerNode._bounded_alpha
+        node._append_dynamic_layer_trail = (
+            DwaPlannerNode._append_dynamic_layer_trail.__get__(node))
+        node._upsert_dynamic_layer_block = (
+            DwaPlannerNode._upsert_dynamic_layer_block.__get__(node))
+        return node
+
+    def test_bounded_alpha_clamps_invalid_values(self):
+        from amr_navigation.dwa_node import DwaPlannerNode
+
+        assert DwaPlannerNode._bounded_alpha(-1.0, 0.35) == 0.0
+        assert DwaPlannerNode._bounded_alpha(2.0, 0.35) == 1.0
+        assert DwaPlannerNode._bounded_alpha("bad", 0.35) == 0.35
+
+    def test_upsert_uses_slow_position_and_velocity_filters(self):
+        node = self._make_node()
+
+        node._upsert_dynamic_layer_block(
+            map_xy=(1.0, 0.0),
+            radius=1.2,
+            velocity_map=(2.0, 0.0),
+            now=1.0,
+        )
+
+        block = node._dynamic_layer_blocks[1]
+        assert abs(block.x - 0.35) < 1e-9
+        assert abs(block.y) < 1e-9
+        assert abs(block.vx - 0.50) < 1e-9
+        assert abs(block.vy) < 1e-9
+        assert block.radius == 1.2
 
 
 class TestGlobalPathStaleGuard:

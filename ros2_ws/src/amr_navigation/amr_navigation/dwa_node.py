@@ -1685,10 +1685,12 @@ class DwaPlannerNode(Node):
         self.declare_parameter("dynamic_layer_enabled", True)
         self.declare_parameter("dynamic_layer_prefer_global_replan", True)
         self.declare_parameter("dynamic_layer_topic", "/dynamic_obstacle_layer")
-        self.declare_parameter("dynamic_layer_publish_period", 0.50)
+        self.declare_parameter("dynamic_layer_publish_period", 1.00)
         self.declare_parameter("dynamic_layer_ttl_sec", 300.0)
         self.declare_parameter("dynamic_layer_min_hold_sec", 5.0)
         self.declare_parameter("dynamic_layer_clear_confirm_sec", 2.0)
+        self.declare_parameter("dynamic_layer_position_alpha", 0.35)
+        self.declare_parameter("dynamic_layer_velocity_alpha", 0.25)
         self.declare_parameter("dynamic_layer_radius_margin", 0.95)
         self.declare_parameter("dynamic_layer_min_radius", 0.85)
         self.declare_parameter("dynamic_layer_max_radius", 2.25)
@@ -2010,6 +2012,10 @@ class DwaPlannerNode(Node):
             "dynamic_layer_min_hold_sec").value
         self.p_dynamic_layer_clear_confirm_sec = gp(
             "dynamic_layer_clear_confirm_sec").value
+        self.p_dynamic_layer_position_alpha = gp(
+            "dynamic_layer_position_alpha").value
+        self.p_dynamic_layer_velocity_alpha = gp(
+            "dynamic_layer_velocity_alpha").value
         self.p_dynamic_layer_radius_margin = gp(
             "dynamic_layer_radius_margin").value
         self.p_dynamic_layer_min_radius = gp("dynamic_layer_min_radius").value
@@ -2641,6 +2647,14 @@ class DwaPlannerNode(Node):
         if len(block.trail) > max_points:
             block.trail = block.trail[-max_points:]
 
+    @staticmethod
+    def _bounded_alpha(value: float, default: float) -> float:
+        try:
+            alpha = float(value)
+        except (TypeError, ValueError):
+            alpha = default
+        return max(0.0, min(1.0, alpha))
+
     def _upsert_dynamic_layer_block(
         self,
         map_xy: Tuple[float, float],
@@ -2677,12 +2691,15 @@ class DwaPlannerNode(Node):
 
         block = self._dynamic_layer_blocks[best_id]
         self._append_dynamic_layer_trail(block, map_xy, now)
-        alpha = 0.60
-        block.x = (1.0 - alpha) * block.x + alpha * map_xy[0]
-        block.y = (1.0 - alpha) * block.y + alpha * map_xy[1]
+        pos_alpha = self._bounded_alpha(
+            getattr(self, 'p_dynamic_layer_position_alpha', 0.35), 0.35)
+        vel_alpha = self._bounded_alpha(
+            getattr(self, 'p_dynamic_layer_velocity_alpha', 0.25), 0.25)
+        block.x = (1.0 - pos_alpha) * block.x + pos_alpha * map_xy[0]
+        block.y = (1.0 - pos_alpha) * block.y + pos_alpha * map_xy[1]
         block.radius = max(block.radius, radius)
-        block.vx = (1.0 - alpha) * block.vx + alpha * velocity_map[0]
-        block.vy = (1.0 - alpha) * block.vy + alpha * velocity_map[1]
+        block.vx = (1.0 - vel_alpha) * block.vx + vel_alpha * velocity_map[0]
+        block.vy = (1.0 - vel_alpha) * block.vy + vel_alpha * velocity_map[1]
         block.last_seen = now
         block.expire_at = expire_at
         block.clear_since = None

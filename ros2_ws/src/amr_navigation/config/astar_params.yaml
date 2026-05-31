@@ -63,7 +63,7 @@ astar_planner:
     # 벽에 붙은 기존 path를 recovery 전부터 교체할 기회를 준다.
     dwa_status_topic: "/dwa/status"
     status_replan_cooldown: 2.0
-    dynamic_status_replan_cooldown: 0.5
+    dynamic_status_replan_cooldown: 1.0
     status_replan_states: ["EMERGENCY", "PATH_LOST", "RECOVERY_DONE", "STOPPED_NEAR_WALL", "DYNAMIC_BLOCKED", "INSIDE_DYNAMIC_ZONE", "APPROACHING_DYNAMIC", "CROSSING_DYNAMIC", "RECEDING_DYNAMIC", "STOPPED_DYNAMIC", "AVOIDING_DYNAMIC"]
     dynamic_status_replan_states: ["DYNAMIC_BLOCKED", "INSIDE_DYNAMIC_ZONE", "APPROACHING_DYNAMIC", "CROSSING_DYNAMIC", "RECEDING_DYNAMIC", "STOPPED_DYNAMIC", "AVOIDING_DYNAMIC"]
     status_replan_after_states: ["FORWARD_ONLY", "RECOVERY"]
@@ -123,15 +123,15 @@ astar_planner:
     # Dynamic obstacle no-go layer can create two nearly equal routes around
     # the robot. Keep the accepted left/right branch briefly, and switch only
     # when the new branch is clearly shorter or safer.
-    dynamic_path_side_lock_sec: 4.0
+    dynamic_path_side_lock_sec: 6.0
     dynamic_path_side_lock_lookahead: 3.0
     dynamic_path_side_lock_deadband: 0.20
     dynamic_path_side_switch_min_improvement: 1.0
     dynamic_path_side_switch_min_clearance_gain: 0.35
     # Soft A* cost for the opposite side while the dynamic branch lock is active.
     # Keeps near-tie left/right routes from flipping every replan without hard-blocking escape.
-    dynamic_path_side_preference_cost: 0.35
-    dynamic_path_side_preference_distance: 6.0
+    dynamic_path_side_preference_cost: 0.50
+    dynamic_path_side_preference_distance: 8.0
 
     # 시뮬레이션 시간 사용 (Ignition Gazebo 필수)
     use_sim_time: true

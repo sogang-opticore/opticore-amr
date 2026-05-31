@@ -395,7 +395,7 @@ class AstarPlanner(Node):
         self.declare_parameter('dynamic_layer_topic', '/dynamic_obstacle_layer')
         self.declare_parameter('dynamic_layer_occupied_threshold', 65)
         self.declare_parameter('dynamic_layer_timeout_sec', 3.0)
-        self.declare_parameter('dynamic_status_replan_cooldown', 0.5)
+        self.declare_parameter('dynamic_status_replan_cooldown', 1.0)
         self.declare_parameter(
             'dynamic_status_replan_states',
             ['DYNAMIC_BLOCKED', 'INSIDE_DYNAMIC_ZONE', 'APPROACHING_DYNAMIC',
@@ -406,13 +406,13 @@ class AstarPlanner(Node):
         self.declare_parameter('dynamic_layer_start_escape_search_radius', 3.0)
         self.declare_parameter('dynamic_layer_start_escape_corridor_radius', 0.45)
         self.declare_parameter('dynamic_layer_start_escape_min_clearance', 0.60)
-        self.declare_parameter('dynamic_path_side_lock_sec', 4.0)
+        self.declare_parameter('dynamic_path_side_lock_sec', 6.0)
         self.declare_parameter('dynamic_path_side_lock_lookahead', 3.0)
         self.declare_parameter('dynamic_path_side_lock_deadband', 0.20)
         self.declare_parameter('dynamic_path_side_switch_min_improvement', 1.0)
         self.declare_parameter('dynamic_path_side_switch_min_clearance_gain', 0.35)
-        self.declare_parameter('dynamic_path_side_preference_cost', 0.35)
-        self.declare_parameter('dynamic_path_side_preference_distance', 6.0)
+        self.declare_parameter('dynamic_path_side_preference_cost', 0.50)
+        self.declare_parameter('dynamic_path_side_preference_distance', 8.0)
 
         self.heuristic_type   = self.get_parameter('heuristic').value
         self.allow_diagonal   = self.get_parameter('allow_diagonal').value

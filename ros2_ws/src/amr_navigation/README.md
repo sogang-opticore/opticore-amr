@@ -288,6 +288,8 @@ angular:
 | `dynamic_layer_ttl_sec` | 300.0 s | 한 번 관찰한 동적 장애물 영역을 임시 no-go로 유지할 최대 시간 |
 | `dynamic_layer_min_hold_sec` | 5.0 s | 사라진 것처럼 보여도 최소 이 시간 동안은 block 유지 |
 | `dynamic_layer_clear_confirm_sec` | 2.0 s | block 위치가 다시 관찰 가능하고 비어 있음을 확인해야 해제하는 시간 |
+| `dynamic_layer_publish_period` | 1.0 s | `/dynamic_obstacle_layer` 발행 최소 간격. 너무 잦은 overlay 변경으로 A\* 경로가 흔들리는 것을 줄인다 |
+| `dynamic_layer_position_alpha` / `dynamic_layer_velocity_alpha` | 0.35 / 0.25 | 같은 동적 block의 중심과 예측 속도를 새 관측에 얼마나 빠르게 따라붙일지 정하는 LPF 계수 |
 | `dynamic_layer_radius_margin` | 0.95 m | 관찰 반경에 로봇 반경/안전 여유를 더해 점유 영역을 확장 |
 | `dynamic_layer_min_radius` | 0.85 m | cluster가 작게 잡혀도 최소 이 반경만큼 no-go 처리 |
 | `dynamic_layer_max_radius` | 2.25 m | 큰 cluster/merge가 과도하게 커지는 것을 막는 상한 |
@@ -356,14 +358,15 @@ angular:
 | `replan_period` | 1.0 s | 0이면 goal 입력 시에만 1회, > 0이면 주기적 재계획 |
 | `dwa_status_topic` | `"/dwa/status"` | A\*가 이벤트 재계획 판단에 쓰는 DWA 상태 토픽 |
 | `status_replan_cooldown` | 2.0 s | 상태 이벤트 재계획 최소 간격 |
-| `dynamic_status_replan_cooldown` | 0.5 s | 동적 장애물 상태 전용 빠른 재계획 최소 간격. 일반 복구 이벤트의 2초 cooldown과 분리 |
+| `dynamic_status_replan_cooldown` | 1.0 s | 동적 장애물 상태 전용 재계획 최소 간격. `/dynamic_obstacle_layer` 발행 주기와 맞춰 과도한 이벤트 재계획을 줄인다 |
 | `status_replan_states` | `["EMERGENCY", "PATH_LOST", "RECOVERY_DONE", "STOPPED_NEAR_WALL", "DYNAMIC_BLOCKED", "INSIDE_DYNAMIC_ZONE", "APPROACHING_DYNAMIC", ...]` | 수신 즉시 현재 pose 기준 A\* 재계획. 동적 상태는 `/dynamic_obstacle_layer` overlay를 반영한 우회 경로 생성을 유도 |
 | `status_replan_after_states` | `["FORWARD_ONLY", "RECOVERY"]` | fallback: 이 상태 뒤 reset 상태가 오면 1회 재계획 |
 | `dynamic_layer_enabled` | true | DWA가 발행한 `/dynamic_obstacle_layer`를 static inflated grid 위에 합성 |
 | `dynamic_layer_occupied_threshold` | 65 | dynamic layer cell을 점유로 볼 최소 OccupancyGrid 값 |
 | `dynamic_layer_timeout_sec` | 3.0 s | 이 시간보다 오래된 dynamic layer는 stale로 보고 overlay 무시 |
 | `dynamic_layer_start_escape_*` | enabled=true, search=3.0m, corridor=0.45m, min_clear=0.60m | start cell이 정적 맵에서는 free지만 dynamic layer 때문에 막힌 경우, 정적 장애물은 보존한 채 dynamic layer 안에서 가장 안전한 바깥 셀까지 임시 escape corridor를 열어 A\*가 탈출 경로를 만들게 함 |
-| `dynamic_path_side_lock_*` | lock=4.0s, lookahead=3.0m, deadband=0.20m | 동적 layer 회피 중 좌/우 우회 후보가 1Hz로 번갈아 선택되는 현상을 줄이기 위해 초기 path 가지를 잠깐 고정한다 |
+| `dynamic_path_side_lock_*` | lock=6.0s, lookahead=3.0m, deadband=0.20m | 동적 layer 회피 중 좌/우 우회 후보가 1Hz로 번갈아 선택되는 현상을 줄이기 위해 초기 path 가지를 잠깐 고정한다 |
+| `dynamic_path_side_preference_*` | cost=0.50, distance=8.0m | dynamic branch lock이 살아 있을 때 A\*가 로봇 주변 8m 안에서 반대쪽 가지에 soft cost를 더해, 좌/우 후보가 거의 동률일 때 1Hz마다 번갈아 찍는 현상을 줄인다 |
 | `dynamic_path_side_switch_min_*` | improvement=1.0m, clearance_gain=0.35m | 반대쪽 가지가 이만큼 짧거나 안전해졌을 때만 기존 가지 lock을 풀고 전환한다 |
 | `path_switch_hysteresis` | 0.35 m | 새 주기 재계획 후보가 이만큼 짧지 않으면 기존 path 유지 |
 | `path_switch_max_start_offset` | 0.80 m | 현재 pose가 기존 path에서 이 이상 멀면 hysteresis 해제 |
@@ -521,6 +524,7 @@ ros2 topic pub --once /global_path nav_msgs/msg/Path \
 
 | 일자 | 변경 | 작성자 | 리뷰 |
 |---|---|---|---|
+| 2026-05-31 | Dynamic layer temporal smoothing 추가. `/dynamic_obstacle_layer` 발행 간격을 1.0s로 완화하고 block 중심/속도 LPF를 추가했으며, A\* dynamic side preference를 cost=0.50, distance=8.0m, lock=6.0s로 보강했다 | Codex | RunPod 주행 검증 필요 |
 | 2026-05-31 | A\* dynamic branch side preference cost 추가. `dynamic_path_side_preference_cost=0.35`, `dynamic_path_side_preference_distance=6.0m`로 dynamic branch lock 중 반대쪽 우회 가지에 soft cost를 주어 1Hz 재계획 좌우 flip을 줄인다 | Codex | RunPod 주행 검증 필요 |
 | 2026-05-31 | DWA 동적 장애물 layer(`/dynamic_obstacle_layer`)와 A\* overlay 합성 계약 추가. 동적 장애물은 기본적으로 임시 no-go 영역으로 보고 A\* 전역 우회 재계획을 우선한다 | Codex | RunPod 주행 검증 필요 |
 | 2026-05-10 | 초안 작성 — Nav2 기반 → 직접 구현으로 정정, 토픽 계약 추가, `v_max=2.0` 명세 반영 | SW(지상원) | — |
