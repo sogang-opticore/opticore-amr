@@ -161,6 +161,10 @@ angular:
 | `NORMAL` | path 수신 완료, Pure Pursuit 정상 추종 루프 실행 중 (코드가 발행하는 실제 값; 구 문서 `PLANNING`) |
 | `REJOIN` | path 이탈 상태. 가장 가까운 점 대신 미래 path 후보를 골라 작은 조향각으로 재합류 중 |
 | `DYNAMIC_BLOCKED` | LiDAR 동적 장애물이 global path corridor를 막고 있으며 side-lane/close-sidestep 후보가 모두 안전하지 않음 |
+| `APPROACHING_DYNAMIC` | 추적된 동적 장애물의 CPA/closing speed가 위험해 정지, 짧은 후퇴, 또는 제자리 회피 회전을 우선 |
+| `CROSSING_DYNAMIC` | 동적 장애물이 움직이며 path를 가로지르는 중으로 판단되어 우회보다 감속 대기를 우선 |
+| `RECEDING_DYNAMIC` | 동적 장애물이 로봇/경로에서 멀어지는 중으로 판단되어 path가 clear될 때까지 감속 대기 |
+| `STOPPED_DYNAMIC` | 추적된 동적 장애물이 정지 상태로 path를 막고 있으며 안전 후보가 없으면 대기 |
 | `AVOIDING_DYNAMIC` | 정적 global path는 유지하되 LiDAR 기반 side-offset 또는 close-sidestep 목표점으로 동적 장애물을 우회 중 |
 | `GOAL_REACHED` | **도착 순간 1회(edge)** — goal_tolerance 진입 시 (2026-05-31 P2 추가) |
 | `REACHED` | 도착 후 정지 유지 상태 (1Hz 정상 발행) |
@@ -264,6 +268,18 @@ angular:
 | `dynamic_static_filter_radius` | 0.30 m | LiDAR 점과 static occupied cell을 같은 정적 장애물로 볼 반경 |
 | `dynamic_static_filter_occupied_threshold` | 65 | 정적 장애물로 인정할 OccupancyGrid 점유값 |
 | `dynamic_static_filter_unknown_as_static` | false | unknown cell은 기본적으로 동적 후보를 숨기지 않음 |
+| `dynamic_track_cluster_distance` | 0.35 m | scan 순서상 인접한 dynamic LiDAR 점을 같은 obstacle cluster로 묶는 jump 거리 |
+| `dynamic_track_min_points` | 3 | dynamic obstacle track을 만들 최소 cluster point 수 |
+| `dynamic_track_max_radius` | 0.85 m | 너무 긴 벽/선형 구조물을 track으로 보지 않기 위한 cluster 반경 상한 |
+| `dynamic_track_association_distance` | 0.90 m | 이전 track과 새 cluster를 같은 장애물로 연결하는 거리 gate |
+| `dynamic_motion_min_age` | 2 tick | 속도/CPA 판단 전에 필요한 최소 관측 tick |
+| `dynamic_motion_stopped_speed` | 0.08 m/s | 이 속도 이하 track은 정지 동적 장애물로 판단 |
+| `dynamic_motion_approach_speed` | 0.18 m/s | 상대 closing speed가 이 값 이상이고 CPA가 위험하면 `APPROACHING_DYNAMIC` |
+| `dynamic_motion_cpa_horizon` | 2.50 s | closest point of approach 예측 시간 창 |
+| `dynamic_motion_cpa_margin` | 0.35 m | CPA 기준 robot+obstacle 반경을 뺀 잔여 여유가 이 값 이하면 접근 위험 |
+| `dynamic_approach_reverse_enabled` | true | 접근 동적 장애물에서 후방 LiDAR 여유가 충분하면 짧은 후퇴 허용 |
+| `dynamic_approach_reverse_clearance` | 0.80 m | 접근 장애물 후퇴에 필요한 후방 clearance |
+| `dynamic_approach_reverse_speed` | 0.16 m/s | 접근 장애물 후퇴 속도. 일반 recovery 후진이 아니라 접근 위험 전용 짧은 escape |
 | `align_release_angle` | 0.70 rad | ALIGN 중 안전하면 15도까지 기다리지 않고 NORMAL로 조기 복귀 |
 | `rejoin_align_release_angle` | 0.95 rad | REJOIN 중 안전하면 더 이른 각도에서 path 추종으로 복귀 |
 | `align_drive_angle` | 1.57 rad | ALIGN 중 전방 여유가 있으면 저속 turn-in-motion 허용 각도 |
@@ -327,7 +343,7 @@ angular:
 | `status_replan_after_states` | `["FORWARD_ONLY", "RECOVERY"]` | fallback: 이 상태 뒤 reset 상태가 오면 1회 재계획 |
 | `path_switch_hysteresis` | 0.35 m | 새 주기 재계획 후보가 이만큼 짧지 않으면 기존 path 유지 |
 | `path_switch_max_start_offset` | 0.80 m | 현재 pose가 기존 path에서 이 이상 멀면 hysteresis 해제 |
-| `path_hysteresis_stable_states` | `["NORMAL", "ALIGN", "AVOIDING_DYNAMIC", "DYNAMIC_BLOCKED"]` | 이 DWA 상태에서만 기존 path 유지 hysteresis 적용. REJOIN/복구/벽 정지 중에는 새 후보 수용성 우선 |
+| `path_hysteresis_stable_states` | `["NORMAL", "ALIGN", "AVOIDING_DYNAMIC", "DYNAMIC_BLOCKED", "APPROACHING_DYNAMIC", "CROSSING_DYNAMIC", "RECEDING_DYNAMIC", "STOPPED_DYNAMIC"]` | 이 DWA 상태에서만 기존 path 유지 hysteresis 적용. REJOIN/복구/벽 정지 중에는 새 후보 수용성 우선 |
 | `new_goal_force_publish_sec` | 5.0 s | 새 goal 직후 이 시간 동안 hysteresis를 건너뛰어 `/global_path` 재수신 기회 확보 |
 | `goal_direct_distance` | 2.0 m | 목표 근처에서 안전한 직선 final approach path 허용 거리 |
 | `goal_direct_min_clearance` | 0.90 m | 직선 final approach segment의 최소 raw obstacle clearance |
@@ -348,7 +364,7 @@ angular:
 | goal 도달 불가 (장애물로 막힘) | 빈 path 발행 | 정지 |
 | DWA가 `EMERGENCY`/`PATH_LOST`/`RECOVERY_DONE` 발행 | 현재 pose 기준 1회 재계획. 실패해도 기존 성공 path가 있으면 빈 path 미발행 | 새 path 수신 시 추종 재개 |
 | DWA가 `NORMAL`/`ALIGN`으로 정상 추종 중 | 기본값에서는 재계획 없음. 기존 latched path 유지 | path 초입 재정렬 반복 방지 |
-| DWA가 `AVOIDING_DYNAMIC`/`DYNAMIC_BLOCKED` 발행 | static map 기반 global path는 유지하되 hysteresis로 branch 흔들림을 줄임 | LiDAR corridor 차단을 보고 side-offset local bypass를 시도. 후보가 너무 보수적으로 탈락하면 같은 side를 유지한 close-sidestep을 먼저 시도하고, 안전 후보가 없을 때만 `DYNAMIC_BLOCKED`로 정지 대기 |
+| DWA가 `AVOIDING_DYNAMIC`/동적 motion 상태를 발행 | static map 기반 global path는 유지하되 hysteresis로 branch 흔들림을 줄임 | LiDAR corridor 차단 후 cluster/track 속도를 추정한다. 정지 장애물은 우회, crossing/receding은 감속 대기, approaching은 짧은 후퇴 또는 측방 escape를 우선한다 |
 | 주기 재계획 실패 + 기존 성공 path 있음 | 빈 path 미발행, 기존 path 유지 | 기존 path 계속 추종 |
 | `/global_path` empty 수신(새 goal 직후) | — | 즉시 정지, `status="STOPPED"` |
 | `/global_path` empty 수신(새 goal 없음 + 기존 path 있음) | — | stale/중복 publisher 가능성으로 보고 기존 path 유지 |

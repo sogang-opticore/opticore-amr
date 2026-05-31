@@ -291,6 +291,22 @@ dwa_planner:
     dynamic_static_filter_occupied_threshold: 65
     dynamic_static_filter_unknown_as_static: false
     dynamic_static_filter_tf_timeout: 0.01
+    dynamic_track_cluster_distance: 0.35
+    dynamic_track_min_points: 3
+    dynamic_track_max_radius: 0.85
+    dynamic_track_association_distance: 0.90
+    dynamic_track_timeout: 1.00
+    dynamic_motion_min_age: 2
+    dynamic_motion_stopped_speed: 0.08
+    dynamic_motion_moving_speed: 0.15
+    dynamic_motion_approach_speed: 0.18
+    dynamic_motion_recede_speed: 0.12
+    dynamic_motion_cpa_horizon: 2.50
+    dynamic_motion_cpa_margin: 0.35
+    dynamic_approach_reverse_enabled: true
+    dynamic_approach_reverse_clearance: 0.80
+    dynamic_approach_reverse_speed: 0.16
+    dynamic_approach_turn_speed: 0.45
 
     # ----- 진단 로그 throttle (s) -----
     # 0 = 비활성. control_rate=20Hz 기준 1.0s = 1초당 1회.

@@ -25,7 +25,10 @@ from amr_navigation.dwa_node import (
     pick_lookahead_from_projection,
     sample_path_from_projection,
     DynamicPathBlockage,
+    DynamicObstacleTrack,
     detect_path_corridor_blockage,
+    cluster_obstacle_points,
+    classify_dynamic_motion,
     choose_dynamic_avoid_target,
     choose_rejoin_target,
     occupancy_grid_has_static_obstacle_near,
@@ -438,6 +441,79 @@ class TestPathProjectionLookahead:
 
         assert dynamic_obstacles == []
         assert blockage.blocked is False
+
+    def test_cluster_obstacle_points_splits_scan_jumps(self):
+        clusters = cluster_obstacle_points(
+            [(1.0, 0.00), (1.05, 0.02), (2.0, 0.10), (2.04, 0.12)],
+            join_distance=0.20,
+            min_points=2,
+            max_radius=0.30,
+        )
+
+        assert len(clusters) == 2
+        assert clusters[0].count == 2
+        assert clusters[1].count == 2
+
+    def test_classify_dynamic_motion_detects_approaching_cpa(self):
+        robot = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
+        track = DynamicObstacleTrack(
+            track_id=1,
+            x=1.2,
+            y=0.0,
+            vx=-0.4,
+            vy=0.0,
+            radius=0.20,
+            count=8,
+            age=4,
+            last_seen=1.0,
+        )
+
+        motion = classify_dynamic_motion(
+            track,
+            robot,
+            robot_radius=0.20,
+            stopped_speed=0.08,
+            moving_speed=0.15,
+            approaching_speed=0.18,
+            receding_speed=0.12,
+            cpa_horizon=2.5,
+            cpa_margin=0.35,
+            min_age=2,
+        )
+
+        assert motion.state == "APPROACHING"
+        assert motion.closing_speed > 0.3
+        assert motion.d_cpa < 0.35
+
+    def test_classify_dynamic_motion_detects_receding(self):
+        robot = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
+        track = DynamicObstacleTrack(
+            track_id=2,
+            x=1.2,
+            y=0.0,
+            vx=0.25,
+            vy=0.0,
+            radius=0.20,
+            count=8,
+            age=4,
+            last_seen=1.0,
+        )
+
+        motion = classify_dynamic_motion(
+            track,
+            robot,
+            robot_radius=0.20,
+            stopped_speed=0.08,
+            moving_speed=0.15,
+            approaching_speed=0.18,
+            receding_speed=0.12,
+            cpa_horizon=2.5,
+            cpa_margin=0.35,
+            min_age=2,
+        )
+
+        assert motion.state == "RECEDING"
+        assert motion.closing_speed < -0.12
 
     def test_dynamic_avoid_target_offsets_away_from_blocked_side(self):
         path = [(0.0, 0.0), (5.0, 0.0)]

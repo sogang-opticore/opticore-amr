@@ -139,6 +139,45 @@ class DynamicPathBlockage:
 
 
 @dataclass
+class DynamicObstacleCluster:
+    """A compact local-frame cluster made from dynamic LiDAR points."""
+    center: Tuple[float, float]
+    radius: float
+    count: int
+
+
+@dataclass
+class DynamicObstacleTrack:
+    """Odom-frame dynamic obstacle track used for short-horizon prediction."""
+    track_id: int
+    x: float
+    y: float
+    vx: float
+    vy: float
+    radius: float
+    count: int
+    age: int
+    last_seen: float
+    missed: int = 0
+
+
+@dataclass
+class DynamicMotionEstimate:
+    """Relative motion estimate for the dynamic obstacle that matters most."""
+    state: str
+    track_id: int = -1
+    distance: float = float("inf")
+    speed: float = 0.0
+    closing_speed: float = 0.0
+    t_cpa: float = float("inf")
+    d_cpa: float = float("inf")
+    age: int = 0
+    confidence: float = 0.0
+    side: int = 0
+    radius: float = 0.0
+
+
+@dataclass
 class DynamicAvoidTarget:
     """Temporary local bypass target used while the static global path is blocked."""
     point: Tuple[float, float]
@@ -162,6 +201,10 @@ class NavState(Enum):
     REJOIN       = "REJOIN"        # path 이탈 후 미래 path 지점으로 부드럽게 재합류
     ALIGN        = "ALIGN"         # in-place 회전 (heading 오차 큼)
     DYNAMIC_BLOCKED = "DYNAMIC_BLOCKED"  # 동적 장애물이 path corridor를 막음
+    APPROACHING_DYNAMIC = "APPROACHING_DYNAMIC"  # closing dynamic obstacle
+    CROSSING_DYNAMIC = "CROSSING_DYNAMIC"  # moving obstacle is likely crossing
+    RECEDING_DYNAMIC = "RECEDING_DYNAMIC"  # moving obstacle is moving away
+    STOPPED_DYNAMIC = "STOPPED_DYNAMIC"  # tracked obstacle is stopped on path
     AVOIDING_DYNAMIC = "AVOIDING_DYNAMIC"  # side-offset local bypass 중
     SPIN         = "SPIN"          # spin recovery (stuck → 제자리 회전 탈출)
     FORWARD_ONLY = "FORWARD_ONLY"  # spin 완료 후 현재 heading으로 짧게 전진
@@ -807,6 +850,111 @@ def pure_pursuit_arc_clearance_margin(
     if center_dist == float("inf"):
         return float("inf")
     return max(0.0, center_dist - max(0.0, robot_radius))
+
+
+def cluster_obstacle_points(
+    obstacle_points: List[Tuple[float, float]],
+    join_distance: float,
+    min_points: int,
+    max_radius: float,
+) -> List[DynamicObstacleCluster]:
+    """Cluster scan-ordered obstacle points with a small jump-distance rule."""
+    if not obstacle_points:
+        return []
+    join_distance = max(0.05, join_distance)
+    min_points = max(1, min_points)
+    max_radius = max(0.05, max_radius)
+    clusters: List[DynamicObstacleCluster] = []
+    current: List[Tuple[float, float]] = []
+
+    def flush() -> None:
+        if len(current) < min_points:
+            return
+        cx = sum(p[0] for p in current) / len(current)
+        cy = sum(p[1] for p in current) / len(current)
+        radius = max(math.hypot(px - cx, py - cy) for px, py in current)
+        if radius <= max_radius:
+            clusters.append(DynamicObstacleCluster((cx, cy), radius, len(current)))
+
+    prev: Optional[Tuple[float, float]] = None
+    for point in obstacle_points:
+        if prev is not None and math.hypot(
+                point[0] - prev[0], point[1] - prev[1]) > join_distance:
+            flush()
+            current = []
+        current.append(point)
+        prev = point
+    flush()
+    return clusters
+
+
+def classify_dynamic_motion(
+    track: Optional[DynamicObstacleTrack],
+    robot: RobotState,
+    robot_radius: float,
+    stopped_speed: float,
+    moving_speed: float,
+    approaching_speed: float,
+    receding_speed: float,
+    cpa_horizon: float,
+    cpa_margin: float,
+    min_age: int,
+) -> DynamicMotionEstimate:
+    """Classify one tracked obstacle by relative velocity and closest approach."""
+    if track is None:
+        return DynamicMotionEstimate("UNKNOWN")
+
+    dx = track.x - robot.x
+    dy = track.y - robot.y
+    distance = math.hypot(dx, dy)
+    speed = math.hypot(track.vx, track.vy)
+    confidence = min(1.0, max(0.0, track.age / max(1, min_age + 2)))
+    side = 1 if world_to_local((track.x, track.y), robot)[1] >= 0.0 else -1
+    if track.age < max(1, min_age):
+        return DynamicMotionEstimate(
+            "UNKNOWN", track.track_id, distance, speed, 0.0,
+            float("inf"), float("inf"), track.age, confidence, side, track.radius)
+
+    robot_vx = robot.v * math.cos(robot.theta)
+    robot_vy = robot.v * math.sin(robot.theta)
+    rel_vx = track.vx - robot_vx
+    rel_vy = track.vy - robot_vy
+    if distance > 1e-6:
+        closing_speed = -((dx * rel_vx + dy * rel_vy) / distance)
+    else:
+        closing_speed = 0.0
+
+    rel_v2 = rel_vx * rel_vx + rel_vy * rel_vy
+    if rel_v2 > 1e-6:
+        t_cpa = -(dx * rel_vx + dy * rel_vy) / rel_v2
+        t_cpa = max(0.0, min(max(0.0, cpa_horizon), t_cpa))
+        cpa_x = dx + rel_vx * t_cpa
+        cpa_y = dy + rel_vy * t_cpa
+        d_cpa = (
+            math.hypot(cpa_x, cpa_y)
+            - max(0.0, robot_radius)
+            - max(0.0, track.radius)
+        )
+    else:
+        t_cpa = float("inf")
+        d_cpa = distance - max(0.0, robot_radius) - max(0.0, track.radius)
+
+    if speed <= stopped_speed:
+        state = "STOPPED"
+    elif (closing_speed >= approaching_speed and
+          t_cpa <= cpa_horizon and
+          d_cpa <= cpa_margin):
+        state = "APPROACHING"
+    elif closing_speed <= -receding_speed:
+        state = "RECEDING"
+    elif speed >= moving_speed:
+        state = "CROSSING"
+    else:
+        state = "UNKNOWN"
+
+    return DynamicMotionEstimate(
+        state, track.track_id, distance, speed, closing_speed,
+        t_cpa, d_cpa, track.age, confidence, side, track.radius)
 
 
 def point_segment_projection(
@@ -1501,6 +1649,22 @@ class DwaPlannerNode(Node):
         self.declare_parameter("dynamic_static_filter_occupied_threshold", 65)
         self.declare_parameter("dynamic_static_filter_unknown_as_static", False)
         self.declare_parameter("dynamic_static_filter_tf_timeout", 0.01)
+        self.declare_parameter("dynamic_track_cluster_distance", 0.35)
+        self.declare_parameter("dynamic_track_min_points", 3)
+        self.declare_parameter("dynamic_track_max_radius", 0.85)
+        self.declare_parameter("dynamic_track_association_distance", 0.90)
+        self.declare_parameter("dynamic_track_timeout", 1.0)
+        self.declare_parameter("dynamic_motion_min_age", 2)
+        self.declare_parameter("dynamic_motion_stopped_speed", 0.08)
+        self.declare_parameter("dynamic_motion_moving_speed", 0.15)
+        self.declare_parameter("dynamic_motion_approach_speed", 0.18)
+        self.declare_parameter("dynamic_motion_recede_speed", 0.12)
+        self.declare_parameter("dynamic_motion_cpa_horizon", 2.5)
+        self.declare_parameter("dynamic_motion_cpa_margin", 0.35)
+        self.declare_parameter("dynamic_approach_reverse_enabled", True)
+        self.declare_parameter("dynamic_approach_reverse_clearance", 0.80)
+        self.declare_parameter("dynamic_approach_reverse_speed", 0.16)
+        self.declare_parameter("dynamic_approach_turn_speed", 0.45)
         self.declare_parameter("rejoin_predicted_exit_offset", 0.42)
         self.declare_parameter("rejoin_align_angle_thresh", 1.75)
         self.declare_parameter("short_lookahead_rejoin_min_distance", 0.35)
@@ -1602,6 +1766,8 @@ class DwaPlannerNode(Node):
         self._dynamic_clear_ticks = 0
         self._dynamic_avoid_side = 0
         self._dynamic_avoid_until = 0.0
+        self._dynamic_tracks: dict[int, DynamicObstacleTrack] = {}
+        self._next_dynamic_track_id = 1
 
         # ALIGN 전용
         self._in_align_mode = False      # 하위 호환 (path 콜백에서 리셋)
@@ -1760,6 +1926,34 @@ class DwaPlannerNode(Node):
             "dynamic_static_filter_unknown_as_static").value
         self.p_dynamic_static_filter_tf_timeout = gp(
             "dynamic_static_filter_tf_timeout").value
+        self.p_dynamic_track_cluster_distance = gp(
+            "dynamic_track_cluster_distance").value
+        self.p_dynamic_track_min_points = gp("dynamic_track_min_points").value
+        self.p_dynamic_track_max_radius = gp("dynamic_track_max_radius").value
+        self.p_dynamic_track_association_distance = gp(
+            "dynamic_track_association_distance").value
+        self.p_dynamic_track_timeout = gp("dynamic_track_timeout").value
+        self.p_dynamic_motion_min_age = gp("dynamic_motion_min_age").value
+        self.p_dynamic_motion_stopped_speed = gp(
+            "dynamic_motion_stopped_speed").value
+        self.p_dynamic_motion_moving_speed = gp(
+            "dynamic_motion_moving_speed").value
+        self.p_dynamic_motion_approach_speed = gp(
+            "dynamic_motion_approach_speed").value
+        self.p_dynamic_motion_recede_speed = gp(
+            "dynamic_motion_recede_speed").value
+        self.p_dynamic_motion_cpa_horizon = gp(
+            "dynamic_motion_cpa_horizon").value
+        self.p_dynamic_motion_cpa_margin = gp(
+            "dynamic_motion_cpa_margin").value
+        self.p_dynamic_approach_reverse_enabled = gp(
+            "dynamic_approach_reverse_enabled").value
+        self.p_dynamic_approach_reverse_clearance = gp(
+            "dynamic_approach_reverse_clearance").value
+        self.p_dynamic_approach_reverse_speed = gp(
+            "dynamic_approach_reverse_speed").value
+        self.p_dynamic_approach_turn_speed = gp(
+            "dynamic_approach_turn_speed").value
         self.p_rejoin_predicted_exit_offset = gp(
             "rejoin_predicted_exit_offset").value
         self.p_rejoin_align_angle_thresh = gp("rejoin_align_angle_thresh").value
@@ -2169,6 +2363,149 @@ class DwaPlannerNode(Node):
             dynamic_candidates.append(obs)
         return dynamic_candidates, static_count
 
+    def _update_dynamic_tracks(
+        self,
+        clusters_local: List[DynamicObstacleCluster],
+    ) -> List[DynamicObstacleTrack]:
+        if self._state is None:
+            return []
+
+        now = self._sec_now()
+        current_tracks: List[DynamicObstacleTrack] = []
+        used_tracks: set[int] = set()
+        association = max(0.10, self.p_dynamic_track_association_distance)
+
+        for cluster in clusters_local:
+            wx, wy = local_to_world(cluster.center, self._state)
+            best_id: Optional[int] = None
+            best_dist = float("inf")
+            for track_id, track in self._dynamic_tracks.items():
+                if track_id in used_tracks:
+                    continue
+                dist = math.hypot(wx - track.x, wy - track.y)
+                gate = association + cluster.radius + track.radius
+                if dist < best_dist and dist <= gate:
+                    best_dist = dist
+                    best_id = track_id
+
+            if best_id is None:
+                track = DynamicObstacleTrack(
+                    self._next_dynamic_track_id,
+                    wx, wy,
+                    0.0, 0.0,
+                    cluster.radius,
+                    cluster.count,
+                    1,
+                    now,
+                    0,
+                )
+                self._next_dynamic_track_id += 1
+                self._dynamic_tracks[track.track_id] = track
+            else:
+                track = self._dynamic_tracks[best_id]
+                dt = max(1e-3, min(0.5, now - track.last_seen))
+                meas_vx = (wx - track.x) / dt
+                meas_vy = (wy - track.y) / dt
+                alpha = 0.45 if track.age >= 2 else 1.0
+                track.vx = (1.0 - alpha) * track.vx + alpha * meas_vx
+                track.vy = (1.0 - alpha) * track.vy + alpha * meas_vy
+                track.x = wx
+                track.y = wy
+                track.radius = cluster.radius
+                track.count = cluster.count
+                track.age += 1
+                track.last_seen = now
+                track.missed = 0
+
+            used_tracks.add(track.track_id)
+            current_tracks.append(track)
+
+        timeout = max(0.10, self.p_dynamic_track_timeout)
+        stale: List[int] = []
+        for track_id, track in self._dynamic_tracks.items():
+            if track_id in used_tracks:
+                continue
+            track.missed += 1
+            if now - track.last_seen > timeout:
+                stale.append(track_id)
+        for track_id in stale:
+            self._dynamic_tracks.pop(track_id, None)
+
+        return current_tracks
+
+    def _select_dynamic_motion_estimate(
+        self,
+        path_xy: List[Tuple[float, float]],
+        robot: RobotState,
+        projection: PathProjection,
+        tracks: List[DynamicObstacleTrack],
+    ) -> DynamicMotionEstimate:
+        if not path_xy or not tracks:
+            return DynamicMotionEstimate("UNKNOWN")
+
+        samples: List[Tuple[float, Tuple[float, float]]] = []
+        check_distance = max(0.0, self.p_dynamic_path_check_distance)
+        step = max(0.05, self.p_dynamic_path_corridor_step)
+        count = int(check_distance / step) + 1
+        for i in range(count + 1):
+            distance = min(check_distance, i * step)
+            sample = sample_path_from_projection(path_xy, projection, distance)
+            if sample is None:
+                continue
+            local_point = world_to_local(sample.point, robot)
+            samples.append((distance, local_point))
+        if len(samples) < 2:
+            return DynamicMotionEstimate("UNKNOWN")
+
+        best_track: Optional[DynamicObstacleTrack] = None
+        best_key = (float("inf"), float("inf"))
+        best_side = 0
+        corridor_width = max(0.05, self.p_dynamic_path_corridor_width)
+        for track in tracks:
+            local_xy = world_to_local((track.x, track.y), robot)
+            if local_xy[0] < -0.20:
+                continue
+            if math.hypot(*local_xy) > check_distance + corridor_width + track.radius + 0.5:
+                continue
+
+            best_dist = float("inf")
+            best_along = float("inf")
+            side_value = 0
+            for (d0, p0), (d1, p1) in zip(samples, samples[1:]):
+                dist, t, _ = point_segment_projection(local_xy, p0, p1)
+                if dist >= best_dist:
+                    continue
+                sx = p1[0] - p0[0]
+                sy = p1[1] - p0[1]
+                side = sx * (local_xy[1] - p0[1]) - sy * (local_xy[0] - p0[0])
+                best_dist = dist
+                best_along = d0 + t * max(0.0, d1 - d0)
+                side_value = 1 if side > 0.0 else -1 if side < 0.0 else 0
+
+            if best_dist - track.radius > corridor_width:
+                continue
+            key = (best_along, best_dist)
+            if key < best_key:
+                best_key = key
+                best_track = track
+                best_side = side_value
+
+        estimate = classify_dynamic_motion(
+            best_track,
+            robot,
+            self.p_robot_radius,
+            self.p_dynamic_motion_stopped_speed,
+            self.p_dynamic_motion_moving_speed,
+            self.p_dynamic_motion_approach_speed,
+            self.p_dynamic_motion_recede_speed,
+            self.p_dynamic_motion_cpa_horizon,
+            self.p_dynamic_motion_cpa_margin,
+            int(self.p_dynamic_motion_min_age),
+        )
+        if best_side != 0:
+            estimate.side = best_side
+        return estimate
+
     def _compute_context(self) -> Optional[dict]:
         """경로 추종에 필요한 공통 값을 계산해 dict 로 반환.
 
@@ -2222,6 +2559,9 @@ class DwaPlannerNode(Node):
             False, float("inf"), 0, 0.0, 0.0)
         dynamic_blocked = False
         dynamic_avoid_target: Optional[DynamicAvoidTarget] = None
+        dynamic_clusters: List[DynamicObstacleCluster] = []
+        dynamic_tracks: List[DynamicObstacleTrack] = []
+        dynamic_motion = DynamicMotionEstimate("UNKNOWN")
         rejoin_target: Optional[RejoinTarget] = None
         if rejoin_requested:
             rejoin_target = choose_rejoin_target(
@@ -2309,6 +2649,15 @@ class DwaPlannerNode(Node):
             dynamic_obstacles_local, dynamic_static_filtered = (
                 self._filter_static_obstacles_for_dynamic(obstacles_local)
             )
+            dynamic_clusters = cluster_obstacle_points(
+                dynamic_obstacles_local,
+                self.p_dynamic_track_cluster_distance,
+                int(self.p_dynamic_track_min_points),
+                self.p_dynamic_track_max_radius,
+            )
+            dynamic_tracks = self._update_dynamic_tracks(dynamic_clusters)
+            dynamic_motion = self._select_dynamic_motion_estimate(
+                path_xy, self._state, projection, dynamic_tracks)
             dynamic_blockage = detect_path_corridor_blockage(
                 path_xy=path_xy,
                 robot=self._state,
@@ -2329,7 +2678,7 @@ class DwaPlannerNode(Node):
                     0.0,
                     0.0,
                 )
-            if dynamic_blocked:
+            if dynamic_blocked and dynamic_motion.state in ("STOPPED", "APPROACHING"):
                 # 동적 장애물이 계속 막고 있는 동안에는 직전 우회 side를
                 # 유지한다. 한두 tick 후보가 사라졌다고 side를 잊으면
                 # DYNAMIC_BLOCKED 대기 상태에 쉽게 갇힌다.
@@ -2397,6 +2746,19 @@ class DwaPlannerNode(Node):
             "dynamic_raw_obstacle_count": len(obstacles_local),
             "dynamic_obstacle_count": len(dynamic_obstacles_local),
             "dynamic_static_filtered": dynamic_static_filtered,
+            "dynamic_cluster_count": len(dynamic_clusters),
+            "dynamic_track_count": len(dynamic_tracks),
+            "dynamic_motion_state": dynamic_motion.state,
+            "dynamic_motion_track_id": dynamic_motion.track_id,
+            "dynamic_motion_distance": dynamic_motion.distance,
+            "dynamic_motion_speed": dynamic_motion.speed,
+            "dynamic_motion_closing": dynamic_motion.closing_speed,
+            "dynamic_motion_t_cpa": dynamic_motion.t_cpa,
+            "dynamic_motion_d_cpa": dynamic_motion.d_cpa,
+            "dynamic_motion_age": dynamic_motion.age,
+            "dynamic_motion_confidence": dynamic_motion.confidence,
+            "dynamic_motion_side": dynamic_motion.side,
+            "dynamic_motion_radius": dynamic_motion.radius,
             "is_dynamic_avoiding": dynamic_avoid_target is not None,
             "dynamic_avoid_side": (
                 dynamic_avoid_target.side if dynamic_avoid_target else 0
@@ -2425,6 +2787,58 @@ class DwaPlannerNode(Node):
     # ───────────────────────────────────────────────────────────────
     # 상태 실행 함수들
     # ───────────────────────────────────────────────────────────────
+    @staticmethod
+    def _dynamic_wait_nav_state(motion_state: str) -> NavState:
+        if motion_state == "APPROACHING":
+            return NavState.APPROACHING_DYNAMIC
+        if motion_state == "CROSSING":
+            return NavState.CROSSING_DYNAMIC
+        if motion_state == "RECEDING":
+            return NavState.RECEDING_DYNAMIC
+        if motion_state == "STOPPED":
+            return NavState.STOPPED_DYNAMIC
+        return NavState.DYNAMIC_BLOCKED
+
+    def _execute_dynamic_approach_escape(self, ctx: dict) -> bool:
+        """Short emergency escape when a tracked dynamic obstacle is closing in."""
+        obstacles = ctx["obstacles_local"]
+        rear_clear = self._rear_clearance_inline(obstacles)
+        turn_bias = self._escape_turn_bias(obstacles)
+        turn_dir = 1.0 if turn_bias >= 0.0 else -1.0
+        if ctx.get("dynamic_motion_side", 0) > 0:
+            turn_dir = -1.0
+        elif ctx.get("dynamic_motion_side", 0) < 0:
+            turn_dir = 1.0
+
+        if (self.p_dynamic_approach_reverse_enabled and
+                rear_clear >= self.p_dynamic_approach_reverse_clearance):
+            v_cmd = -abs(self.p_dynamic_approach_reverse_speed)
+            w_cmd = turn_dir * min(self.p_w_max * 0.35,
+                                   abs(self.p_dynamic_approach_turn_speed))
+            self._publish_cmd(VelocityCommand(v=v_cmd, w=w_cmd),
+                              allow_backward_override=True)
+        else:
+            self._publish_cmd(VelocityCommand(
+                v=0.0,
+                w=turn_dir * min(self.p_w_max * 0.45,
+                                 abs(self.p_dynamic_approach_turn_speed)),
+            ))
+
+        self._nav_state = NavState.APPROACHING_DYNAMIC
+        self._relax_path_acceptance()
+        self._publish_status_value("APPROACHING_DYNAMIC")
+        self._log_state_throttled()
+        self.get_logger().warn(
+            "approaching dynamic obstacle; escaping conservatively "
+            f"(d={ctx.get('dynamic_motion_distance', float('inf')):.2f}m, "
+            f"v={ctx.get('dynamic_motion_speed', 0.0):.2f}, "
+            f"closing={ctx.get('dynamic_motion_closing', 0.0):.2f}, "
+            f"tcpa={ctx.get('dynamic_motion_t_cpa', float('inf')):.2f}, "
+            f"dcpa={ctx.get('dynamic_motion_d_cpa', float('inf')):.2f}, "
+            f"rear={rear_clear:.2f})",
+            throttle_duration_sec=0.5)
+        return True
+
     def _execute_normal(self, ctx: dict) -> None:
         """NavState.NORMAL — Pure Pursuit + adaptive velocity."""
         alpha       = ctx["alpha"]
@@ -2441,17 +2855,22 @@ class DwaPlannerNode(Node):
         is_rejoining = ctx.get("is_rejoining", False)
         dynamic_blocked = ctx.get("dynamic_blocked", False)
         is_dynamic_avoiding = ctx.get("is_dynamic_avoiding", False)
+        dynamic_motion_state = ctx.get("dynamic_motion_state", "UNKNOWN")
 
         if is_dynamic_avoiding:
             self._nav_state = NavState.AVOIDING_DYNAMIC
         elif dynamic_blocked:
-            self._nav_state = NavState.DYNAMIC_BLOCKED
+            self._nav_state = self._dynamic_wait_nav_state(dynamic_motion_state)
         elif is_rejoining:
             self._nav_state = NavState.REJOIN
         elif self._nav_state in (
                 NavState.REJOIN,
                 NavState.AVOIDING_DYNAMIC,
-                NavState.DYNAMIC_BLOCKED):
+                NavState.DYNAMIC_BLOCKED,
+                NavState.APPROACHING_DYNAMIC,
+                NavState.CROSSING_DYNAMIC,
+                NavState.RECEDING_DYNAMIC,
+                NavState.STOPPED_DYNAMIC):
             self._nav_state = NavState.NORMAL
 
         period = 1.0 / max(self.p_control_rate, 1.0)
@@ -2460,9 +2879,13 @@ class DwaPlannerNode(Node):
         dw_brake_max = self.p_w_brake_alpha_max * period
 
         if dynamic_blocked and not is_dynamic_avoiding:
+            if dynamic_motion_state == "APPROACHING" and \
+                    self._execute_dynamic_approach_escape(ctx):
+                return
+            status_value = self._dynamic_wait_nav_state(dynamic_motion_state).value
             self._relax_path_acceptance()
             self._publish_cmd(VelocityCommand(v=0.0, w=0.0))
-            self._publish_status_value("DYNAMIC_BLOCKED")
+            self._publish_status_value(status_value)
             self._log_state_throttled()
             self.get_logger().warn(
                 "dynamic obstacle blocks global path corridor; waiting for "
@@ -2470,9 +2893,16 @@ class DwaPlannerNode(Node):
                 f"(hits={ctx.get('dynamic_block_count', 0)}, "
                 f"d={ctx.get('dynamic_block_distance', float('inf')):.2f}m, "
                 f"bias={ctx.get('dynamic_block_side_bias', 0.0):+.2f}, "
+                f"motion={dynamic_motion_state}, "
+                f"v={ctx.get('dynamic_motion_speed', 0.0):.2f}, "
+                f"closing={ctx.get('dynamic_motion_closing', 0.0):.2f}, "
+                f"tcpa={ctx.get('dynamic_motion_t_cpa', float('inf')):.2f}, "
+                f"dcpa={ctx.get('dynamic_motion_d_cpa', float('inf')):.2f}, "
                 f"held_side={ctx.get('dynamic_held_side', 0):+d}, "
                 f"raw_pts={ctx.get('dynamic_raw_obstacle_count', 0)}, "
                 f"dyn_pts={ctx.get('dynamic_obstacle_count', 0)}, "
+                f"clusters={ctx.get('dynamic_cluster_count', 0)}, "
+                f"tracks={ctx.get('dynamic_track_count', 0)}, "
                 f"static_filtered={ctx.get('dynamic_static_filtered', 0)})",
                 throttle_duration_sec=1.0)
             return
@@ -2739,8 +3169,16 @@ class DwaPlannerNode(Node):
                 f" dyn_mode={ctx.get('dynamic_avoid_mode', '')}"
                 f" dyn_clr={ctx.get('dynamic_avoid_clearance', float('inf')):.2f}"
                 f" dyn_rjc={ctx.get('dynamic_avoid_rejoin_clearance', float('inf')):.2f}"
+                f" dyn_motion={ctx.get('dynamic_motion_state', 'UNKNOWN')}"
+                f" dyn_v={ctx.get('dynamic_motion_speed', 0.0):.2f}"
+                f" dyn_close={ctx.get('dynamic_motion_closing', 0.0):.2f}"
+                f" dyn_tcpa={ctx.get('dynamic_motion_t_cpa', float('inf')):.2f}"
+                f" dyn_dcpa={ctx.get('dynamic_motion_d_cpa', float('inf')):.2f}"
+                f" dyn_age={ctx.get('dynamic_motion_age', 0)}"
                 f" dyn_raw={ctx.get('dynamic_raw_obstacle_count', 0)}"
                 f" dyn_pts={ctx.get('dynamic_obstacle_count', 0)}"
+                f" dyn_clusters={ctx.get('dynamic_cluster_count', 0)}"
+                f" dyn_tracks={ctx.get('dynamic_track_count', 0)}"
                 f" dyn_static={ctx.get('dynamic_static_filtered', 0)}"
             )
         self._candidate_log_counter += 1
@@ -3137,6 +3575,26 @@ class DwaPlannerNode(Node):
                 best = d
         return max(0.0, best - self.p_robot_radius)
 
+    def _rear_clearance_inline(
+        self,
+        obstacles_local: List[Tuple[float, float]],
+    ) -> float:
+        """Approximate rear clearance for short dynamic-obstacle retreat."""
+        if not obstacles_local:
+            return float("inf")
+        best = float("inf")
+        for ox, oy in obstacles_local:
+            if ox > 0.10:
+                continue
+            if abs(oy) > max(0.45, self.p_robot_radius * 2.5):
+                continue
+            d = math.hypot(ox, oy)
+            if d < best:
+                best = d
+        if best == float("inf"):
+            return float("inf")
+        return max(0.0, best - self.p_robot_radius)
+
     def _escape_turn_bias(self, obstacles_local: List[Tuple[float, float]]) -> float:
         """SPIN 회전 방향 결정용 부호. 양수 → 왼쪽(+), 음수 → 오른쪽(-) 회전.
 
@@ -3424,9 +3882,15 @@ class DwaPlannerNode(Node):
     # ───────────────────────────────────────────────────────────────
     # cmd_vel / status 발행
     # ───────────────────────────────────────────────────────────────
-    def _publish_cmd(self, cmd: VelocityCommand) -> None:
+    def _publish_cmd(
+        self,
+        cmd: VelocityCommand,
+        allow_backward_override: bool = False,
+    ) -> None:
         twist = Twist()
         allow_backward = getattr(self, "p_allow_backward", False)
+        if allow_backward_override:
+            allow_backward = True
         twist.linear.x = float(clamp_forward_velocity(cmd.v, allow_backward))
         twist.angular.z = float(cmd.w)
         self._cmd_pub.publish(twist)

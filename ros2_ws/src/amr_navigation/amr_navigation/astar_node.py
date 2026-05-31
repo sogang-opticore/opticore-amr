@@ -270,7 +270,9 @@ class AstarPlanner(Node):
         self.declare_parameter('path_switch_safety_max_length_sacrifice', 1.20)  # m
         self.declare_parameter(
             'path_hysteresis_stable_states',
-            ['NORMAL', 'ALIGN', 'AVOIDING_DYNAMIC', 'DYNAMIC_BLOCKED'])
+            ['NORMAL', 'ALIGN', 'AVOIDING_DYNAMIC', 'DYNAMIC_BLOCKED',
+             'APPROACHING_DYNAMIC', 'CROSSING_DYNAMIC', 'RECEDING_DYNAMIC',
+             'STOPPED_DYNAMIC'])
         self.declare_parameter('new_goal_force_publish_sec', 5.0)  # s
         self.declare_parameter('goal_direct_distance', 2.0)  # m
         self.declare_parameter('goal_direct_min_clearance', 0.90)  # m
