@@ -391,6 +391,30 @@ class TestPathProjectionLookahead:
             exit_heading=0.45,
         ) is True
 
+    def test_rejoin_releases_when_predicted_error_is_only_mild(self):
+        assert should_use_rejoin(
+            path_offset=0.12,
+            heading_error=0.10,
+            was_rejoining=True,
+            entry_offset=0.30,
+            exit_offset=0.22,
+            exit_heading=0.52,
+            predicted_offset=0.36,
+            predicted_exit_offset=0.42,
+        ) is False
+
+    def test_rejoin_stays_when_predicted_error_is_still_diverging(self):
+        assert should_use_rejoin(
+            path_offset=0.12,
+            heading_error=0.10,
+            was_rejoining=True,
+            entry_offset=0.30,
+            exit_offset=0.22,
+            exit_heading=0.52,
+            predicted_offset=0.48,
+            predicted_exit_offset=0.42,
+        ) is True
+
 
 # ── Predictive REJOIN guard 검증 (Codex, 2026-05-31) ────────────────────
 

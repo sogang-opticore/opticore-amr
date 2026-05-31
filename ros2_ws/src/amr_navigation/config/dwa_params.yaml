@@ -79,24 +79,25 @@ dwa_planner:
     path_heading_gain: 0.6   # rad/s per rad, path 접선 방향 추종 보정
     path_cross_track_gain: 0.8  # rad/s per m, path 횡오차 복귀 보정
     path_error_slowdown_offset: 0.25  # m, 이 이상 벌어지면 속도 감속 시작
-    path_error_min_speed_scale: 0.35  # path 복귀 중 최소 속도 스케일
+    path_error_min_speed_scale: 0.42  # path 복귀 중 최소 속도 스케일
     path_error_predict_time: 0.55     # s, heading/speed 기반 미래 횡오차 예측 horizon
     # T15 (2026-05-31): path 이탈 시 가장 가까운 점으로 급회전하지 않고,
     # 앞으로 이어지는 path 후보 중 "현재 조향각 + 합류 heading mismatch + 거리" 비용이
     # 가장 작은 미래 점으로 부드럽게 재합류한다.
     # TODO(미확정): RunPod 주행 로그에서 rj distance/arrival_error 를 보고 튜닝.
     rejoin_entry_offset: 0.30    # m, 이 이상 path 에서 벗어나면 REJOIN 후보 선택
-    rejoin_exit_offset: 0.18     # m, REJOIN 유지 hysteresis 해제 거리
-    rejoin_exit_heading: 0.45    # rad, heading 오차가 이보다 크면 REJOIN 유지
+    rejoin_exit_offset: 0.22     # m, REJOIN 유지 hysteresis 해제 거리
+    rejoin_exit_heading: 0.52    # rad, heading 오차가 이보다 크면 REJOIN 유지
     rejoin_min_lookahead: 0.80   # m, 너무 가까운 복귀점 배제
     rejoin_max_lookahead: 3.50   # m, 미래 path 후보 탐색 상한
-    rejoin_step: 0.25            # m, 후보 arc-length 간격
+    rejoin_step: 0.20            # m, 후보 arc-length 간격
     rejoin_heading_weight: 1.2   # 합류 지점 path heading mismatch 비용
     rejoin_distance_weight: 0.12 # 동적 적정 합류거리와의 차이 비용
     rejoin_curvature_weight: 0.18 # 큰 곡률의 급합류 후보 억제 비용
-    rejoin_clearance_min: 0.75    # m, LiDAR 기준 로봇-합류점 직선 최소 여유
-    rejoin_clearance_weight: 2.5  # 합류선이 벽/장애물에 가까울 때 후보 점수 페널티
-    rejoin_cross_track_gain_scale: 0.35 # REJOIN 중 nearest CTE 보정 완화
+    rejoin_clearance_min: 0.80    # m, LiDAR 기준 로봇-합류점 직선 최소 여유
+    rejoin_clearance_weight: 2.8  # 합류선이 벽/장애물에 가까울 때 후보 점수 페널티
+    rejoin_cross_track_gain_scale: 0.42 # REJOIN 중 nearest CTE 보정 완화
+    rejoin_predicted_exit_offset: 0.42 # m, REJOIN 유지용 예측 offset hysteresis
     rejoin_align_angle_thresh: 1.75     # rad, REJOIN 중 ALIGN 진입 완화(약 100도)
     # Path가 로봇 근처에서 접히면 arc-length lookahead는 0.65m여도 실제 local L은 0.1m 수준이 된다.
     # 이때 NORMAL PP로 처리하면 큰 곡률 + ALIGN 반복이 생기므로 미래 path 후보로 즉시 합류한다.

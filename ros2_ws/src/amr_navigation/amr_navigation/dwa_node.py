@@ -454,14 +454,22 @@ def should_use_rejoin(
     exit_offset: float,
     exit_heading: float,
     predicted_offset: Optional[float] = None,
+    predicted_exit_offset: Optional[float] = None,
 ) -> bool:
     entry_metric = path_offset
     if predicted_offset is not None:
         entry_metric = max(entry_metric, predicted_offset)
-    if entry_metric > entry_offset:
-        return True
     if not was_rejoining:
-        return False
+        return entry_metric > entry_offset
+
+    predicted_retain_offset = (
+        entry_offset if predicted_exit_offset is None else predicted_exit_offset
+    )
+    if path_offset > entry_offset:
+        return True
+    if (predicted_offset is not None
+            and predicted_offset > max(0.0, predicted_retain_offset)):
+        return True
     return path_offset > exit_offset or abs(heading_error) > exit_heading
 
 
@@ -918,20 +926,21 @@ class DwaPlannerNode(Node):
         self.declare_parameter("path_heading_gain", 0.6)
         self.declare_parameter("path_cross_track_gain", 0.8)
         self.declare_parameter("path_error_slowdown_offset", 0.25)
-        self.declare_parameter("path_error_min_speed_scale", 0.35)
+        self.declare_parameter("path_error_min_speed_scale", 0.42)
         self.declare_parameter("path_error_predict_time", 0.55)
         self.declare_parameter("rejoin_entry_offset", 0.30)
-        self.declare_parameter("rejoin_exit_offset", 0.18)
-        self.declare_parameter("rejoin_exit_heading", 0.45)
+        self.declare_parameter("rejoin_exit_offset", 0.22)
+        self.declare_parameter("rejoin_exit_heading", 0.52)
         self.declare_parameter("rejoin_min_lookahead", 0.80)
         self.declare_parameter("rejoin_max_lookahead", 3.50)
-        self.declare_parameter("rejoin_step", 0.25)
+        self.declare_parameter("rejoin_step", 0.20)
         self.declare_parameter("rejoin_heading_weight", 1.2)
         self.declare_parameter("rejoin_distance_weight", 0.12)
         self.declare_parameter("rejoin_curvature_weight", 0.18)
-        self.declare_parameter("rejoin_clearance_min", 0.75)
-        self.declare_parameter("rejoin_clearance_weight", 2.5)
-        self.declare_parameter("rejoin_cross_track_gain_scale", 0.35)
+        self.declare_parameter("rejoin_clearance_min", 0.80)
+        self.declare_parameter("rejoin_clearance_weight", 2.8)
+        self.declare_parameter("rejoin_cross_track_gain_scale", 0.42)
+        self.declare_parameter("rejoin_predicted_exit_offset", 0.42)
         self.declare_parameter("rejoin_align_angle_thresh", 1.75)
         self.declare_parameter("short_lookahead_rejoin_min_distance", 0.35)
         self.declare_parameter("short_lookahead_rejoin_ratio", 0.55)
@@ -1134,6 +1143,8 @@ class DwaPlannerNode(Node):
         self.p_rejoin_clearance_min     = gp("rejoin_clearance_min").value
         self.p_rejoin_clearance_weight  = gp("rejoin_clearance_weight").value
         self.p_rejoin_cross_track_gain_scale = gp("rejoin_cross_track_gain_scale").value
+        self.p_rejoin_predicted_exit_offset = gp(
+            "rejoin_predicted_exit_offset").value
         self.p_rejoin_align_angle_thresh = gp("rejoin_align_angle_thresh").value
         self.p_short_lookahead_rejoin_min_distance = gp(
             "short_lookahead_rejoin_min_distance").value
@@ -1498,6 +1509,7 @@ class DwaPlannerNode(Node):
             exit_offset=self.p_rejoin_exit_offset,
             exit_heading=self.p_rejoin_exit_heading,
             predicted_offset=predicted_path_offset,
+            predicted_exit_offset=self.p_rejoin_predicted_exit_offset,
         )
         obstacles_local = self._extract_obstacles_from_scan()
         rejoin_target: Optional[RejoinTarget] = None
