@@ -540,7 +540,7 @@ class TestPathProjectionLookahead:
             robot=robot,
             projection=proj,
             blockage=blockage,
-            obstacles_local=[(0.45, 0.00), (0.65, 0.05), (0.80, -0.05)],
+            obstacles_local=[(0.65, 0.00), (0.85, 0.05), (1.00, -0.05)],
             robot_radius=0.20,
             lateral_offsets=[0.95, 1.15],
             min_clearance=0.45,
@@ -556,7 +556,7 @@ class TestPathProjectionLookahead:
         assert target.mode == "close_sidestep"
         assert target.side == 1
         assert target.point[1] > 0.0
-        assert target.clearance >= 0.45 * 0.35
+        assert target.clearance >= 0.45 * 0.67
 
     def test_rejoin_target_penalizes_blocked_merge_line(self):
         path = [(0.0, 0.0), (0.8, 0.0), (0.8, 2.0)]

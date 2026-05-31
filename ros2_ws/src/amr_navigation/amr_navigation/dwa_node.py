@@ -992,11 +992,12 @@ def choose_dynamic_close_bypass_target(
     if best is not None:
         return best
 
-    # 이 후보는 최종 충돌 체크 전 단계다. 같은 side를 유지 중이면 chord
-    # clearance가 조금 낮아도 simulated trajectory safety가 한 번 더 거른다.
+    # close-sidestep fallback도 stop margin 아래까지 허용하면
+    # 다음 tick에서 STOPPED_NEAR_WALL로 굳기 쉽다. 기본 min_clearance=0.45 기준
+    # 0.30m 부근을 최저선으로 둔다.
     soft_floor = max(
-        0.08,
-        min_clearance * (0.35 if previous_side else 0.45),
+        0.20,
+        min_clearance * 0.67,
     )
     if fallback is not None and fallback.clearance >= soft_floor:
         return fallback
@@ -1142,12 +1143,6 @@ def choose_dynamic_avoid_target(
 
     if best is not None:
         return best
-    soft_floor = max(
-        0.08,
-        min_clearance * (0.35 if previous_side else 0.45),
-    )
-    if fallback is not None and fallback.clearance >= soft_floor:
-        return fallback
     close_target = choose_dynamic_close_bypass_target(
         path_xy=path_xy,
         robot=robot,
@@ -1164,6 +1159,14 @@ def choose_dynamic_avoid_target(
     )
     if close_target is not None:
         return close_target
+    # Path 기반 side-lane fallback은 long chord가 장애물 옆을 스치기 쉬워
+    # close-sidestep보다 보수적으로 받아들인다.
+    soft_floor = max(
+        0.20,
+        min_clearance * 0.67,
+    )
+    if fallback is not None and fallback.clearance >= soft_floor:
+        return fallback
     return None
 
 
@@ -1450,7 +1453,7 @@ class DwaPlannerNode(Node):
         self.declare_parameter("dynamic_avoid_max_lookahead", 3.40)
         self.declare_parameter("dynamic_avoid_rejoin_distance", 1.55)
         self.declare_parameter("dynamic_avoid_step", 0.25)
-        self.declare_parameter("dynamic_avoid_side_switch_penalty", 0.65)
+        self.declare_parameter("dynamic_avoid_side_switch_penalty", 2.0)
         self.declare_parameter("dynamic_avoid_side_hold_sec", 1.5)
         self.declare_parameter("dynamic_avoid_cross_track_gain_scale", 0.15)
         self.declare_parameter("dynamic_static_filter_enabled", True)
@@ -2494,6 +2497,19 @@ class DwaPlannerNode(Node):
                 v_clear = max(v_clear, self.p_near_wall_creep_speed)
             v_target = min(v_target, v_clear)
 
+        dynamic_target_brake = False
+        if is_dynamic_avoiding:
+            dynamic_target_clear = ctx.get("dynamic_avoid_clearance", float("inf"))
+            if dynamic_target_clear < cc:
+                v_dynamic_clear = (
+                    self.p_v_max
+                    * max(0.0, dynamic_target_clear - cf)
+                    / max(cc - cf, 1e-3)
+                )
+                if v_dynamic_clear < v_target - 1e-3:
+                    dynamic_target_brake = True
+                v_target = min(v_target, v_dynamic_clear)
+
         # (iii) goal 감속
         v_goal = math.sqrt(2.0 * self.p_a_max *
                            max(0.0, dist_to_goal - self.p_goal_tolerance))
@@ -2706,6 +2722,7 @@ class DwaPlannerNode(Node):
                 f"clr={motion_clear:.2f} fwd={fwd_clear:.2f} "
                 f"d_goal={dist_to_goal:.2f}"
                 f"{' tbrake=1' if turn_brake_active else ''}"
+                f"{' dynbrake=1' if dynamic_target_brake else ''}"
                 f"{' wesc=1' if wall_escape_active else ''}"
                 f"{' sj=1' if ctx.get('short_lookahead_rejoin', False) else ''}"
                 f"{dynamic_diag}"
