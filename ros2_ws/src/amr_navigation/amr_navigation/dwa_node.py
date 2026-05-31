@@ -153,6 +153,7 @@ class DynamicAvoidTarget:
     offset: float
     blocked_distance: float
     score: float
+    mode: str = "side_lane"
 
 
 class NavState(Enum):
@@ -873,6 +874,135 @@ def detect_path_corridor_blockage(
     )
 
 
+def choose_dynamic_close_bypass_target(
+    path_xy: List[Tuple[float, float]],
+    robot: RobotState,
+    projection: PathProjection,
+    blockage: DynamicPathBlockage,
+    obstacles_local: List[Tuple[float, float]],
+    robot_radius: float,
+    offsets: List[float],
+    min_clearance: float,
+    min_lookahead: float,
+    max_lookahead: float,
+    previous_side: int = 0,
+    side_switch_penalty: float = 0.0,
+) -> Optional[DynamicAvoidTarget]:
+    """Pick a short local sidestep when path-based bypass candidates are too tight."""
+    if not offsets:
+        return None
+
+    min_clearance = max(0.0, min_clearance)
+    min_lookahead = max(0.10, min_lookahead)
+    max_lookahead = max(min_lookahead, max_lookahead)
+    desired_forward = min(
+        max_lookahead,
+        max(0.45, blockage.distance + 0.55),
+    )
+    raw_forwards = [
+        0.45,
+        0.65,
+        min_lookahead,
+        1.20,
+        desired_forward,
+    ]
+    forward_candidates = sorted({
+        max(0.25, min(max_lookahead, float(distance)))
+        for distance in raw_forwards
+    })
+
+    side_candidates = [previous_side, -previous_side] if previous_side else [1, -1]
+    if previous_side == 0 and blockage.side_bias > 0.0:
+        side_candidates = [-1, 1]
+    elif previous_side == 0 and blockage.side_bias < 0.0:
+        side_candidates = [1, -1]
+
+    ordered_sides: List[int] = []
+    for side in side_candidates:
+        if side != 0 and side not in ordered_sides:
+            ordered_sides.append(side)
+
+    best: Optional[DynamicAvoidTarget] = None
+    fallback: Optional[DynamicAvoidTarget] = None
+    for side in ordered_sides:
+        for forward in forward_candidates:
+            sample_distance = min(
+                max_lookahead,
+                max(min_lookahead, forward + 0.50),
+            )
+            sample = sample_path_from_projection(
+                path_xy, projection, sample_distance)
+            target_yaw = sample.yaw if sample is not None else robot.theta
+            for offset in offsets:
+                lx = forward
+                ly = side * offset
+                L = math.hypot(lx, ly)
+                if L < 0.10:
+                    continue
+
+                clearance = segment_clearance_margin(
+                    (0.0, 0.0), (lx, ly), obstacles_local, robot_radius)
+                alpha = math.atan2(ly, lx)
+                curvature = abs(2.0 * ly / (L * L)) if L >= 1e-3 else float("inf")
+                approach_yaw = normalize_angle(robot.theta + alpha)
+                arrival_error = normalize_angle(target_yaw - approach_yaw)
+                distance_error = abs(forward - desired_forward)
+                clearance_penalty = 0.0
+                if min_clearance > 0.0 and clearance < min_clearance:
+                    ratio = (min_clearance - max(0.0, clearance)) / min_clearance
+                    clearance_penalty = 5.5 * ratio * ratio
+                switch_penalty = (
+                    side_switch_penalty
+                    if previous_side and side != previous_side else 0.0
+                )
+                side_bias_penalty = 0.45 * max(0.0, side * blockage.side_bias)
+                score = (
+                    0.75 * abs(alpha)
+                    + 0.45 * abs(arrival_error)
+                    + 0.18 * curvature
+                    + 0.16 * distance_error
+                    + 0.05 * offset
+                    + clearance_penalty
+                    + switch_penalty
+                    + side_bias_penalty
+                )
+                target = DynamicAvoidTarget(
+                    point=local_to_world((lx, ly), robot),
+                    yaw=target_yaw,
+                    distance=L,
+                    alpha=alpha,
+                    arrival_error=arrival_error,
+                    curvature=curvature,
+                    clearance=clearance,
+                    rejoin_clearance=float("inf"),
+                    side=side,
+                    offset=offset,
+                    blocked_distance=blockage.distance,
+                    score=score,
+                    mode="close_sidestep",
+                )
+
+                if fallback is None or target.score < fallback.score:
+                    fallback = target
+                if clearance < min_clearance:
+                    continue
+                if best is None or target.score < best.score:
+                    best = target
+
+    if best is not None:
+        return best
+
+    # 이 후보는 최종 충돌 체크 전 단계다. 같은 side를 유지 중이면 chord
+    # clearance가 조금 낮아도 simulated trajectory safety가 한 번 더 거른다.
+    soft_floor = max(
+        0.08,
+        min_clearance * (0.35 if previous_side else 0.45),
+    )
+    if fallback is not None and fallback.clearance >= soft_floor:
+        return fallback
+    return None
+
+
 def choose_dynamic_avoid_target(
     path_xy: List[Tuple[float, float]],
     robot: RobotState,
@@ -1000,6 +1130,7 @@ def choose_dynamic_avoid_target(
                     offset=offset,
                     blocked_distance=blockage.distance,
                     score=score,
+                    mode="side_lane",
                 )
 
                 if fallback is None or target.score < fallback.score:
@@ -1011,8 +1142,28 @@ def choose_dynamic_avoid_target(
 
     if best is not None:
         return best
-    if fallback is not None and fallback.clearance >= max(0.10, min_clearance * 0.5):
+    soft_floor = max(
+        0.08,
+        min_clearance * (0.35 if previous_side else 0.45),
+    )
+    if fallback is not None and fallback.clearance >= soft_floor:
         return fallback
+    close_target = choose_dynamic_close_bypass_target(
+        path_xy=path_xy,
+        robot=robot,
+        projection=projection,
+        blockage=blockage,
+        obstacles_local=obstacles_local,
+        robot_radius=robot_radius,
+        offsets=offsets,
+        min_clearance=min_clearance,
+        min_lookahead=min_lookahead,
+        max_lookahead=max_lookahead,
+        previous_side=previous_side,
+        side_switch_penalty=side_switch_penalty,
+    )
+    if close_target is not None:
+        return close_target
     return None
 
 
@@ -2136,10 +2287,10 @@ class DwaPlannerNode(Node):
                     0.0,
                 )
             if dynamic_blocked:
-                previous_side = (
-                    self._dynamic_avoid_side
-                    if self._sec_now() < self._dynamic_avoid_until else 0
-                )
+                # 동적 장애물이 계속 막고 있는 동안에는 직전 우회 side를
+                # 유지한다. 한두 tick 후보가 사라졌다고 side를 잊으면
+                # DYNAMIC_BLOCKED 대기 상태에 쉽게 갇힌다.
+                previous_side = self._dynamic_avoid_side
                 dynamic_avoid_target = choose_dynamic_avoid_target(
                     path_xy=path_xy,
                     robot=self._state,
@@ -2199,6 +2350,7 @@ class DwaPlannerNode(Node):
             "dynamic_block_distance": dynamic_blockage.distance,
             "dynamic_block_side_bias": dynamic_blockage.side_bias,
             "dynamic_block_margin": dynamic_blockage.min_margin,
+            "dynamic_held_side": self._dynamic_avoid_side,
             "dynamic_raw_obstacle_count": len(obstacles_local),
             "dynamic_obstacle_count": len(dynamic_obstacles_local),
             "dynamic_static_filtered": dynamic_static_filtered,
@@ -2218,6 +2370,9 @@ class DwaPlannerNode(Node):
             ),
             "dynamic_avoid_score": (
                 dynamic_avoid_target.score if dynamic_avoid_target else 0.0
+            ),
+            "dynamic_avoid_mode": (
+                dynamic_avoid_target.mode if dynamic_avoid_target else ""
             ),
             "lx": lx, "ly": ly, "L": L, "alpha": alpha,
             "obstacles_local": obstacles_local,
@@ -2272,6 +2427,7 @@ class DwaPlannerNode(Node):
                 f"(hits={ctx.get('dynamic_block_count', 0)}, "
                 f"d={ctx.get('dynamic_block_distance', float('inf')):.2f}m, "
                 f"bias={ctx.get('dynamic_block_side_bias', 0.0):+.2f}, "
+                f"held_side={ctx.get('dynamic_held_side', 0):+d}, "
                 f"raw_pts={ctx.get('dynamic_raw_obstacle_count', 0)}, "
                 f"dyn_pts={ctx.get('dynamic_obstacle_count', 0)}, "
                 f"static_filtered={ctx.get('dynamic_static_filtered', 0)})",
@@ -2524,6 +2680,7 @@ class DwaPlannerNode(Node):
                 f" dyn_d={ctx.get('dynamic_block_distance', float('inf')):.2f}"
                 f" dyn_side={ctx.get('dynamic_avoid_side', 0):+d}"
                 f" dyn_off={ctx.get('dynamic_avoid_offset', 0.0):.2f}"
+                f" dyn_mode={ctx.get('dynamic_avoid_mode', '')}"
                 f" dyn_clr={ctx.get('dynamic_avoid_clearance', float('inf')):.2f}"
                 f" dyn_rjc={ctx.get('dynamic_avoid_rejoin_clearance', float('inf')):.2f}"
                 f" dyn_raw={ctx.get('dynamic_raw_obstacle_count', 0)}"

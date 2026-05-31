@@ -523,6 +523,41 @@ class TestPathProjectionLookahead:
         assert target is not None
         assert target.distance == 3.40
 
+    def test_dynamic_avoid_target_uses_close_sidestep_when_side_lane_is_tight(self):
+        path = [(0.0, 0.0), (5.0, 0.0)]
+        robot = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
+        proj = project_to_path(path, (robot.x, robot.y), 0)
+        blockage = DynamicPathBlockage(
+            blocked=True,
+            distance=0.35,
+            count=18,
+            side_bias=-1.0,
+            min_margin=0.4,
+        )
+
+        target = choose_dynamic_avoid_target(
+            path_xy=path,
+            robot=robot,
+            projection=proj,
+            blockage=blockage,
+            obstacles_local=[(0.45, 0.00), (0.65, 0.05), (0.80, -0.05)],
+            robot_radius=0.20,
+            lateral_offsets=[0.95, 1.15],
+            min_clearance=0.45,
+            min_lookahead=0.90,
+            max_lookahead=3.40,
+            rejoin_distance=1.55,
+            step=0.25,
+            previous_side=1,
+            side_switch_penalty=0.65,
+        )
+
+        assert target is not None
+        assert target.mode == "close_sidestep"
+        assert target.side == 1
+        assert target.point[1] > 0.0
+        assert target.clearance >= 0.45 * 0.35
+
     def test_rejoin_target_penalizes_blocked_merge_line(self):
         path = [(0.0, 0.0), (0.8, 0.0), (0.8, 2.0)]
         robot = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)

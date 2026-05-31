@@ -160,8 +160,8 @@ angular:
 | `STOPPED` | odom 수신 완료, 그러나 `/global_path` 없음 또는 빈 path (계획 실패) |
 | `NORMAL` | path 수신 완료, Pure Pursuit 정상 추종 루프 실행 중 (코드가 발행하는 실제 값; 구 문서 `PLANNING`) |
 | `REJOIN` | path 이탈 상태. 가장 가까운 점 대신 미래 path 후보를 골라 작은 조향각으로 재합류 중 |
-| `DYNAMIC_BLOCKED` | LiDAR 동적 장애물이 global path corridor를 막고 있으며 아직 안전한 local bypass 후보가 없음 |
-| `AVOIDING_DYNAMIC` | 정적 global path는 유지하되 LiDAR 기반 side-offset 목표점으로 동적 장애물을 우회 중 |
+| `DYNAMIC_BLOCKED` | LiDAR 동적 장애물이 global path corridor를 막고 있으며 side-lane/close-sidestep 후보가 모두 안전하지 않음 |
+| `AVOIDING_DYNAMIC` | 정적 global path는 유지하되 LiDAR 기반 side-offset 또는 close-sidestep 목표점으로 동적 장애물을 우회 중 |
 | `GOAL_REACHED` | **도착 순간 1회(edge)** — goal_tolerance 진입 시 (2026-05-31 P2 추가) |
 | `REACHED` | 도착 후 정지 유지 상태 (1Hz 정상 발행) |
 | `EMERGENCY` | 모든 trajectory 후보가 충돌 또는 안전거리(0.30m) 침범 → 즉시 정지 |
@@ -257,7 +257,7 @@ angular:
 | `dynamic_path_corridor_width` | 0.50 m | global path 주변 이 폭 안의 LiDAR point cluster를 차단 후보로 판단 |
 | `dynamic_path_min_block_points` | 2 | corridor 차단으로 인정할 최소 LiDAR point 수 |
 | `dynamic_avoid_lateral_offsets` | [0.55, 0.75, 0.95, 1.15] | 좌우 side-offset 우회 목표 후보 거리 |
-| `dynamic_avoid_min_clearance` | 0.45 m | side-offset 우회 목표까지 이동하는 segment의 최소 LiDAR clearance. 재합류 segment는 soft penalty로만 반영 |
+| `dynamic_avoid_min_clearance` | 0.45 m | side-offset 우회 목표까지 이동하는 segment의 기본 LiDAR clearance. 같은 side를 유지 중인 close-sidestep은 simulated trajectory safety 전제로 soft floor를 허용 |
 | `dynamic_avoid_rejoin_distance` | 1.55 m | 차단 지점 뒤쪽 global path로 재합류할 기본 거리 |
 | `dynamic_static_filter_enabled` | true | `/map`의 정적 장애물 근처 LiDAR 점은 동적 차단 후보에서 제외 |
 | `dynamic_static_filter_radius` | 0.30 m | LiDAR 점과 static occupied cell을 같은 정적 장애물로 볼 반경 |
@@ -347,7 +347,7 @@ angular:
 | goal 도달 불가 (장애물로 막힘) | 빈 path 발행 | 정지 |
 | DWA가 `EMERGENCY`/`PATH_LOST`/`RECOVERY_DONE` 발행 | 현재 pose 기준 1회 재계획. 실패해도 기존 성공 path가 있으면 빈 path 미발행 | 새 path 수신 시 추종 재개 |
 | DWA가 `NORMAL`/`ALIGN`으로 정상 추종 중 | 기본값에서는 재계획 없음. 기존 latched path 유지 | path 초입 재정렬 반복 방지 |
-| DWA가 `AVOIDING_DYNAMIC`/`DYNAMIC_BLOCKED` 발행 | static map 기반 global path는 유지하되 hysteresis로 branch 흔들림을 줄임 | LiDAR corridor 차단을 보고 side-offset local bypass를 시도. 안전 후보가 없으면 `DYNAMIC_BLOCKED`로 정지 대기 |
+| DWA가 `AVOIDING_DYNAMIC`/`DYNAMIC_BLOCKED` 발행 | static map 기반 global path는 유지하되 hysteresis로 branch 흔들림을 줄임 | LiDAR corridor 차단을 보고 side-offset local bypass를 시도. 후보가 너무 보수적으로 탈락하면 같은 side를 유지한 close-sidestep을 먼저 시도하고, 안전 후보가 없을 때만 `DYNAMIC_BLOCKED`로 정지 대기 |
 | 주기 재계획 실패 + 기존 성공 path 있음 | 빈 path 미발행, 기존 path 유지 | 기존 path 계속 추종 |
 | `/global_path` empty 수신(새 goal 직후) | — | 즉시 정지, `status="STOPPED"` |
 | `/global_path` empty 수신(새 goal 없음 + 기존 path 있음) | — | stale/중복 publisher 가능성으로 보고 기존 path 유지 |
