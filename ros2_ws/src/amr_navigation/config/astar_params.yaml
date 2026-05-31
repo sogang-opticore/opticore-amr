@@ -112,7 +112,7 @@ astar_planner:
     dynamic_layer_enabled: true
     dynamic_layer_topic: "/dynamic_obstacle_layer"
     dynamic_layer_occupied_threshold: 65
-    dynamic_layer_timeout_sec: 3.0
+    dynamic_layer_timeout_sec: 1.5
     dynamic_layer_start_escape_enabled: true
     # TODO(미확정): 동적 장애물 주행 로그로 2.0~3.5m 범위를 비교한다.
     dynamic_layer_start_escape_search_radius: 3.0

@@ -1691,20 +1691,20 @@ class DwaPlannerNode(Node):
         self.declare_parameter("dynamic_layer_clear_confirm_sec", 2.0)
         self.declare_parameter("dynamic_layer_position_alpha", 0.35)
         self.declare_parameter("dynamic_layer_velocity_alpha", 0.25)
-        self.declare_parameter("dynamic_layer_radius_margin", 0.95)
-        self.declare_parameter("dynamic_layer_min_radius", 0.85)
-        self.declare_parameter("dynamic_layer_max_radius", 2.25)
+        self.declare_parameter("dynamic_layer_radius_margin", 0.85)
+        self.declare_parameter("dynamic_layer_min_radius", 0.75)
+        self.declare_parameter("dynamic_layer_max_radius", 2.00)
         self.declare_parameter("dynamic_layer_observation_range", 6.0)
         self.declare_parameter("dynamic_layer_clear_range", 7.0)
         self.declare_parameter("dynamic_layer_prediction_horizon", 4.0)
-        self.declare_parameter("dynamic_layer_prediction_max_distance", 3.00)
+        self.declare_parameter("dynamic_layer_prediction_max_distance", 2.70)
         self.declare_parameter("dynamic_layer_prediction_speed_max", 1.50)
         self.declare_parameter("dynamic_layer_trail_ttl_sec", 300.0)
         self.declare_parameter("dynamic_layer_trail_min_distance", 0.25)
         self.declare_parameter("dynamic_layer_trail_max_points", 80)
         self.declare_parameter("dynamic_layer_escape_distance", 1.20)
         self.declare_parameter("dynamic_layer_escape_t_cpa", 1.00)
-        self.declare_parameter("dynamic_layer_inside_margin", 0.10)
+        self.declare_parameter("dynamic_layer_inside_margin", 0.06)
         self.declare_parameter("dynamic_layer_occupied_value", 100)
         self.declare_parameter("rejoin_predicted_exit_offset", 0.42)
         self.declare_parameter("rejoin_align_angle_thresh", 1.75)
@@ -1855,6 +1855,11 @@ class DwaPlannerNode(Node):
             reliability=QoSReliabilityPolicy.RELIABLE,
             durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
         )
+        dynamic_layer_qos = QoSProfile(
+            depth=1,
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            durability=QoSDurabilityPolicy.VOLATILE,
+        )
 
         # ── 구독 ─────────────────────────────────────────────────────
         self.create_subscription(
@@ -1876,7 +1881,7 @@ class DwaPlannerNode(Node):
         self._best_pub = self.create_publisher(Marker, "/dwa/best_trajectory", 10)
         self._status_pub = self.create_publisher(String, "/dwa/status", 10)
         self._dynamic_layer_pub = self.create_publisher(
-            OccupancyGrid, self.p_dynamic_layer_topic, map_qos)
+            OccupancyGrid, self.p_dynamic_layer_topic, dynamic_layer_qos)
 
         # ── 타이머 ───────────────────────────────────────────────────
         period = 1.0 / max(self.p_control_rate, 1.0)
@@ -2929,7 +2934,7 @@ class DwaPlannerNode(Node):
         width = int(msg.info.width)
         height = int(msg.info.height)
         value = max(1, min(100, int(self.p_dynamic_layer_occupied_value)))
-        data = [0] * (width * height)
+        data = [-1] * (width * height)
         horizon = max(0.0, self.p_dynamic_layer_prediction_horizon)
         max_prediction = max(0.0, self.p_dynamic_layer_prediction_max_distance)
         max_speed = max(0.0, self.p_dynamic_layer_prediction_speed_max)
@@ -2963,6 +2968,16 @@ class DwaPlannerNode(Node):
                 self._paint_dynamic_layer_disc(
                     data, (block.x, block.y), block.radius, value)
 
+        occupied_cells = sum(1 for cell in data if cell >= value)
+        if occupied_cells <= 0 and not force:
+            self._last_dynamic_layer_publish_time = now
+            self._last_dynamic_layer_active = active
+            self.get_logger().warn(
+                "dynamic obstacle layer skipped empty grid "
+                f"(blocks={len(self._dynamic_layer_blocks)}, cells=0)",
+                throttle_duration_sec=3.0)
+            return
+
         msg.data = data
         self._dynamic_layer_pub.publish(msg)
         self._last_dynamic_layer_publish_time = now
@@ -2971,7 +2986,7 @@ class DwaPlannerNode(Node):
             self.get_logger().warn(
                 "dynamic obstacle layer published "
                 f"(blocks={len(self._dynamic_layer_blocks)}, "
-                f"cells={sum(1 for cell in data if cell >= value)}, "
+                f"cells={occupied_cells}, "
                 f"ttl={self.p_dynamic_layer_ttl_sec:.0f}s)",
                 throttle_duration_sec=2.0)
 

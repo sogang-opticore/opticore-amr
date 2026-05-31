@@ -290,15 +290,17 @@ angular:
 | `dynamic_layer_clear_confirm_sec` | 2.0 s | block 위치가 다시 관찰 가능하고 비어 있음을 확인해야 해제하는 시간 |
 | `dynamic_layer_publish_period` | 1.0 s | `/dynamic_obstacle_layer` 발행 최소 간격. 너무 잦은 overlay 변경으로 A\* 경로가 흔들리는 것을 줄인다 |
 | `dynamic_layer_position_alpha` / `dynamic_layer_velocity_alpha` | 0.35 / 0.25 | 같은 동적 block의 중심과 예측 속도를 새 관측에 얼마나 빠르게 따라붙일지 정하는 LPF 계수 |
-| `dynamic_layer_radius_margin` | 0.95 m | 관찰 반경에 로봇 반경/안전 여유를 더해 점유 영역을 확장 |
-| `dynamic_layer_min_radius` | 0.85 m | cluster가 작게 잡혀도 최소 이 반경만큼 no-go 처리 |
-| `dynamic_layer_max_radius` | 2.25 m | 큰 cluster/merge가 과도하게 커지는 것을 막는 상한 |
+| `dynamic_layer_radius_margin` | 0.85 m | 관찰 반경에 로봇 반경/안전 여유를 더해 점유 영역을 확장 |
+| `dynamic_layer_min_radius` | 0.75 m | cluster가 작게 잡혀도 최소 이 반경만큼 no-go 처리 |
+| `dynamic_layer_max_radius` | 2.00 m | 큰 cluster/merge가 과도하게 커지는 것을 막는 상한 |
 | `dynamic_layer_prediction_horizon` | 4.0 s | 움직이는 track의 속도 방향으로 추가 점유 capsule을 예측할 시간 |
-| `dynamic_layer_prediction_max_distance` | 3.0 m | 예측 capsule이 한 번에 너무 길어지지 않도록 제한 |
+| `dynamic_layer_prediction_max_distance` | 2.7 m | 예측 capsule이 한 번에 너무 길어지지 않도록 제한 |
 | `dynamic_layer_trail_ttl_sec` | 300.0 s | 동적 장애물이 지나간 관측 궤적을 no-go corridor로 유지할 시간 |
 | `dynamic_layer_trail_min_distance` | 0.25 m | trail point를 새로 남기는 최소 이동 거리 |
 | `dynamic_layer_escape_distance` | 1.20 m | layer 재계획 대기 중이어도 접근 장애물이 이 거리 안이면 짧은 escape 허용 |
-| `dynamic_layer_inside_margin` | 0.10 m | DWA가 로봇이 dynamic no-go block/trail 안에 있는지 판단할 때 block radius에 더하는 여유 |
+| `dynamic_layer_inside_margin` | 0.06 m | DWA가 로봇이 dynamic no-go block/trail 안에 있는지 판단할 때 block radius에 더하는 여유 |
+> 2026-06-01: `/dynamic_obstacle_layer`는 임시 overlay이므로 `/map`처럼 latched(`TRANSIENT_LOCAL`)로 남기지 않고 `VOLATILE` QoS로 발행/구독한다. occupied cell 외의 영역은 `-1` unknown으로 두고, 실제 점유 cell이 0개인 full-size grid도 반복 발행하지 않아 Foxglove에서 정적 `/map`을 덮어 사라진 것처럼 보이는 현상을 줄인다.
+
 | `align_release_angle` | 0.70 rad | ALIGN 중 안전하면 15도까지 기다리지 않고 NORMAL로 조기 복귀 |
 | `rejoin_align_release_angle` | 0.95 rad | REJOIN 중 안전하면 더 이른 각도에서 path 추종으로 복귀 |
 | `align_drive_angle` | 1.57 rad | ALIGN 중 전방 여유가 있으면 저속 turn-in-motion 허용 각도 |
@@ -363,7 +365,7 @@ angular:
 | `status_replan_after_states` | `["FORWARD_ONLY", "RECOVERY"]` | fallback: 이 상태 뒤 reset 상태가 오면 1회 재계획 |
 | `dynamic_layer_enabled` | true | DWA가 발행한 `/dynamic_obstacle_layer`를 static inflated grid 위에 합성 |
 | `dynamic_layer_occupied_threshold` | 65 | dynamic layer cell을 점유로 볼 최소 OccupancyGrid 값 |
-| `dynamic_layer_timeout_sec` | 3.0 s | 이 시간보다 오래된 dynamic layer는 stale로 보고 overlay 무시 |
+| `dynamic_layer_timeout_sec` | 1.5 s | 이 시간보다 오래된 dynamic layer는 stale로 보고 overlay 무시 |
 | `dynamic_layer_start_escape_*` | enabled=true, search=3.0m, corridor=0.45m, min_clear=0.60m | start cell이 정적 맵에서는 free지만 dynamic layer 때문에 막힌 경우, 정적 장애물은 보존한 채 dynamic layer 안에서 가장 안전한 바깥 셀까지 임시 escape corridor를 열어 A\*가 탈출 경로를 만들게 함 |
 | `dynamic_path_side_lock_*` | lock=6.0s, lookahead=3.0m, deadband=0.20m | 동적 layer 회피 중 좌/우 우회 후보가 1Hz로 번갈아 선택되는 현상을 줄이기 위해 초기 path 가지를 잠깐 고정한다 |
 | `dynamic_path_side_preference_*` | cost=0.50, distance=8.0m | dynamic branch lock이 살아 있을 때 A\*가 로봇 주변 8m 안에서 반대쪽 가지에 soft cost를 더해, 좌/우 후보가 거의 동률일 때 1Hz마다 번갈아 찍는 현상을 줄인다 |

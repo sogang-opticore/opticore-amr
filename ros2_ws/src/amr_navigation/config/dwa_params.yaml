@@ -316,13 +316,13 @@ dwa_planner:
     dynamic_layer_clear_confirm_sec: 2.0
     dynamic_layer_position_alpha: 0.35
     dynamic_layer_velocity_alpha: 0.25
-    dynamic_layer_radius_margin: 0.95
-    dynamic_layer_min_radius: 0.85
-    dynamic_layer_max_radius: 2.25
+    dynamic_layer_radius_margin: 0.85
+    dynamic_layer_min_radius: 0.75
+    dynamic_layer_max_radius: 2.00
     dynamic_layer_observation_range: 6.0
     dynamic_layer_clear_range: 7.0
     dynamic_layer_prediction_horizon: 4.0
-    dynamic_layer_prediction_max_distance: 3.00
+    dynamic_layer_prediction_max_distance: 2.70
     dynamic_layer_prediction_speed_max: 1.50
     dynamic_layer_trail_ttl_sec: 300.0
     dynamic_layer_trail_min_distance: 0.25
@@ -330,7 +330,7 @@ dwa_planner:
     dynamic_layer_escape_distance: 1.20
     dynamic_layer_escape_t_cpa: 1.00
     # TODO(미확정): no-go 내부 판정 여유. 실제 로그에서 dyn_in_margin 분포를 보고 0.05~0.20m 범위 튜닝.
-    dynamic_layer_inside_margin: 0.10
+    dynamic_layer_inside_margin: 0.06
     dynamic_layer_occupied_value: 100
 
     # ----- 진단 로그 throttle (s) -----

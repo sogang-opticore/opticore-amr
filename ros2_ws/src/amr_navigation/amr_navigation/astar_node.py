@@ -394,7 +394,7 @@ class AstarPlanner(Node):
         self.declare_parameter('dynamic_layer_enabled', True)
         self.declare_parameter('dynamic_layer_topic', '/dynamic_obstacle_layer')
         self.declare_parameter('dynamic_layer_occupied_threshold', 65)
-        self.declare_parameter('dynamic_layer_timeout_sec', 3.0)
+        self.declare_parameter('dynamic_layer_timeout_sec', 1.5)
         self.declare_parameter('dynamic_status_replan_cooldown', 1.0)
         self.declare_parameter(
             'dynamic_status_replan_states',
@@ -528,6 +528,11 @@ class AstarPlanner(Node):
             reliability=QoSReliabilityPolicy.RELIABLE,
             durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
         )
+        dynamic_layer_qos = QoSProfile(
+            depth=1,
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            durability=QoSDurabilityPolicy.VOLATILE,
+        )
 
         # ── 구독 ───────────────────────────────────────────────────
         self.map_sub = self.create_subscription(
@@ -535,7 +540,7 @@ class AstarPlanner(Node):
         )
         self.dynamic_layer_sub = self.create_subscription(
             OccupancyGrid, self.dynamic_layer_topic,
-            self._dynamic_layer_callback, map_qos,
+            self._dynamic_layer_callback, dynamic_layer_qos,
         )
         self.goal_sub = self.create_subscription(
             PoseStamped, '/goal_pose', self._goal_callback, 10,
