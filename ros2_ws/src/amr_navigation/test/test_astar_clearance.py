@@ -7,6 +7,7 @@ import numpy as np
 from amr_navigation.astar_node import (
     AstarPlanner,
     clearance_preference_cost,
+    dynamic_occupancy_mask_from_grid,
     overlay_dynamic_occupancy,
     safety_hysteresis_should_retain_previous,
     status_allows_path_hysteresis,
@@ -150,6 +151,34 @@ class TestAstarDynamicLayerOverlay:
         assert active == 1
         assert combined[1, 2] == 1
         assert static[1, 2] == 0
+
+    def test_cropped_dynamic_layer_projects_into_map_grid(self):
+        map_info = types.SimpleNamespace(
+            resolution=1.0,
+            origin=types.SimpleNamespace(
+                position=types.SimpleNamespace(x=10.0, y=20.0)
+            ),
+        )
+        dynamic_grid = types.SimpleNamespace(
+            info=types.SimpleNamespace(
+                width=2,
+                height=2,
+                resolution=1.0,
+                origin=types.SimpleNamespace(
+                    position=types.SimpleNamespace(x=12.0, y=21.0)
+                ),
+            ),
+            data=[
+                0, 100,
+                0, 0,
+            ],
+        )
+
+        mask = dynamic_occupancy_mask_from_grid(
+            (4, 5), map_info, dynamic_grid, occupied_threshold=65)
+
+        assert int(np.count_nonzero(mask)) == 1
+        assert bool(mask[1, 3]) is True
 
     def test_path_still_free_rejects_dynamic_overlay_cell(self):
         node = types.SimpleNamespace()

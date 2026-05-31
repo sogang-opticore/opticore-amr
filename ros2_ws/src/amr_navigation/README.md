@@ -268,9 +268,9 @@ angular:
 | `dynamic_avoid_rejoin_distance` | 1.55 m | 차단 지점 뒤쪽 global path로 재합류할 기본 거리 |
 | `dynamic_avoid_side_switch_penalty` | 2.00 | 동적 장애물 우회 중 좌우 side 전환 비용. 장애물 옆에서 `+1/-1` 목표가 번갈아 선택되는 oscillation을 억제 |
 | `dynamic_static_filter_enabled` | true | `/map`의 정적 장애물 근처 LiDAR 점은 동적 차단 후보에서 제외 |
-| `dynamic_static_filter_radius` | 0.30 m | LiDAR 점과 static occupied cell을 같은 정적 장애물로 볼 반경 |
+| `dynamic_static_filter_radius` | 0.45 m | LiDAR 점과 static occupied cell을 같은 정적 장애물로 볼 반경 |
 | `dynamic_static_filter_occupied_threshold` | 65 | 정적 장애물로 인정할 OccupancyGrid 점유값 |
-| `dynamic_static_filter_unknown_as_static` | false | unknown cell은 기본적으로 동적 후보를 숨기지 않음 |
+| `dynamic_static_filter_unknown_as_static` | true | unknown cell도 정적 구조물 쪽으로 보수적으로 보고 동적 후보에서 제외 |
 | `dynamic_track_cluster_distance` | 0.35 m | scan 순서상 인접한 dynamic LiDAR 점을 같은 obstacle cluster로 묶는 jump 거리 |
 | `dynamic_track_min_points` | 3 | dynamic obstacle track을 만들 최소 cluster point 수 |
 | `dynamic_track_max_radius` | 0.85 m | 너무 긴 벽/선형 구조물을 track으로 보지 않기 위한 cluster 반경 상한 |
@@ -285,6 +285,7 @@ angular:
 | `dynamic_approach_reverse_speed` | 0.16 m/s | 접근 장애물 후퇴 속도. 일반 recovery 후진이 아니라 접근 위험 전용 짧은 escape |
 | `dynamic_layer_enabled` | true | 동적 장애물을 `/dynamic_obstacle_layer` 임시 점유 grid로 발행 |
 | `dynamic_layer_prefer_global_replan` | true | 동적 layer block이 있을 때 DWA 즉석 우회/접근 escape보다 A\* 우회 재계획을 우선 |
+| `dynamic_layer_local_fallback_ticks` | 16 | global replan을 기다려도 계속 막히면 DWA local avoid target을 다시 허용하는 control tick 수 |
 | `dynamic_layer_ttl_sec` | 300.0 s | 한 번 관찰한 동적 장애물 영역을 임시 no-go로 유지할 최대 시간 |
 | `dynamic_layer_min_hold_sec` | 5.0 s | 사라진 것처럼 보여도 최소 이 시간 동안은 block 유지 |
 | `dynamic_layer_clear_confirm_sec` | 2.0 s | block 위치가 다시 관찰 가능하고 비어 있음을 확인해야 해제하는 시간 |
@@ -295,11 +296,12 @@ angular:
 | `dynamic_layer_max_radius` | 2.00 m | 큰 cluster/merge가 과도하게 커지는 것을 막는 상한 |
 | `dynamic_layer_prediction_horizon` | 4.0 s | 움직이는 track의 속도 방향으로 추가 점유 capsule을 예측할 시간 |
 | `dynamic_layer_prediction_max_distance` | 2.7 m | 예측 capsule이 한 번에 너무 길어지지 않도록 제한 |
+| `dynamic_layer_min_track_age` | 2 | 새로 생긴 LiDAR 조각이 바로 no-go layer가 되지 않도록 요구하는 최소 track age |
 | `dynamic_layer_trail_ttl_sec` | 300.0 s | 동적 장애물이 지나간 관측 궤적을 no-go corridor로 유지할 시간 |
 | `dynamic_layer_trail_min_distance` | 0.25 m | trail point를 새로 남기는 최소 이동 거리 |
 | `dynamic_layer_escape_distance` | 1.20 m | layer 재계획 대기 중이어도 접근 장애물이 이 거리 안이면 짧은 escape 허용 |
 | `dynamic_layer_inside_margin` | 0.06 m | DWA가 로봇이 dynamic no-go block/trail 안에 있는지 판단할 때 block radius에 더하는 여유 |
-> 2026-06-01: `/dynamic_obstacle_layer`는 임시 overlay이므로 `/map`처럼 latched(`TRANSIENT_LOCAL`)로 남기지 않고 `VOLATILE` QoS로 발행/구독한다. occupied cell 외의 영역은 `-1` unknown으로 두고, 실제 점유 cell이 0개인 full-size grid도 반복 발행하지 않아 Foxglove에서 정적 `/map`을 덮어 사라진 것처럼 보이는 현상을 줄인다.
+> 2026-06-01: `/dynamic_obstacle_layer`는 임시 overlay이므로 `/map`처럼 latched(`TRANSIENT_LOCAL`)로 남기지 않고 `VOLATILE` QoS로 발행/구독한다. 전체 맵 크기 grid 대신 실제 occupied cell 주변의 cropped grid만 발행해 Foxglove에서 정적 `/map` 전체를 덮어 사라지거나 검게 보이는 현상을 줄인다.
 
 | `align_release_angle` | 0.70 rad | ALIGN 중 안전하면 15도까지 기다리지 않고 NORMAL로 조기 복귀 |
 | `rejoin_align_release_angle` | 0.95 rad | REJOIN 중 안전하면 더 이른 각도에서 path 추종으로 복귀 |

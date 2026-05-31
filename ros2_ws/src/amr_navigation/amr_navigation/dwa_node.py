@@ -46,6 +46,7 @@ NavState 전이 규칙:
 
 from __future__ import annotations
 
+import copy
 import math
 from dataclasses import dataclass, field
 from enum import Enum, auto
@@ -1662,10 +1663,10 @@ class DwaPlannerNode(Node):
         self.declare_parameter("dynamic_avoid_side_hold_sec", 1.5)
         self.declare_parameter("dynamic_avoid_cross_track_gain_scale", 0.15)
         self.declare_parameter("dynamic_static_filter_enabled", True)
-        self.declare_parameter("dynamic_static_filter_radius", 0.30)
+        self.declare_parameter("dynamic_static_filter_radius", 0.45)
         self.declare_parameter("dynamic_static_filter_occupied_threshold", 65)
-        self.declare_parameter("dynamic_static_filter_unknown_as_static", False)
-        self.declare_parameter("dynamic_static_filter_tf_timeout", 0.01)
+        self.declare_parameter("dynamic_static_filter_unknown_as_static", True)
+        self.declare_parameter("dynamic_static_filter_tf_timeout", 0.05)
         self.declare_parameter("dynamic_track_cluster_distance", 0.35)
         self.declare_parameter("dynamic_track_min_points", 3)
         self.declare_parameter("dynamic_track_max_radius", 0.85)
@@ -1684,6 +1685,7 @@ class DwaPlannerNode(Node):
         self.declare_parameter("dynamic_approach_turn_speed", 0.45)
         self.declare_parameter("dynamic_layer_enabled", True)
         self.declare_parameter("dynamic_layer_prefer_global_replan", True)
+        self.declare_parameter("dynamic_layer_local_fallback_ticks", 16)
         self.declare_parameter("dynamic_layer_topic", "/dynamic_obstacle_layer")
         self.declare_parameter("dynamic_layer_publish_period", 1.00)
         self.declare_parameter("dynamic_layer_ttl_sec", 300.0)
@@ -1699,6 +1701,7 @@ class DwaPlannerNode(Node):
         self.declare_parameter("dynamic_layer_prediction_horizon", 4.0)
         self.declare_parameter("dynamic_layer_prediction_max_distance", 2.70)
         self.declare_parameter("dynamic_layer_prediction_speed_max", 1.50)
+        self.declare_parameter("dynamic_layer_min_track_age", 2)
         self.declare_parameter("dynamic_layer_trail_ttl_sec", 300.0)
         self.declare_parameter("dynamic_layer_trail_min_distance", 0.25)
         self.declare_parameter("dynamic_layer_trail_max_points", 80)
@@ -2009,6 +2012,8 @@ class DwaPlannerNode(Node):
         self.p_dynamic_layer_enabled = gp("dynamic_layer_enabled").value
         self.p_dynamic_layer_prefer_global_replan = gp(
             "dynamic_layer_prefer_global_replan").value
+        self.p_dynamic_layer_local_fallback_ticks = gp(
+            "dynamic_layer_local_fallback_ticks").value
         self.p_dynamic_layer_topic = gp("dynamic_layer_topic").value
         self.p_dynamic_layer_publish_period = gp(
             "dynamic_layer_publish_period").value
@@ -2034,6 +2039,8 @@ class DwaPlannerNode(Node):
             "dynamic_layer_prediction_max_distance").value
         self.p_dynamic_layer_prediction_speed_max = gp(
             "dynamic_layer_prediction_speed_max").value
+        self.p_dynamic_layer_min_track_age = gp(
+            "dynamic_layer_min_track_age").value
         self.p_dynamic_layer_trail_ttl_sec = gp(
             "dynamic_layer_trail_ttl_sec").value
         self.p_dynamic_layer_trail_min_distance = gp(
@@ -2798,8 +2805,11 @@ class DwaPlannerNode(Node):
         observed_map_xy: List[Tuple[float, float]] = []
         horizon = max(0.0, self.p_dynamic_layer_prediction_horizon)
         max_prediction = max(0.0, self.p_dynamic_layer_prediction_max_distance)
+        min_track_age = max(1, int(self.p_dynamic_layer_min_track_age))
 
         for track in tracks:
+            if track.age < min_track_age:
+                continue
             local_xy = world_to_local((track.x, track.y), self._state)
             if local_xy[0] < -0.50:
                 continue
@@ -2930,11 +2940,14 @@ class DwaPlannerNode(Node):
         msg = OccupancyGrid()
         msg.header.stamp = self.get_clock().now().to_msg()
         msg.header.frame_id = self.GLOBAL_FRAME
-        msg.info = self._static_map.info
-        width = int(msg.info.width)
-        height = int(msg.info.height)
+        full_info = self._static_map.info
+        width = int(full_info.width)
+        height = int(full_info.height)
+        resolution = float(full_info.resolution)
+        if width <= 0 or height <= 0 or resolution <= 0.0:
+            return
         value = max(1, min(100, int(self.p_dynamic_layer_occupied_value)))
-        data = [-1] * (width * height)
+        data = [0] * (width * height)
         horizon = max(0.0, self.p_dynamic_layer_prediction_horizon)
         max_prediction = max(0.0, self.p_dynamic_layer_prediction_max_distance)
         max_speed = max(0.0, self.p_dynamic_layer_prediction_speed_max)
@@ -2968,7 +2981,11 @@ class DwaPlannerNode(Node):
                 self._paint_dynamic_layer_disc(
                     data, (block.x, block.y), block.radius, value)
 
-        occupied_cells = sum(1 for cell in data if cell >= value)
+        occupied_indices = [
+            idx for idx, cell in enumerate(data)
+            if cell >= value
+        ]
+        occupied_cells = len(occupied_indices)
         if occupied_cells <= 0 and not force:
             self._last_dynamic_layer_publish_time = now
             self._last_dynamic_layer_active = active
@@ -2978,7 +2995,36 @@ class DwaPlannerNode(Node):
                 throttle_duration_sec=3.0)
             return
 
-        msg.data = data
+        if occupied_indices:
+            rows = [idx // width for idx in occupied_indices]
+            cols = [idx % width for idx in occupied_indices]
+            padding = max(1, int(math.ceil(0.10 / resolution)))
+            min_row = max(0, min(rows) - padding)
+            max_row = min(height - 1, max(rows) + padding)
+            min_col = max(0, min(cols) - padding)
+            max_col = min(width - 1, max(cols) + padding)
+        else:
+            min_row = min_col = 0
+            max_row = max_col = 0
+
+        crop_width = max_col - min_col + 1
+        crop_height = max_row - min_row + 1
+        crop_data: List[int] = []
+        for row in range(min_row, max_row + 1):
+            start = row * width + min_col
+            crop_data.extend(data[start:start + crop_width])
+
+        crop_info = copy.deepcopy(full_info)
+        crop_info.width = crop_width
+        crop_info.height = crop_height
+        crop_info.origin.position.x = (
+            full_info.origin.position.x + min_col * resolution
+        )
+        crop_info.origin.position.y = (
+            full_info.origin.position.y + min_row * resolution
+        )
+        msg.info = crop_info
+        msg.data = crop_data
         self._dynamic_layer_pub.publish(msg)
         self._last_dynamic_layer_publish_time = now
         self._last_dynamic_layer_active = active
@@ -2987,6 +3033,7 @@ class DwaPlannerNode(Node):
                 "dynamic obstacle layer published "
                 f"(blocks={len(self._dynamic_layer_blocks)}, "
                 f"cells={occupied_cells}, "
+                f"crop={crop_width}x{crop_height}, "
                 f"ttl={self.p_dynamic_layer_ttl_sec:.0f}s)",
                 throttle_duration_sec=2.0)
 
@@ -3048,6 +3095,7 @@ class DwaPlannerNode(Node):
         dynamic_motion = DynamicMotionEstimate("UNKNOWN")
         dynamic_layer_blocks = len(self._dynamic_layer_blocks)
         dynamic_layer_prefer_global_replan = False
+        dynamic_local_fallback = False
         inside_dynamic_layer = False
         inside_dynamic_margin = float("inf")
         inside_dynamic_block_id = -1
@@ -3175,8 +3223,16 @@ class DwaPlannerNode(Node):
                     0.0,
                     0.0,
                 )
-            if (dynamic_blocked and not dynamic_layer_prefer_global_replan and
-                    dynamic_motion.state in ("STOPPED", "APPROACHING")):
+            dynamic_local_fallback = (
+                dynamic_layer_prefer_global_replan
+                and self._dynamic_block_ticks >= max(
+                    1, int(self.p_dynamic_layer_local_fallback_ticks))
+            )
+            if (dynamic_blocked
+                    and (not dynamic_layer_prefer_global_replan
+                         or dynamic_local_fallback)
+                    and dynamic_motion.state in (
+                        "STOPPED", "APPROACHING", "UNKNOWN")):
                 # 동적 장애물이 계속 막고 있는 동안에는 직전 우회 side를
                 # 유지한다. 한두 tick 후보가 사라졌다고 side를 잊으면
                 # DYNAMIC_BLOCKED 대기 상태에 쉽게 갇힌다.
@@ -3248,6 +3304,7 @@ class DwaPlannerNode(Node):
             "dynamic_track_count": len(dynamic_tracks),
             "dynamic_layer_block_count": dynamic_layer_blocks,
             "dynamic_layer_prefer_global_replan": dynamic_layer_prefer_global_replan,
+            "dynamic_local_fallback": dynamic_local_fallback,
             "inside_dynamic_layer": inside_dynamic_layer,
             "inside_dynamic_margin": inside_dynamic_margin,
             "inside_dynamic_block_id": inside_dynamic_block_id,
@@ -3420,6 +3477,7 @@ class DwaPlannerNode(Node):
                 f"tcpa={ctx.get('dynamic_motion_t_cpa', float('inf')):.2f}, "
                 f"dcpa={ctx.get('dynamic_motion_d_cpa', float('inf')):.2f}, "
                 f"held_side={ctx.get('dynamic_held_side', 0):+d}, "
+                f"fallback={int(ctx.get('dynamic_local_fallback', False))}, "
                 f"inside_dyn={int(inside_dynamic_layer)}, "
                 f"inside_margin={ctx.get('inside_dynamic_margin', float('inf')):.2f}, "
                 f"inside_block={ctx.get('inside_dynamic_block_id', -1)}, "

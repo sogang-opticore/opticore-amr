@@ -324,6 +324,61 @@ def dynamic_occupancy_mask(
     return dynamic >= threshold
 
 
+def dynamic_occupancy_mask_from_grid(
+    grid_shape: tuple[int, int],
+    map_info,
+    dynamic_grid: OccupancyGrid,
+    occupied_threshold: int,
+) -> np.ndarray:
+    """Project a full-size or cropped dynamic OccupancyGrid onto the map grid."""
+    map_height, map_width = grid_shape
+    dyn_width = int(dynamic_grid.info.width)
+    dyn_height = int(dynamic_grid.info.height)
+    if dyn_width <= 0 or dyn_height <= 0:
+        return np.zeros(grid_shape, dtype=bool)
+    if len(dynamic_grid.data) != dyn_width * dyn_height:
+        raise ValueError("dynamic layer data size mismatch")
+
+    map_resolution = float(map_info.resolution)
+    dyn_resolution = float(dynamic_grid.info.resolution)
+    if map_resolution <= 0.0 or dyn_resolution <= 0.0:
+        raise ValueError("invalid occupancy grid resolution")
+    if abs(dyn_resolution - map_resolution) > 1e-6:
+        raise ValueError("dynamic layer resolution mismatch")
+
+    dyn = np.asarray(dynamic_grid.data, dtype=np.int16).reshape(
+        (dyn_height, dyn_width))
+    threshold = max(1, min(100, int(occupied_threshold)))
+    dyn_mask = dyn >= threshold
+
+    col0_f = (
+        dynamic_grid.info.origin.position.x - map_info.origin.position.x
+    ) / map_resolution
+    row0_f = (
+        dynamic_grid.info.origin.position.y - map_info.origin.position.y
+    ) / map_resolution
+    col0 = int(round(col0_f))
+    row0 = int(round(row0_f))
+
+    dst_col0 = max(0, col0)
+    dst_row0 = max(0, row0)
+    src_col0 = max(0, -col0)
+    src_row0 = max(0, -row0)
+    dst_col1 = min(map_width, col0 + dyn_width)
+    dst_row1 = min(map_height, row0 + dyn_height)
+    if dst_col0 >= dst_col1 or dst_row0 >= dst_row1:
+        return np.zeros(grid_shape, dtype=bool)
+
+    width = dst_col1 - dst_col0
+    height = dst_row1 - dst_row0
+    mask = np.zeros(grid_shape, dtype=bool)
+    mask[dst_row0:dst_row1, dst_col0:dst_col1] = dyn_mask[
+        src_row0:src_row0 + height,
+        src_col0:src_col0 + width,
+    ]
+    return mask
+
+
 class AstarPlanner(Node):
 
     def __init__(self):
@@ -692,9 +747,9 @@ class AstarPlanner(Node):
     def _dynamic_layer_is_usable(self, msg: OccupancyGrid) -> bool:
         if self.map_data is None:
             return False
-        if msg.info.width != self.map_data.info.width:
+        if msg.info.width <= 0 or msg.info.height <= 0:
             return False
-        if msg.info.height != self.map_data.info.height:
+        if len(msg.data) != int(msg.info.width) * int(msg.info.height):
             return False
         if abs(msg.info.resolution - self.map_data.info.resolution) > 1e-6:
             return False
@@ -722,9 +777,10 @@ class AstarPlanner(Node):
             return
 
         try:
-            self.dynamic_layer_mask = dynamic_occupancy_mask(
+            self.dynamic_layer_mask = dynamic_occupancy_mask_from_grid(
                 self.static_inflated_grid.shape,
-                self.dynamic_layer.data,
+                self.map_data.info,
+                self.dynamic_layer,
                 self.dynamic_layer_occupied_threshold,
             )
             self.inflated_grid = self.static_inflated_grid.copy()

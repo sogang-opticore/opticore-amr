@@ -287,10 +287,10 @@ dwa_planner:
     dynamic_avoid_side_hold_sec: 1.50
     dynamic_avoid_cross_track_gain_scale: 0.15
     dynamic_static_filter_enabled: true
-    dynamic_static_filter_radius: 0.30
+    dynamic_static_filter_radius: 0.45
     dynamic_static_filter_occupied_threshold: 65
-    dynamic_static_filter_unknown_as_static: false
-    dynamic_static_filter_tf_timeout: 0.01
+    dynamic_static_filter_unknown_as_static: true
+    dynamic_static_filter_tf_timeout: 0.05
     dynamic_track_cluster_distance: 0.35
     dynamic_track_min_points: 3
     dynamic_track_max_radius: 0.85
@@ -309,6 +309,7 @@ dwa_planner:
     dynamic_approach_turn_speed: 0.45
     dynamic_layer_enabled: true
     dynamic_layer_prefer_global_replan: true
+    dynamic_layer_local_fallback_ticks: 16
     dynamic_layer_topic: "/dynamic_obstacle_layer"
     dynamic_layer_publish_period: 1.00
     dynamic_layer_ttl_sec: 300.0
@@ -324,6 +325,7 @@ dwa_planner:
     dynamic_layer_prediction_horizon: 4.0
     dynamic_layer_prediction_max_distance: 2.70
     dynamic_layer_prediction_speed_max: 1.50
+    dynamic_layer_min_track_age: 2
     dynamic_layer_trail_ttl_sec: 300.0
     dynamic_layer_trail_min_distance: 0.25
     dynamic_layer_trail_max_points: 80
