@@ -521,6 +521,7 @@ ros2 topic pub --once /global_path nav_msgs/msg/Path \
 
 | 일자 | 변경 | 작성자 | 리뷰 |
 |---|---|---|---|
+| 2026-05-31 | A\* dynamic branch side preference cost 추가. `dynamic_path_side_preference_cost=0.35`, `dynamic_path_side_preference_distance=6.0m`로 dynamic branch lock 중 반대쪽 우회 가지에 soft cost를 주어 1Hz 재계획 좌우 flip을 줄인다 | Codex | RunPod 주행 검증 필요 |
 | 2026-05-31 | DWA 동적 장애물 layer(`/dynamic_obstacle_layer`)와 A\* overlay 합성 계약 추가. 동적 장애물은 기본적으로 임시 no-go 영역으로 보고 A\* 전역 우회 재계획을 우선한다 | Codex | RunPod 주행 검증 필요 |
 | 2026-05-10 | 초안 작성 — Nav2 기반 → 직접 구현으로 정정, 토픽 계약 추가, `v_max=2.0` 명세 반영 | SW(지상원) | — |
 | 2026-05-15 | **N-0 작업 (디스코드 `#navigation`) 반영** — A\* Python 확정, stamp 정책 §3.4 신설, QoS 프로파일 명시, 잠정 결정 표시 강화, `/goal_pose` 스펙 §3.0 추가, 통합 검증 명령 §8 추가 | SW(지상원) | HU(양현욱) 리뷰 OK |

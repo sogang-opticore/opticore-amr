@@ -91,10 +91,24 @@ def path_lateral_side(
         if distance >= lookahead:
             break
 
+    return cell_lateral_side(target, start_cell, goal_cell, resolution, deadband)
+
+
+def cell_lateral_side(
+    cell: tuple,
+    start_cell: tuple,
+    goal_cell: tuple,
+    resolution: float,
+    deadband: float,
+) -> tuple[int, float]:
+    """Classify one cell against the start-goal line using the same sign rule."""
+    if resolution <= 0.0:
+        return 0, 0.0
+
     goal_x = goal_cell[1] - start_cell[1]
     goal_y = goal_cell[0] - start_cell[0]
-    path_x = target[1] - start_cell[1]
-    path_y = target[0] - start_cell[0]
+    path_x = cell[1] - start_cell[1]
+    path_y = cell[0] - start_cell[0]
     goal_norm = math.hypot(goal_x, goal_y)
     if goal_norm < 1.0e-6:
         return 0, 0.0
@@ -397,6 +411,8 @@ class AstarPlanner(Node):
         self.declare_parameter('dynamic_path_side_lock_deadband', 0.20)
         self.declare_parameter('dynamic_path_side_switch_min_improvement', 1.0)
         self.declare_parameter('dynamic_path_side_switch_min_clearance_gain', 0.35)
+        self.declare_parameter('dynamic_path_side_preference_cost', 0.35)
+        self.declare_parameter('dynamic_path_side_preference_distance', 6.0)
 
         self.heuristic_type   = self.get_parameter('heuristic').value
         self.allow_diagonal   = self.get_parameter('allow_diagonal').value
@@ -471,6 +487,10 @@ class AstarPlanner(Node):
             'dynamic_path_side_switch_min_improvement').value
         self.dynamic_path_side_switch_min_clearance_gain = self.get_parameter(
             'dynamic_path_side_switch_min_clearance_gain').value
+        self.dynamic_path_side_preference_cost = self.get_parameter(
+            'dynamic_path_side_preference_cost').value
+        self.dynamic_path_side_preference_distance = self.get_parameter(
+            'dynamic_path_side_preference_distance').value
 
         # ── 내부 상태 ──────────────────────────────────────────────
         self.map_data: OccupancyGrid | None = None
@@ -491,6 +511,9 @@ class AstarPlanner(Node):
         self._last_path_cells: list[tuple] | None = None
         self._dynamic_path_side = 0
         self._dynamic_path_side_lock_until = -float('inf')
+        self._active_dynamic_side_preference = 0
+        self._active_dynamic_side_start_cell: tuple | None = None
+        self._active_dynamic_side_goal_cell: tuple | None = None
         self._force_publish_until = -float('inf')
 
         # ── TF ────────────────────────────────────────────────────
@@ -832,6 +855,19 @@ class AstarPlanner(Node):
                 f'Goal 보정: {goal_cell} (점유/inflation) → {snapped} (인근 free)')
             goal_cell = snapped
 
+        now = self._sec_now()
+        resolution = self.map_data.info.resolution
+        dynamic_path_context = (
+            self.dynamic_layer_active_cells > 0
+            or dynamic_start_escape_applied
+            or self._last_dwa_status in self.dynamic_status_replan_states
+        )
+        dynamic_side_preference = 0
+        if (dynamic_path_context
+                and self._dynamic_path_side != 0
+                and now < self._dynamic_path_side_lock_until):
+            dynamic_side_preference = self._dynamic_path_side
+
         direct_path = self._try_goal_direct_path(
             start_cell, goal_cell, start_world, goal_world)
         using_direct_path = direct_path is not None
@@ -840,7 +876,12 @@ class AstarPlanner(Node):
             self.get_logger().info(
                 f'goal 직선 접근 path 사용: {len(cell_path)} cells')
         else:
-            cell_path = self._astar(start_cell, goal_cell)
+            self._set_dynamic_side_preference(
+                dynamic_side_preference, start_cell, goal_cell)
+            try:
+                cell_path = self._astar(start_cell, goal_cell)
+            finally:
+                self._clear_dynamic_side_preference()
 
         if cell_path is None:
             self._handle_plan_failure(
@@ -852,13 +893,6 @@ class AstarPlanner(Node):
             cell_path = self._smooth_catmull_rom(cell_path)
 
         path_min_clearance = self._path_min_clearance(cell_path)
-        now = self._sec_now()
-        resolution = self.map_data.info.resolution
-        dynamic_path_context = (
-            self.dynamic_layer_active_cells > 0
-            or dynamic_start_escape_applied
-            or self._last_dwa_status in self.dynamic_status_replan_states
-        )
         candidate_side = 0
         candidate_lateral = 0.0
         if dynamic_path_context:
@@ -1015,7 +1049,8 @@ class AstarPlanner(Node):
                     now + max(0.0, float(self.dynamic_path_side_lock_sec)))
             dynamic_log = (
                 f' dyn_side={candidate_side} dyn_lat={candidate_lateral:.2f}m '
-                f'dyn_lock={max(0.0, self._dynamic_path_side_lock_until - now):.1f}s')
+                f'dyn_lock={max(0.0, self._dynamic_path_side_lock_until - now):.1f}s '
+                f'dyn_pref={dynamic_side_preference}')
         else:
             self._dynamic_path_side = 0
             self._dynamic_path_side_lock_until = -float('inf')
@@ -1049,6 +1084,21 @@ class AstarPlanner(Node):
     # ══════════════════════════════════════════════════════════════
     # A* 알고리즘
     # ══════════════════════════════════════════════════════════════
+
+    def _set_dynamic_side_preference(
+        self,
+        side: int,
+        start_cell: tuple,
+        goal_cell: tuple,
+    ) -> None:
+        self._active_dynamic_side_preference = side
+        self._active_dynamic_side_start_cell = start_cell
+        self._active_dynamic_side_goal_cell = goal_cell
+
+    def _clear_dynamic_side_preference(self) -> None:
+        self._active_dynamic_side_preference = 0
+        self._active_dynamic_side_start_cell = None
+        self._active_dynamic_side_goal_cell = None
 
     def _astar(self, start: tuple, goal: tuple) -> list | None:
         """
@@ -1086,7 +1136,11 @@ class AstarPlanner(Node):
 
                 # g(n) = 현재까지의 실제 이동 비용
                 step = movement_cost(current, neighbor)
-                tentative_g = g_score[current] + step * (1.0 + self._clearance_cost(neighbor))
+                search_cost = (
+                    self._clearance_cost(neighbor)
+                    + self._dynamic_side_preference_cost(neighbor)
+                )
+                tentative_g = g_score[current] + step * (1.0 + search_cost)
 
                 if tentative_g < g_score.get(neighbor, float('inf')):
                     came_from[neighbor] = current
@@ -1155,6 +1209,46 @@ class AstarPlanner(Node):
             wall_avoid_clearance=getattr(self, 'wall_avoid_clearance', 0.0),
             wall_avoid_cost_weight=getattr(self, 'wall_avoid_cost_weight', 0.0),
             wall_avoid_min_margin=getattr(self, 'wall_avoid_min_margin', 0.05),
+        )
+
+    def _dynamic_side_preference_cost(self, cell: tuple) -> float:
+        """Softly bias A* away from a rapid opposite-side dynamic branch flip."""
+        preferred_side = getattr(self, '_active_dynamic_side_preference', 0)
+        if preferred_side == 0 or self.map_data is None:
+            return 0.0
+
+        start_cell = getattr(self, '_active_dynamic_side_start_cell', None)
+        goal_cell = getattr(self, '_active_dynamic_side_goal_cell', None)
+        if start_cell is None or goal_cell is None:
+            return 0.0
+
+        resolution = self.map_data.info.resolution
+        max_distance = max(
+            0.0,
+            float(getattr(self, 'dynamic_path_side_preference_distance', 0.0)),
+        )
+        if resolution <= 0.0 or max_distance <= 0.0:
+            return 0.0
+
+        distance = math.hypot(
+            cell[0] - start_cell[0],
+            cell[1] - start_cell[1],
+        ) * resolution
+        if distance > max_distance:
+            return 0.0
+
+        side, _ = cell_lateral_side(
+            cell,
+            start_cell,
+            goal_cell,
+            resolution,
+            getattr(self, 'dynamic_path_side_lock_deadband', 0.20),
+        )
+        if side == 0 or side == preferred_side:
+            return 0.0
+        return max(
+            0.0,
+            float(getattr(self, 'dynamic_path_side_preference_cost', 0.0)),
         )
 
     def _snap_to_nearest_free(self, cell: tuple) -> tuple | None:

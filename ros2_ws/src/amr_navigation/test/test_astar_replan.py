@@ -7,6 +7,7 @@ import types
 
 from amr_navigation.astar_node import (
     AstarPlanner,
+    cell_lateral_side,
     cell_path_length,
     cells_on_segment,
     clearance_switch_should_replace_previous,
@@ -286,6 +287,15 @@ class TestAstarPathHysteresis:
 
 
 class TestDynamicPathSideLock:
+    def test_cell_lateral_side_matches_path_branch_sign(self):
+        start = (0, 0)
+        goal = (0, 100)
+
+        side, lateral = cell_lateral_side((10, 20), start, goal, 0.05, 0.20)
+
+        assert side == 1
+        assert abs(lateral - 0.50) < 1e-9
+
     def test_path_lateral_side_classifies_opposite_branches(self):
         start = (0, 0)
         goal = (0, 100)
@@ -300,6 +310,23 @@ class TestDynamicPathSideLock:
         assert left_side == -right_side
         assert abs(left_lateral) >= 0.20
         assert abs(right_lateral) >= 0.20
+
+    def test_dynamic_side_preference_cost_only_penalizes_opposite_near_branch(self):
+        node = types.SimpleNamespace()
+        node.map_data = types.SimpleNamespace(
+            info=types.SimpleNamespace(resolution=0.05))
+        node.dynamic_path_side_lock_deadband = 0.20
+        node.dynamic_path_side_preference_cost = 0.35
+        node.dynamic_path_side_preference_distance = 6.0
+        node._active_dynamic_side_preference = 1
+        node._active_dynamic_side_start_cell = (0, 0)
+        node._active_dynamic_side_goal_cell = (0, 100)
+        node._dynamic_side_preference_cost = (
+            AstarPlanner._dynamic_side_preference_cost.__get__(node))
+
+        assert node._dynamic_side_preference_cost((10, 20)) == 0.0
+        assert node._dynamic_side_preference_cost((-10, 20)) == 0.35
+        assert node._dynamic_side_preference_cost((-10, 140)) == 0.0
 
     def test_dynamic_side_lock_keeps_small_opposite_branch_switch(self):
         assert dynamic_side_lock_should_retain_previous(

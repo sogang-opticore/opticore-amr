@@ -128,6 +128,10 @@ astar_planner:
     dynamic_path_side_lock_deadband: 0.20
     dynamic_path_side_switch_min_improvement: 1.0
     dynamic_path_side_switch_min_clearance_gain: 0.35
+    # Soft A* cost for the opposite side while the dynamic branch lock is active.
+    # Keeps near-tie left/right routes from flipping every replan without hard-blocking escape.
+    dynamic_path_side_preference_cost: 0.35
+    dynamic_path_side_preference_distance: 6.0
 
     # 시뮬레이션 시간 사용 (Ignition Gazebo 필수)
     use_sim_time: true
