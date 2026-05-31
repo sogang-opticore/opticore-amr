@@ -34,6 +34,7 @@ from amr_navigation.dwa_node import (
     turn_demand_intensity,
     turn_clearance_speed_limit,
     goal_approach_speed_limit,
+    should_mark_goal_reached,
     safe_forward_only_distance,
     rate_limit_angular_velocity,
     should_finish_forward_only,
@@ -548,6 +549,31 @@ class TestClearanceAwareSpeedCaps:
             approach_speed=0.8,
         ) - 0.4) < 1e-9
 
+    def test_goal_reached_accepts_exact_boundary(self):
+        assert should_mark_goal_reached(
+            dist_to_goal=0.20,
+            goal_tolerance=0.20,
+            goal_reached_epsilon=0.03,
+            robot_speed=0.2,
+            stopped_speed=0.03,
+        ) is True
+
+    def test_goal_reached_accepts_stopped_robot_inside_epsilon_band(self):
+        assert should_mark_goal_reached(
+            dist_to_goal=0.22,
+            goal_tolerance=0.20,
+            goal_reached_epsilon=0.03,
+            robot_speed=0.01,
+            stopped_speed=0.03,
+        ) is True
+        assert should_mark_goal_reached(
+            dist_to_goal=0.22,
+            goal_tolerance=0.20,
+            goal_reached_epsilon=0.03,
+            robot_speed=0.10,
+            stopped_speed=0.03,
+        ) is False
+
     def test_spin_forward_distance_keeps_extra_clearance_margin(self):
         assert safe_forward_only_distance(
             forward_clearance=0.31,
@@ -735,6 +761,7 @@ class TestNearWallCreep:
         node = types.SimpleNamespace()
         node.p_near_wall_creep_speed = 0.12
         node.p_clearance_slowdown_distance = 0.80
+        node.p_clearance_stop_distance = 0.30
         node.p_robot_radius = 0.20
         node.p_hard_collision_distance = 0.05
         node._allow_near_wall_creep = (
@@ -755,6 +782,11 @@ class TestNearWallCreep:
     def test_blocks_creep_inside_hard_margin(self):
         node = self._make_node()
         assert node._allow_near_wall_creep(motion_clear=0.20,
+                                           fwd_clear=1.20) is False
+
+    def test_blocks_creep_below_stop_distance(self):
+        node = self._make_node()
+        assert node._allow_near_wall_creep(motion_clear=0.29,
                                            fwd_clear=1.20) is False
 
 

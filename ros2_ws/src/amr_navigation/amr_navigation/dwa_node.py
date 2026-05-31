@@ -28,7 +28,7 @@ NavState 전이 규칙:
     SPIN    → EMERGENCY   : 회전해도 전방 미확보 (정지 + A* 재계획 대기)
     FORWARD_ONLY → NORMAL : 짧은 전진 완료 → A* 재계획 대기
     EMERGENCY → NORMAL    : 외부 트리거 (A* 새 path)
-    * → REACHED           : dist_to_goal < tolerance
+    * → REACHED           : dist_to_goal <= tolerance
 
 2026-05-31 (SW · dwa-ys): Recovery 를 제자리 회전(SPIN)만으로 단순화.
     후진(BACKUP) 분기·파라미터 제거 — stuck/EMERGENCY 복구는 회전 → (전방 열리면)
@@ -567,6 +567,20 @@ def goal_approach_speed_limit(
     return max(0.0, approach_speed) * ratio
 
 
+def should_mark_goal_reached(
+    dist_to_goal: float,
+    goal_tolerance: float,
+    goal_reached_epsilon: float,
+    robot_speed: float,
+    stopped_speed: float,
+) -> bool:
+    tolerance = max(0.0, goal_tolerance)
+    if dist_to_goal <= tolerance + 1e-9:
+        return True
+    stop_band = tolerance + max(0.0, goal_reached_epsilon)
+    return dist_to_goal <= stop_band and abs(robot_speed) <= max(0.0, stopped_speed)
+
+
 def safe_forward_only_distance(
     forward_clearance: float,
     stop_distance: float,
@@ -807,6 +821,8 @@ class DwaPlannerNode(Node):
         self.declare_parameter("rejoin_align_angle_thresh", 1.75)
         self.declare_parameter("max_clearance", 1.0)
         self.declare_parameter("goal_tolerance", 0.20)
+        self.declare_parameter("goal_reached_epsilon", 0.03)
+        self.declare_parameter("goal_reached_stopped_speed", 0.03)
         self.declare_parameter("goal_approach_distance", 1.20)
         self.declare_parameter("goal_approach_speed", 0.80)
         self.declare_parameter("goal_align_stop_distance", 1.50)
@@ -993,6 +1009,8 @@ class DwaPlannerNode(Node):
         self.p_rejoin_align_angle_thresh = gp("rejoin_align_angle_thresh").value
         self.p_max_clearance            = gp("max_clearance").value
         self.p_goal_tolerance           = gp("goal_tolerance").value
+        self.p_goal_reached_epsilon     = gp("goal_reached_epsilon").value
+        self.p_goal_reached_stopped_speed = gp("goal_reached_stopped_speed").value
         self.p_goal_approach_distance   = gp("goal_approach_distance").value
         self.p_goal_approach_speed      = gp("goal_approach_speed").value
         self.p_goal_align_stop_distance = gp("goal_align_stop_distance").value
@@ -1258,7 +1276,12 @@ class DwaPlannerNode(Node):
             return   # 내부에서 이미 정지 처리
 
         # REACHED 전이
-        if ctx["dist_to_goal"] < self.p_goal_tolerance:
+        if should_mark_goal_reached(
+                ctx["dist_to_goal"],
+                self.p_goal_tolerance,
+                self.p_goal_reached_epsilon,
+                self._state.v,
+                self.p_goal_reached_stopped_speed):
             # ── 추가 (2026-05-31 SW · P2): 도착 "순간"에만 GOAL_REACHED edge 신호 ──
             # rationale: NavState.REACHED 진입은 했지만 /dwa/status 에 명시적 도착
             #            신호가 없어 외부(Foxglove·BT·모니터)에서 도착 확인이 어려웠음.
@@ -1936,7 +1959,10 @@ class DwaPlannerNode(Node):
             return False
         if fwd_clear <= self.p_clearance_slowdown_distance:
             return False
-        side_margin_floor = self.p_robot_radius + self.p_hard_collision_distance
+        side_margin_floor = max(
+            self.p_clearance_stop_distance,
+            self.p_robot_radius + self.p_hard_collision_distance,
+        )
         return motion_clear >= side_margin_floor
 
     def _forward_clearance_inline(

@@ -228,6 +228,8 @@ angular:
 | `path_error_slowdown_offset` | 0.25 m | 이 이상 path에서 벌어지면 속도 감속 시작 |
 | `path_error_min_speed_scale` | 0.35 | path 복귀 중 최소 속도 스케일 |
 | `path_error_predict_time` | 0.55 s | 현재 heading/speed로 미래 횡오차를 예측해 선제 REJOIN/감속 |
+| `goal_reached_epsilon` | 0.03 m | goal tolerance 경계에서 멈춘 경우 REACHED로 latch하는 추가 거리 band |
+| `goal_reached_stopped_speed` | 0.03 m/s | 추가 band를 적용할 때 요구하는 정지 속도 |
 | `goal_approach_distance` | 1.20 m | 목표 근처에서 선형 속도 상한을 추가로 낮춰 goal 주변 배회를 줄임 |
 | `goal_approach_speed` | 0.80 m/s | `goal_approach_distance` 지점의 접근 속도 상한 |
 | `goal_align_stop_distance` | 1.50 m | 목표 근처 ALIGN에서는 turn-in-motion을 막고 먼저 자세를 정렬 |

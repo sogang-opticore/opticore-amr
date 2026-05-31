@@ -99,6 +99,11 @@ dwa_planner:
 
     max_clearance: 1.0       # m, [unused] 호환 위해 유지
     goal_tolerance: 0.20     # m, 도착 판정
+    # goal_tolerance 경계에서 감속 상한이 0에 가까워지면 0.20m에 붙은 채 REACHED가 안 날 수 있다.
+    # 멈춘 상태에서는 3cm 여유 band까지 도착으로 latch한다.
+    # TODO(미확정): RunPod에서 0.02~0.05m, 0.02~0.05m/s 범위 튜닝.
+    goal_reached_epsilon: 0.03
+    goal_reached_stopped_speed: 0.03
     # Goal 근처에서는 sqrt 제동만으로는 20Hz 제어/재계획 지연 때문에 지나친 뒤
     # 다시 도는 경우가 있어, 마지막 1.2m는 선형 속도 상한을 한 번 더 건다.
     # TODO(미확정): RunPod 왕복 주행으로 distance 1.0~1.5m, speed 0.6~0.9m/s 범위 튜닝.
