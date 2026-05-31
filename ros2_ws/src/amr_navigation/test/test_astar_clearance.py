@@ -9,7 +9,6 @@ from amr_navigation.astar_node import (
     clearance_preference_cost,
     safety_hysteresis_should_retain_previous,
     status_allows_path_hysteresis,
-    status_allows_path_safety_retention,
 )
 
 
@@ -75,15 +74,6 @@ class TestAstarPathHysteresisStatus:
         assert status_allows_path_hysteresis("STOPPED_NEAR_WALL", stable) is False
         assert status_allows_path_hysteresis("RECOVERY", stable) is False
         assert status_allows_path_hysteresis("REJOIN", stable) is False
-
-    def test_safety_retention_is_limited_to_stable_tracking(self):
-        safety = {"NORMAL", "ALIGN"}
-
-        assert status_allows_path_safety_retention("NORMAL", safety) is True
-        assert status_allows_path_safety_retention("ALIGN", safety) is True
-        assert status_allows_path_safety_retention("REJOIN", safety) is False
-        assert status_allows_path_safety_retention("RECOVERY", safety) is False
-        assert status_allows_path_safety_retention("EMERGENCY", safety) is False
 
 
 class TestAstarSafetyHysteresis:

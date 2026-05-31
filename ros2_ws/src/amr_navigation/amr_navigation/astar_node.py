@@ -212,14 +212,6 @@ def status_allows_path_hysteresis(
     return status is None or status in stable_statuses
 
 
-def status_allows_path_safety_retention(
-    status: str | None,
-    safety_statuses: set[str],
-) -> bool:
-    """기존 path가 더 안전할 때 낮은 clearance 후보 보류를 허용할 상태인지 판단."""
-    return status is None or status in safety_statuses
-
-
 class AstarPlanner(Node):
 
     def __init__(self):
@@ -276,8 +268,6 @@ class AstarPlanner(Node):
         self.declare_parameter('path_switch_clearance_skip_distance', 1.0)  # m
         self.declare_parameter('path_switch_safety_clearance_loss', 0.20)  # m
         self.declare_parameter('path_switch_safety_max_length_sacrifice', 1.20)  # m
-        self.declare_parameter('path_switch_safety_max_start_offset', 0.60)  # m
-        self.declare_parameter('path_switch_safety_statuses', ['NORMAL', 'ALIGN'])
         self.declare_parameter('path_hysteresis_stable_states', ['NORMAL', 'ALIGN'])
         self.declare_parameter('new_goal_force_publish_sec', 5.0)  # s
         self.declare_parameter('goal_direct_distance', 2.0)  # m
@@ -320,10 +310,6 @@ class AstarPlanner(Node):
             'path_switch_safety_clearance_loss').value
         self.path_switch_safety_max_length_sacrifice = self.get_parameter(
             'path_switch_safety_max_length_sacrifice').value
-        self.path_switch_safety_max_start_offset = self.get_parameter(
-            'path_switch_safety_max_start_offset').value
-        self.path_switch_safety_statuses = _status_param_to_set(
-            self.get_parameter('path_switch_safety_statuses').value)
         self.path_hysteresis_stable_states = _status_param_to_set(
             self.get_parameter('path_hysteresis_stable_states').value)
         self.new_goal_force_publish_sec = self.get_parameter(
@@ -615,14 +601,12 @@ class AstarPlanner(Node):
 
         path_min_clearance = self._path_min_clearance(cell_path)
         now = self._sec_now()
-        previous_path_free = self._path_is_still_free(self._last_path_cells)
-        path_hysteresis_active = should_apply_path_hysteresis(
-            allow_path_hysteresis,
-            using_direct_path,
-            now,
-            self._force_publish_until,
-        )
-        if path_hysteresis_active and previous_path_free:
+        if (should_apply_path_hysteresis(
+                allow_path_hysteresis,
+                using_direct_path,
+                now,
+                self._force_publish_until)
+                and self._path_is_still_free(self._last_path_cells)):
             keep, improvement, prev_len, cand_len, offset = should_retain_previous_path(
                 previous_cells=self._last_path_cells,
                 candidate_cells=cell_path,
@@ -631,7 +615,6 @@ class AstarPlanner(Node):
                 switch_hysteresis=self.path_switch_hysteresis,
                 max_start_offset=self.path_switch_max_start_offset,
             )
-            keep_reason = 'length_hysteresis' if keep else None
             prev_min_clearance = self._path_min_clearance_ahead(
                 self._last_path_cells,
                 start_cell,
@@ -666,70 +649,18 @@ class AstarPlanner(Node):
                     self.path_switch_safety_clearance_loss,
                     self.path_switch_safety_max_length_sacrifice):
                 keep = True
-                keep_reason = 'safety_retention'
-            if keep:
-                self._has_valid_path_for_goal = True
-                if keep_reason == 'safety_retention':
-                    self.get_logger().info(
-                        '안전 여유 우선 기존 경로 유지: '
-                        f'status={self._last_dwa_status or "UNKNOWN"} '
-                        f'prev_clear={prev_min_clearance:.2f}m '
-                        f'cand_clear={cand_switch_clearance:.2f}m '
-                        f'length_penalty={improvement:.2f}m '
-                        f'offset={offset:.2f}m',
-                        throttle_duration_sec=2.0)
-                else:
-                    self.get_logger().info(
-                        '기존 경로 유지: '
-                        f'개선={improvement:.2f}m < {self.path_switch_hysteresis:.2f}m, '
-                        f'prev={prev_len:.2f}m cand={cand_len:.2f}m offset={offset:.2f}m',
-                        throttle_duration_sec=2.0)
-                return True
-
-        if (not path_hysteresis_active
-                and not using_direct_path
-                and previous_path_free
-                and now >= self._force_publish_until
-                and status_allows_path_safety_retention(
-                    self._last_dwa_status,
-                    self.path_switch_safety_statuses)):
-            prev_len, prev_offset = remaining_path_metrics(
-                self._last_path_cells,
-                start_cell,
-                self.map_data.info.resolution,
-            )
-            cand_len, _ = remaining_path_metrics(
-                cell_path,
-                start_cell,
-                self.map_data.info.resolution,
-            )
-            improvement = prev_len - cand_len
-            prev_min_clearance = self._path_min_clearance_ahead(
-                self._last_path_cells,
-                start_cell,
-                self.path_switch_clearance_skip_distance,
-            )
-            cand_switch_clearance = self._path_min_clearance_ahead(
-                cell_path,
-                start_cell,
-                self.path_switch_clearance_skip_distance,
-            )
-            if (prev_offset <= self.path_switch_safety_max_start_offset
-                    and safety_hysteresis_should_retain_previous(
-                        prev_min_clearance,
-                        cand_switch_clearance,
-                        improvement,
-                        self.path_switch_bad_clearance,
-                        self.path_switch_safety_clearance_loss,
-                        self.path_switch_safety_max_length_sacrifice)):
-                self._has_valid_path_for_goal = True
                 self.get_logger().info(
                     '안전 여유 우선 기존 경로 유지: '
-                    f'status={self._last_dwa_status or "UNKNOWN"} '
                     f'prev_clear={prev_min_clearance:.2f}m '
                     f'cand_clear={cand_switch_clearance:.2f}m '
-                    f'length_penalty={improvement:.2f}m '
-                    f'offset={prev_offset:.2f}m',
+                    f'length_penalty={improvement:.2f}m',
+                    throttle_duration_sec=2.0)
+            if keep:
+                self._has_valid_path_for_goal = True
+                self.get_logger().info(
+                    '기존 경로 유지: '
+                    f'개선={improvement:.2f}m < {self.path_switch_hysteresis:.2f}m, '
+                    f'prev={prev_len:.2f}m cand={cand_len:.2f}m offset={offset:.2f}m',
                     throttle_duration_sec=2.0)
                 return True
 

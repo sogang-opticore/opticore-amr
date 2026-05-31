@@ -321,10 +321,8 @@ angular:
 | `path_switch_clearance_gain` | 0.18 m | 후보 path 최소 clearance가 이만큼 개선되면 길이 hysteresis보다 안전성을 우선 |
 | `path_switch_clearance_max_extra_length` | 3.0 m | clearance 개선으로 바꿀 때 허용하는 후보 path 추가 길이 상한 |
 | `path_switch_clearance_skip_distance` | 1.0 m | 현재 위치 바로 주변의 공통 벽 근접 구간을 제외하고 앞쪽 clearance를 비교 |
-| `path_switch_safety_clearance_loss` | 0.20 m | 새 후보가 이만큼 더 벽에 가까우면 기존 path 유지 후보로 본다 |
+| `path_switch_safety_clearance_loss` | 0.20 m | 안정 주행 중 새 후보가 이만큼 더 벽에 가까우면 기존 path 유지 후보로 본다 |
 | `path_switch_safety_max_length_sacrifice` | 1.20 m | 더 안전한 기존 path를 유지하기 위해 감수할 수 있는 후보 대비 최대 길이 손해 |
-| `path_switch_safety_max_start_offset` | 0.60 m | 기존 path를 유지할 수 있는 현재 pose 기준 최대 path offset |
-| `path_switch_safety_statuses` | `NORMAL, ALIGN` | 낮은 clearance 후보 보류를 허용하는 DWA 상태. `REJOIN/RECOVERY/EMERGENCY` 계열은 제외 |
 
 ---
 

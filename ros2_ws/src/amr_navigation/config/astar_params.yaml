@@ -94,11 +94,8 @@ astar_planner:
     path_switch_clearance_max_extra_length: 3.0
     path_switch_clearance_skip_distance: 1.0
     # 안정 추종 중 기존 path가 더 안전하면 새 후보가 조금 짧더라도 벽 쪽으로 갈아타지 않는다.
-    # REJOIN/복구 중에는 새 path 수용성을 우선해 이전 path 고정을 피한다.
     path_switch_safety_clearance_loss: 0.20
     path_switch_safety_max_length_sacrifice: 1.20
-    path_switch_safety_max_start_offset: 0.60
-    path_switch_safety_statuses: ["NORMAL", "ALIGN"]
     # path switch hysteresis는 안정 주행 중에만 사용한다.
     # STOPPED_NEAR_WALL/RECOVERY/REJOIN 중에는 더 긴 후보라도 stuck path 탈출을 위해 발행한다.
     path_hysteresis_stable_states: ["NORMAL", "ALIGN"]
