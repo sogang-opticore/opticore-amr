@@ -7,6 +7,7 @@ import numpy as np
 from amr_navigation.astar_node import (
     AstarPlanner,
     clearance_preference_cost,
+    safety_hysteresis_should_retain_previous,
     status_allows_path_hysteresis,
 )
 
@@ -73,6 +74,38 @@ class TestAstarPathHysteresisStatus:
         assert status_allows_path_hysteresis("STOPPED_NEAR_WALL", stable) is False
         assert status_allows_path_hysteresis("RECOVERY", stable) is False
         assert status_allows_path_hysteresis("REJOIN", stable) is False
+
+
+class TestAstarSafetyHysteresis:
+    def test_retains_safer_previous_path_when_candidate_is_only_modestly_shorter(self):
+        assert safety_hysteresis_should_retain_previous(
+            previous_min_clearance=1.05,
+            candidate_min_clearance=0.70,
+            candidate_length_improvement=0.80,
+            bad_clearance=0.90,
+            min_clearance_loss=0.20,
+            max_length_sacrifice=1.20,
+        ) is True
+
+    def test_allows_short_candidate_when_length_gain_is_large(self):
+        assert safety_hysteresis_should_retain_previous(
+            previous_min_clearance=1.05,
+            candidate_min_clearance=0.70,
+            candidate_length_improvement=1.50,
+            bad_clearance=0.90,
+            min_clearance_loss=0.20,
+            max_length_sacrifice=1.20,
+        ) is False
+
+    def test_allows_candidate_when_clearance_loss_is_small(self):
+        assert safety_hysteresis_should_retain_previous(
+            previous_min_clearance=0.95,
+            candidate_min_clearance=0.82,
+            candidate_length_improvement=0.50,
+            bad_clearance=0.90,
+            min_clearance_loss=0.20,
+            max_length_sacrifice=1.20,
+        ) is False
 
 
 class TestAstarNeighbors:

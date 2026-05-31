@@ -118,6 +118,29 @@ def clearance_switch_should_replace_previous(
     return True
 
 
+def safety_hysteresis_should_retain_previous(
+    previous_min_clearance: float,
+    candidate_min_clearance: float,
+    candidate_length_improvement: float,
+    bad_clearance: float,
+    min_clearance_loss: float,
+    max_length_sacrifice: float,
+) -> bool:
+    """Keep a safer existing path when the new path is only modestly shorter."""
+    if (not math.isfinite(previous_min_clearance)
+            or not math.isfinite(candidate_min_clearance)):
+        return False
+    if not math.isfinite(candidate_length_improvement):
+        return False
+    if candidate_min_clearance >= bad_clearance:
+        return False
+    if previous_min_clearance - candidate_min_clearance < min_clearance_loss:
+        return False
+    if max_length_sacrifice >= 0.0 and candidate_length_improvement > max_length_sacrifice:
+        return False
+    return True
+
+
 def cells_on_segment(a: tuple, b: tuple) -> list[tuple]:
     """두 grid cell 사이의 직선 segment를 중복 없이 촘촘한 cell path로 반환."""
     dr = int(b[0]) - int(a[0])
@@ -198,10 +221,10 @@ class AstarPlanner(Node):
         self.declare_parameter('heuristic', 'octile')
         self.declare_parameter('allow_diagonal', True)
         self.declare_parameter('inflation_radius', 0.50)  # robot_radius(0.20) + clearance_stop(0.30)
-        self.declare_parameter('preferred_clearance', 1.20)  # robot_radius + DWA slowdown 여유
-        self.declare_parameter('clearance_cost_weight', 8.0)
-        self.declare_parameter('wall_avoid_clearance', 1.00)
-        self.declare_parameter('wall_avoid_cost_weight', 2.5)
+        self.declare_parameter('preferred_clearance', 1.25)  # robot_radius + DWA slowdown 여유
+        self.declare_parameter('clearance_cost_weight', 9.0)
+        self.declare_parameter('wall_avoid_clearance', 1.05)
+        self.declare_parameter('wall_avoid_cost_weight', 3.0)
         self.declare_parameter('wall_avoid_min_margin', 0.05)
         self.declare_parameter('smoothing', 'catmull_rom')
         self.declare_parameter('smoothing_min_clearance', 0.90)
@@ -239,10 +262,12 @@ class AstarPlanner(Node):
         self.declare_parameter('goal_dedup_yaw', 0.10)   # rad
         self.declare_parameter('path_switch_hysteresis', 0.35)  # m
         self.declare_parameter('path_switch_max_start_offset', 0.80)  # m
-        self.declare_parameter('path_switch_bad_clearance', 0.80)  # m
-        self.declare_parameter('path_switch_clearance_gain', 0.25)  # m
+        self.declare_parameter('path_switch_bad_clearance', 0.90)  # m
+        self.declare_parameter('path_switch_clearance_gain', 0.18)  # m
         self.declare_parameter('path_switch_clearance_max_extra_length', 3.0)  # m
-        self.declare_parameter('path_switch_clearance_skip_distance', 0.75)  # m
+        self.declare_parameter('path_switch_clearance_skip_distance', 1.0)  # m
+        self.declare_parameter('path_switch_safety_clearance_loss', 0.20)  # m
+        self.declare_parameter('path_switch_safety_max_length_sacrifice', 1.20)  # m
         self.declare_parameter('path_hysteresis_stable_states', ['NORMAL', 'ALIGN'])
         self.declare_parameter('new_goal_force_publish_sec', 5.0)  # s
         self.declare_parameter('goal_direct_distance', 2.0)  # m
@@ -281,6 +306,10 @@ class AstarPlanner(Node):
             'path_switch_clearance_max_extra_length').value
         self.path_switch_clearance_skip_distance = self.get_parameter(
             'path_switch_clearance_skip_distance').value
+        self.path_switch_safety_clearance_loss = self.get_parameter(
+            'path_switch_safety_clearance_loss').value
+        self.path_switch_safety_max_length_sacrifice = self.get_parameter(
+            'path_switch_safety_max_length_sacrifice').value
         self.path_hysteresis_stable_states = _status_param_to_set(
             self.get_parameter('path_hysteresis_stable_states').value)
         self.new_goal_force_publish_sec = self.get_parameter(
@@ -586,17 +615,17 @@ class AstarPlanner(Node):
                 switch_hysteresis=self.path_switch_hysteresis,
                 max_start_offset=self.path_switch_max_start_offset,
             )
+            prev_min_clearance = self._path_min_clearance_ahead(
+                self._last_path_cells,
+                start_cell,
+                self.path_switch_clearance_skip_distance,
+            )
+            cand_switch_clearance = self._path_min_clearance_ahead(
+                cell_path,
+                start_cell,
+                self.path_switch_clearance_skip_distance,
+            )
             if keep:
-                prev_min_clearance = self._path_min_clearance_ahead(
-                    self._last_path_cells,
-                    start_cell,
-                    self.path_switch_clearance_skip_distance,
-                )
-                cand_switch_clearance = self._path_min_clearance_ahead(
-                    cell_path,
-                    start_cell,
-                    self.path_switch_clearance_skip_distance,
-                )
                 extra_length = cand_len - prev_len
                 if clearance_switch_should_replace_previous(
                         prev_min_clearance,
@@ -612,6 +641,20 @@ class AstarPlanner(Node):
                         f'cand_clear={cand_switch_clearance:.2f}m '
                         f'extra={extra_length:.2f}m',
                         throttle_duration_sec=2.0)
+            elif safety_hysteresis_should_retain_previous(
+                    prev_min_clearance,
+                    cand_switch_clearance,
+                    improvement,
+                    self.path_switch_bad_clearance,
+                    self.path_switch_safety_clearance_loss,
+                    self.path_switch_safety_max_length_sacrifice):
+                keep = True
+                self.get_logger().info(
+                    '안전 여유 우선 기존 경로 유지: '
+                    f'prev_clear={prev_min_clearance:.2f}m '
+                    f'cand_clear={cand_switch_clearance:.2f}m '
+                    f'length_penalty={improvement:.2f}m',
+                    throttle_duration_sec=2.0)
             if keep:
                 self._has_valid_path_for_goal = True
                 self.get_logger().info(

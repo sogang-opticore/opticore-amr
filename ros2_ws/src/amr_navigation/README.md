@@ -299,10 +299,10 @@ angular:
 | `heuristic` | `"octile"` | `manhattan` / `euclidean` / `octile` (heuristics.py 등록됨) |
 | `allow_diagonal` | `true` | 8-connected |
 | `inflation_radius` | 0.50 m | 로봇 반경 0.20 m + DWA 정지 여유 0.30 m |
-| `preferred_clearance` | 1.20 m | 이 거리 안쪽 free 셀에 비용을 부여해 벽 경계 path를 피함. **TODO 미확정, RunPod 튜닝 필요** |
-| `clearance_cost_weight` | 8.0 | clearance 비용 가중치. 0이면 shortest path 우선 |
-| `wall_avoid_clearance` | 1.00 m | inflation 경계 바로 바깥 후보를 강하게 밀어내는 barrier 기준 clearance |
-| `wall_avoid_cost_weight` | 1.5 | wall-avoid barrier 비용 가중치 |
+| `preferred_clearance` | 1.25 m | 이 거리 안쪽 free 셀에 비용을 부여해 벽 경계 path를 피함. **TODO 미확정, RunPod 튜닝 필요** |
+| `clearance_cost_weight` | 9.0 | clearance 비용 가중치. 0이면 shortest path 우선 |
+| `wall_avoid_clearance` | 1.05 m | inflation 경계 바로 바깥 후보를 강하게 밀어내는 barrier 기준 clearance |
+| `wall_avoid_cost_weight` | 3.0 | wall-avoid barrier 비용 가중치 |
 | `wall_avoid_min_margin` | 0.05 m | barrier 분모 최소 margin. inflation 경계에 붙은 cell 비용 폭주 방지용 clamp |
 | `smoothing` | `"catmull_rom"` | `none` / `catmull_rom` / `bezier` |
 | `smoothing_min_clearance` | 0.90 m | Catmull-Rom 스무딩 segment가 유지해야 하는 최소 clearance. 미달 시 raw A* path 유지 |
@@ -317,10 +317,12 @@ angular:
 | `new_goal_force_publish_sec` | 5.0 s | 새 goal 직후 이 시간 동안 hysteresis를 건너뛰어 `/global_path` 재수신 기회 확보 |
 | `goal_direct_distance` | 2.0 m | 목표 근처에서 안전한 직선 final approach path 허용 거리 |
 | `goal_direct_min_clearance` | 0.90 m | 직선 final approach segment의 최소 raw obstacle clearance |
-| `path_switch_bad_clearance` | 0.80 m | 기존 path 최소 clearance가 이보다 낮으면 safety switch 후보로 본다 |
-| `path_switch_clearance_gain` | 0.25 m | 후보 path 최소 clearance가 이만큼 개선되면 길이 hysteresis보다 안전성을 우선 |
+| `path_switch_bad_clearance` | 0.90 m | 기존 path 최소 clearance가 이보다 낮으면 safety switch 후보로 본다 |
+| `path_switch_clearance_gain` | 0.18 m | 후보 path 최소 clearance가 이만큼 개선되면 길이 hysteresis보다 안전성을 우선 |
 | `path_switch_clearance_max_extra_length` | 3.0 m | clearance 개선으로 바꿀 때 허용하는 후보 path 추가 길이 상한 |
-| `path_switch_clearance_skip_distance` | 0.75 m | 현재 위치 바로 주변의 공통 벽 근접 구간을 제외하고 앞쪽 clearance를 비교 |
+| `path_switch_clearance_skip_distance` | 1.0 m | 현재 위치 바로 주변의 공통 벽 근접 구간을 제외하고 앞쪽 clearance를 비교 |
+| `path_switch_safety_clearance_loss` | 0.20 m | 안정 주행 중 새 후보가 이만큼 더 벽에 가까우면 기존 path 유지 후보로 본다 |
+| `path_switch_safety_max_length_sacrifice` | 1.20 m | 더 안전한 기존 path를 유지하기 위해 감수할 수 있는 후보 대비 최대 길이 손해 |
 
 ---
 
