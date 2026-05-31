@@ -179,11 +179,11 @@ class AstarPlanner(Node):
         self.declare_parameter('inflation_radius', 0.50)  # robot_radius(0.20) + clearance_stop(0.30)
         self.declare_parameter('preferred_clearance', 1.20)  # robot_radius + DWA slowdown 여유
         self.declare_parameter('clearance_cost_weight', 8.0)
-        self.declare_parameter('wall_avoid_clearance', 0.85)
-        self.declare_parameter('wall_avoid_cost_weight', 1.5)
+        self.declare_parameter('wall_avoid_clearance', 1.00)
+        self.declare_parameter('wall_avoid_cost_weight', 2.5)
         self.declare_parameter('wall_avoid_min_margin', 0.05)
         self.declare_parameter('smoothing', 'catmull_rom')
-        self.declare_parameter('smoothing_min_clearance', 0.80)
+        self.declare_parameter('smoothing_min_clearance', 0.90)
         # 2026-05-24 보강(SW, HU 보강-1):
         #   goal 셀이 inflation/점유로 막혔을 때 nearest free cell로 자동 보정.
         #   BFS 반경 [cell] = goal_snap_radius / resolution.
@@ -221,7 +221,7 @@ class AstarPlanner(Node):
         self.declare_parameter('path_hysteresis_stable_states', ['NORMAL', 'ALIGN'])
         self.declare_parameter('new_goal_force_publish_sec', 5.0)  # s
         self.declare_parameter('goal_direct_distance', 2.0)  # m
-        self.declare_parameter('goal_direct_min_clearance', 0.80)  # m
+        self.declare_parameter('goal_direct_min_clearance', 0.90)  # m
 
         self.heuristic_type   = self.get_parameter('heuristic').value
         self.allow_diagonal   = self.get_parameter('allow_diagonal').value

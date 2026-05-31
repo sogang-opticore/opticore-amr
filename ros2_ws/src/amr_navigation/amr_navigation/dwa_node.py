@@ -123,6 +123,7 @@ class RejoinTarget:
     alpha: float
     arrival_error: float
     curvature: float
+    clearance: float
     desired_distance: float
     score: float
 
@@ -642,6 +643,40 @@ def should_release_align(
     return abs(alpha) < threshold and rotate_clearance > release_clearance
 
 
+def point_segment_distance(
+    point: Tuple[float, float],
+    seg_start: Tuple[float, float],
+    seg_end: Tuple[float, float],
+) -> float:
+    px, py = point
+    ax, ay = seg_start
+    bx, by = seg_end
+    sx = bx - ax
+    sy = by - ay
+    seg_len_sq = sx * sx + sy * sy
+    if seg_len_sq <= 1e-12:
+        return math.hypot(px - ax, py - ay)
+    t = ((px - ax) * sx + (py - ay) * sy) / seg_len_sq
+    t = max(0.0, min(1.0, t))
+    cx = ax + t * sx
+    cy = ay + t * sy
+    return math.hypot(px - cx, py - cy)
+
+
+def segment_clearance_margin(
+    seg_start: Tuple[float, float],
+    seg_end: Tuple[float, float],
+    obstacle_points: List[Tuple[float, float]],
+    robot_radius: float,
+) -> float:
+    if not obstacle_points:
+        return float("inf")
+    best = float("inf")
+    for obstacle in obstacle_points:
+        best = min(best, point_segment_distance(obstacle, seg_start, seg_end))
+    return max(0.0, best - max(0.0, robot_radius))
+
+
 def choose_rejoin_target(
     path_xy: List[Tuple[float, float]],
     robot: RobotState,
@@ -653,6 +688,10 @@ def choose_rejoin_target(
     distance_weight: float,
     curvature_weight: float,
     effective_offset: Optional[float] = None,
+    obstacles_local: Optional[List[Tuple[float, float]]] = None,
+    robot_radius: float = 0.0,
+    clearance_min: float = 0.0,
+    clearance_weight: float = 0.0,
 ) -> Optional[RejoinTarget]:
     """가장 가까운 점이 아니라, 작은 조향으로 합류 가능한 미래 path 점을 고른다."""
     if not path_xy:
@@ -691,11 +730,24 @@ def choose_rejoin_target(
         L = math.hypot(lx, ly)
         curvature = abs(2.0 * ly / (L * L)) if L >= 1e-3 else float("inf")
         distance_error = abs(sample.distance - desired_distance)
+        clearance = segment_clearance_margin(
+            (0.0, 0.0),
+            (lx, ly),
+            obstacles_local or [],
+            robot_radius,
+        )
+        clearance_penalty = 0.0
+        if (clearance_weight > 0.0
+                and clearance_min > 0.0
+                and clearance < clearance_min):
+            ratio = (clearance_min - max(0.0, clearance)) / clearance_min
+            clearance_penalty = clearance_weight * ratio * ratio
         score = (
             abs(alpha)
             + heading_weight * abs(arrival_error)
             + curvature_weight * curvature
             + distance_weight * distance_error
+            + clearance_penalty
         )
         target = RejoinTarget(
             point=sample.point,
@@ -704,6 +756,7 @@ def choose_rejoin_target(
             alpha=alpha,
             arrival_error=arrival_error,
             curvature=curvature,
+            clearance=clearance,
             desired_distance=desired_distance,
             score=score,
         )
@@ -817,6 +870,8 @@ class DwaPlannerNode(Node):
         self.declare_parameter("rejoin_heading_weight", 1.2)
         self.declare_parameter("rejoin_distance_weight", 0.12)
         self.declare_parameter("rejoin_curvature_weight", 0.18)
+        self.declare_parameter("rejoin_clearance_min", 0.75)
+        self.declare_parameter("rejoin_clearance_weight", 2.5)
         self.declare_parameter("rejoin_cross_track_gain_scale", 0.35)
         self.declare_parameter("rejoin_align_angle_thresh", 1.75)
         self.declare_parameter("max_clearance", 1.0)
@@ -830,7 +885,8 @@ class DwaPlannerNode(Node):
         self.declare_parameter("clearance_stop_distance", 0.30)
         self.declare_parameter("turn_clearance_brake_angle", 0.45)
         self.declare_parameter("near_wall_creep_speed", 0.12)
-        self.declare_parameter("near_wall_creep_min_clearance", 0.45)
+        self.declare_parameter("near_wall_creep_min_clearance", 0.60)
+        self.declare_parameter("rejoin_creep_min_clearance", 0.70)
         self.declare_parameter("align_angle_thresh", 1.10)
         self.declare_parameter("align_angle_exit", 0.262)
         self.declare_parameter("align_kp", 1.5)
@@ -1009,6 +1065,8 @@ class DwaPlannerNode(Node):
         self.p_rejoin_heading_weight    = gp("rejoin_heading_weight").value
         self.p_rejoin_distance_weight   = gp("rejoin_distance_weight").value
         self.p_rejoin_curvature_weight  = gp("rejoin_curvature_weight").value
+        self.p_rejoin_clearance_min     = gp("rejoin_clearance_min").value
+        self.p_rejoin_clearance_weight  = gp("rejoin_clearance_weight").value
         self.p_rejoin_cross_track_gain_scale = gp("rejoin_cross_track_gain_scale").value
         self.p_rejoin_align_angle_thresh = gp("rejoin_align_angle_thresh").value
         self.p_max_clearance            = gp("max_clearance").value
@@ -1023,6 +1081,7 @@ class DwaPlannerNode(Node):
         self.p_turn_clearance_brake_angle = gp("turn_clearance_brake_angle").value
         self.p_near_wall_creep_speed    = gp("near_wall_creep_speed").value
         self.p_near_wall_creep_min_clearance = gp("near_wall_creep_min_clearance").value
+        self.p_rejoin_creep_min_clearance = gp("rejoin_creep_min_clearance").value
         self.p_align_angle_thresh       = gp("align_angle_thresh").value
         self.p_align_angle_exit         = gp("align_angle_exit").value
         self.p_align_kp                 = gp("align_kp").value
@@ -1363,6 +1422,7 @@ class DwaPlannerNode(Node):
             exit_heading=self.p_rejoin_exit_heading,
             predicted_offset=predicted_path_offset,
         )
+        obstacles_local = self._extract_obstacles_from_scan()
         rejoin_target: Optional[RejoinTarget] = None
         if rejoin_requested:
             rejoin_target = choose_rejoin_target(
@@ -1376,6 +1436,10 @@ class DwaPlannerNode(Node):
                 distance_weight=self.p_rejoin_distance_weight,
                 curvature_weight=self.p_rejoin_curvature_weight,
                 effective_offset=predicted_path_offset,
+                obstacles_local=obstacles_local,
+                robot_radius=self.p_robot_radius,
+                clearance_min=self.p_rejoin_clearance_min,
+                clearance_weight=self.p_rejoin_clearance_weight,
             )
 
         # Adaptive lookahead (approach scaling)
@@ -1405,7 +1469,6 @@ class DwaPlannerNode(Node):
         alpha = math.atan2(ly, lx)
         path_heading_error = normalize_angle(target_path_yaw - self._state.theta)
 
-        obstacles_local = self._extract_obstacles_from_scan()
         fwd_clear = self._forward_clearance_inline(obstacles_local, kappa=self._last_kappa)
 
         return {
@@ -1425,6 +1488,7 @@ class DwaPlannerNode(Node):
                 rejoin_target.arrival_error if rejoin_target else 0.0
             ),
             "rejoin_curvature": rejoin_target.curvature if rejoin_target else 0.0,
+            "rejoin_clearance": rejoin_target.clearance if rejoin_target else float("inf"),
             "rejoin_desired_distance": (
                 rejoin_target.desired_distance if rejoin_target else 0.0
             ),
@@ -1512,7 +1576,11 @@ class DwaPlannerNode(Node):
         near_wall_creep = False
         if motion_clear < cc:
             v_clear = self.p_v_max * max(0.0, motion_clear - cf) / max(cc - cf, 1e-3)
-            near_wall_creep = self._allow_near_wall_creep(motion_clear, fwd_clear)
+            near_wall_creep = self._allow_near_wall_creep(
+                motion_clear,
+                fwd_clear,
+                is_rejoining=is_rejoining,
+            )
             if near_wall_creep:
                 v_clear = max(v_clear, self.p_near_wall_creep_speed)
             v_target = min(v_target, v_clear)
@@ -1678,6 +1746,7 @@ class DwaPlannerNode(Node):
                 f"pcte={predicted_path_offset:.2f} "
                 f"rj={ctx['rejoin_distance']:.2f}/"
                 f"{math.degrees(ctx['rejoin_arrival_error']):+.1f}° "
+                f"rjc={ctx['rejoin_clearance']:.2f} "
                 f"ψ={math.degrees(path_heading_error):+.1f}° "
                 f"clr={motion_clear:.2f} fwd={fwd_clear:.2f} "
                 f"d_goal={dist_to_goal:.2f}"
@@ -1963,7 +2032,12 @@ class DwaPlannerNode(Node):
     # ───────────────────────────────────────────────────────────────
     # Clearance 헬퍼들 (기존과 동일)
     # ───────────────────────────────────────────────────────────────
-    def _allow_near_wall_creep(self, motion_clear: float, fwd_clear: float) -> bool:
+    def _allow_near_wall_creep(
+        self,
+        motion_clear: float,
+        fwd_clear: float,
+        is_rejoining: bool = False,
+    ) -> bool:
         """전방은 열려 있고 측면 여유만 낮을 때 최소 전진을 허용한다."""
         if self.p_near_wall_creep_speed <= 0.0:
             return False
@@ -1974,6 +2048,11 @@ class DwaPlannerNode(Node):
             self.p_robot_radius + self.p_hard_collision_distance,
             self.p_near_wall_creep_min_clearance,
         )
+        if is_rejoining:
+            side_margin_floor = max(
+                side_margin_floor,
+                self.p_rejoin_creep_min_clearance,
+            )
         return motion_clear >= side_margin_floor
 
     def _forward_clearance_inline(

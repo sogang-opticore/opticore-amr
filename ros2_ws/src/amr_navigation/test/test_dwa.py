@@ -39,6 +39,8 @@ from amr_navigation.dwa_node import (
     rate_limit_angular_velocity,
     should_finish_forward_only,
     project_to_path,
+    point_segment_distance,
+    segment_clearance_margin,
 )
 
 
@@ -318,6 +320,44 @@ class TestPathProjectionLookahead:
         assert abs(target.alpha) < math.radians(35.0)
         assert target.curvature < 1.0
         assert target.desired_distance > 2.5
+
+    def test_segment_clearance_margin_subtracts_robot_radius(self):
+        assert abs(point_segment_distance(
+            (0.5, 0.35), (0.0, 0.0), (1.0, 0.0)) - 0.35) < 1e-9
+
+        margin = segment_clearance_margin(
+            (0.0, 0.0),
+            (1.0, 0.0),
+            [(0.5, 0.35)],
+            robot_radius=0.20,
+        )
+
+        assert abs(margin - 0.15) < 1e-9
+
+    def test_rejoin_target_penalizes_blocked_merge_line(self):
+        path = [(0.0, 0.0), (0.8, 0.0), (0.8, 2.0)]
+        robot = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
+        proj = project_to_path(path, (robot.x, robot.y), 0)
+
+        target = choose_rejoin_target(
+            path_xy=path,
+            robot=robot,
+            projection=proj,
+            min_lookahead=0.80,
+            max_lookahead=1.80,
+            step=0.50,
+            heading_weight=0.0,
+            distance_weight=0.0,
+            curvature_weight=0.0,
+            obstacles_local=[(0.60, -0.20)],
+            robot_radius=0.20,
+            clearance_min=0.25,
+            clearance_weight=3.0,
+        )
+
+        assert target is not None
+        assert target.distance > 0.80
+        assert target.clearance >= 0.25
 
     def test_rejoin_stays_active_until_heading_is_aligned(self):
         assert should_use_rejoin(
@@ -764,7 +804,8 @@ class TestNearWallCreep:
         node.p_clearance_stop_distance = 0.30
         node.p_robot_radius = 0.20
         node.p_hard_collision_distance = 0.05
-        node.p_near_wall_creep_min_clearance = 0.45
+        node.p_near_wall_creep_min_clearance = 0.60
+        node.p_rejoin_creep_min_clearance = 0.70
         node._allow_near_wall_creep = (
             DwaPlannerNode._allow_near_wall_creep.__get__(node)
         )
@@ -772,7 +813,7 @@ class TestNearWallCreep:
 
     def test_allows_creep_when_only_side_clearance_is_low(self):
         node = self._make_node()
-        assert node._allow_near_wall_creep(motion_clear=0.46,
+        assert node._allow_near_wall_creep(motion_clear=0.61,
                                            fwd_clear=1.20) is True
 
     def test_blocks_creep_when_front_is_not_clear(self):
@@ -792,8 +833,17 @@ class TestNearWallCreep:
 
     def test_blocks_creep_below_recovery_margin(self):
         node = self._make_node()
-        assert node._allow_near_wall_creep(motion_clear=0.40,
+        assert node._allow_near_wall_creep(motion_clear=0.55,
                                            fwd_clear=1.20) is False
+
+    def test_rejoin_creep_uses_stricter_margin(self):
+        node = self._make_node()
+        assert node._allow_near_wall_creep(motion_clear=0.65,
+                                           fwd_clear=1.20,
+                                           is_rejoining=True) is False
+        assert node._allow_near_wall_creep(motion_clear=0.71,
+                                           fwd_clear=1.20,
+                                           is_rejoining=True) is True
 
 
 class TestGlobalPathStaleGuard:

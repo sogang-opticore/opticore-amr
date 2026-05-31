@@ -37,13 +37,13 @@ astar_planner:
 
     # inflation 경계 바로 바깥을 강하게 밀어내는 barrier 비용.
     # 좁은 통로에서는 여전히 통과 가능하지만, 대체 경로가 있으면 벽 붙은 후보를 피한다.
-    wall_avoid_clearance: 0.85
-    wall_avoid_cost_weight: 1.5
+    wall_avoid_clearance: 1.00
+    wall_avoid_cost_weight: 2.5
     wall_avoid_min_margin: 0.05
 
     # 경로 스무딩: none / catmull_rom / bezier
     smoothing: "catmull_rom"
-    smoothing_min_clearance: 0.80
+    smoothing_min_clearance: 0.90
 
     # 2026-05-24 보강: goal이 점유/inflation으로 막혔을 때
     # 인근 자유공간 셀로 자동 보정. BFS 반경 [m]. 0이면 비활성.
@@ -97,7 +97,7 @@ astar_planner:
     # 목표 근처에서 inflated map 기준 직선 segment가 안전하면 A* 우회 path 대신
     # goal까지 직선 final approach path를 발행해 목표 주변 배회를 줄인다.
     goal_direct_distance: 2.0
-    goal_direct_min_clearance: 0.80
+    goal_direct_min_clearance: 0.90
 
     # 시뮬레이션 시간 사용 (Ignition Gazebo 필수)
     use_sim_time: true

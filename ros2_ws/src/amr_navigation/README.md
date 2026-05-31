@@ -242,6 +242,8 @@ angular:
 | `rejoin_heading_weight` | 1.2 | 합류 지점 path heading mismatch 비용 |
 | `rejoin_distance_weight` | 0.12 | 동적 적정 합류거리와의 차이 비용 |
 | `rejoin_curvature_weight` | 0.18 | 큰 곡률의 급합류 후보 억제 비용 |
+| `rejoin_clearance_min` | 0.75 m | LiDAR 기준 로봇-합류점 직선 구간의 목표 최소 여유 |
+| `rejoin_clearance_weight` | 2.5 | 합류선이 벽/장애물에 가까운 후보를 밀어내는 비용 |
 | `rejoin_cross_track_gain_scale` | 0.35 | `REJOIN` 중 nearest CTE 보정 완화 |
 | `rejoin_align_angle_thresh` | 1.75 rad | `REJOIN` 중 ALIGN 진입 완화(약 100도) |
 | `align_release_angle` | 0.70 rad | ALIGN 중 안전하면 15도까지 기다리지 않고 NORMAL로 조기 복귀 |
@@ -278,7 +280,8 @@ angular:
 |---|---|---|
 | `safety_distance` | 0.30 m | 명세 §7 안전거리 |
 | `near_wall_creep_speed` | 0.12 m/s | 전방이 열린 측면 벽 근접 상황에서 v=0 고착 방지. **TODO 미확정, RunPod 튜닝 필요** |
-| `near_wall_creep_min_clearance` | 0.45 m | creep을 허용할 최소 arc clearance. 이보다 벽에 붙으면 전진 대신 STOPPED/RECOVERY로 넘김 |
+| `near_wall_creep_min_clearance` | 0.60 m | creep을 허용할 최소 arc clearance. 이보다 벽에 붙으면 전진 대신 STOPPED/RECOVERY로 넘김 |
+| `rejoin_creep_min_clearance` | 0.70 m | `REJOIN` 중 creep을 허용할 더 보수적인 최소 arc clearance |
 | `odom_timeout` | 0.5 s | 이 시간 안에 `/odometry/filtered` 없으면 `/odom` fallback |
 
 ### 4.6 A\* — 그리드 / 휴리스틱 (제안, HU 확정 대기)
@@ -290,11 +293,11 @@ angular:
 | `inflation_radius` | 0.50 m | 로봇 반경 0.20 m + DWA 정지 여유 0.30 m |
 | `preferred_clearance` | 1.20 m | 이 거리 안쪽 free 셀에 비용을 부여해 벽 경계 path를 피함. **TODO 미확정, RunPod 튜닝 필요** |
 | `clearance_cost_weight` | 8.0 | clearance 비용 가중치. 0이면 shortest path 우선 |
-| `wall_avoid_clearance` | 0.85 m | inflation 경계 바로 바깥 후보를 강하게 밀어내는 barrier 기준 clearance |
+| `wall_avoid_clearance` | 1.00 m | inflation 경계 바로 바깥 후보를 강하게 밀어내는 barrier 기준 clearance |
 | `wall_avoid_cost_weight` | 1.5 | wall-avoid barrier 비용 가중치 |
 | `wall_avoid_min_margin` | 0.05 m | barrier 분모 최소 margin. inflation 경계에 붙은 cell 비용 폭주 방지용 clamp |
 | `smoothing` | `"catmull_rom"` | `none` / `catmull_rom` / `bezier` |
-| `smoothing_min_clearance` | 0.80 m | Catmull-Rom 스무딩 segment가 유지해야 하는 최소 clearance. 미달 시 raw A* path 유지 |
+| `smoothing_min_clearance` | 0.90 m | Catmull-Rom 스무딩 segment가 유지해야 하는 최소 clearance. 미달 시 raw A* path 유지 |
 | `replan_period` | 1.0 s | 0이면 goal 입력 시에만 1회, > 0이면 주기적 재계획 |
 | `dwa_status_topic` | `"/dwa/status"` | A\*가 이벤트 재계획 판단에 쓰는 DWA 상태 토픽 |
 | `status_replan_cooldown` | 2.0 s | 상태 이벤트 재계획 최소 간격 |
@@ -305,7 +308,7 @@ angular:
 | `path_hysteresis_stable_states` | `["NORMAL", "ALIGN"]` | 이 DWA 상태에서만 기존 path 유지 hysteresis 적용. 복구/벽 정지 중에는 새 후보 발행 |
 | `new_goal_force_publish_sec` | 5.0 s | 새 goal 직후 이 시간 동안 hysteresis를 건너뛰어 `/global_path` 재수신 기회 확보 |
 | `goal_direct_distance` | 2.0 m | 목표 근처에서 안전한 직선 final approach path 허용 거리 |
-| `goal_direct_min_clearance` | 0.80 m | 직선 final approach segment의 최소 raw obstacle clearance |
+| `goal_direct_min_clearance` | 0.90 m | 직선 final approach segment의 최소 raw obstacle clearance |
 
 ---
 
@@ -322,7 +325,7 @@ angular:
 | `/global_path` empty 수신(새 goal 없음 + 기존 path 있음) | — | stale/중복 publisher 가능성으로 보고 기존 path 유지 |
 | `/global_path`가 현재 pose와 `max_path_offset` 초과로 멂 | — | stale path 가능성으로 보고 path 무시, 기존 path 유지 |
 | DWA가 추종 중 path와 `path_lost_offset` 초과로 멂 | 현재 pose 기준 1회 재계획 | 정지, `status="PATH_LOST"` |
-| 전방은 열렸지만 측면 벽/초기 arc clearance가 낮음 | — | `near_wall_creep_min_clearance` 이상일 때만 `near_wall_creep_speed`로 최소 전진하고, 그보다 붙으면 STOPPED/RECOVERY로 넘김 |
+| 전방은 열렸지만 측면 벽/초기 arc clearance가 낮음 | — | `near_wall_creep_min_clearance` 이상일 때만 `near_wall_creep_speed`로 최소 전진하고, `REJOIN` 중에는 `rejoin_creep_min_clearance`까지 더 보수적으로 확인 |
 | 모든 trajectory 후보 충돌 | — | 정지, `status="EMERGENCY"` |
 | 진행 방향 장애물 거리 < `safety_distance` (0.30 m) | — | 즉시 정지 (명세 §7 안전거리). 측면 벽은 near-wall creep 조건을 별도로 적용 |
 | `/odometry/filtered` 미수신 > 0.5 s | — | `/odom`으로 fallback |

@@ -94,6 +94,8 @@ dwa_planner:
     rejoin_heading_weight: 1.2   # 합류 지점 path heading mismatch 비용
     rejoin_distance_weight: 0.12 # 동적 적정 합류거리와의 차이 비용
     rejoin_curvature_weight: 0.18 # 큰 곡률의 급합류 후보 억제 비용
+    rejoin_clearance_min: 0.75    # m, LiDAR 기준 로봇-합류점 직선 최소 여유
+    rejoin_clearance_weight: 2.5  # 합류선이 벽/장애물에 가까울 때 후보 점수 페널티
     rejoin_cross_track_gain_scale: 0.35 # REJOIN 중 nearest CTE 보정 완화
     rejoin_align_angle_thresh: 1.75     # rad, REJOIN 중 ALIGN 진입 완화(약 100도)
 
@@ -125,7 +127,8 @@ dwa_planner:
     # 충돌권 밖이면 벽 옆을 빠져나오기 위한 최소 creep 속도.
     # TODO(미확정): RunPod 주행 로그로 0.08~0.15m/s 범위 튜닝.
     near_wall_creep_speed: 0.12
-    near_wall_creep_min_clearance: 0.45
+    near_wall_creep_min_clearance: 0.60
+    rejoin_creep_min_clearance: 0.70
 
     # ----- In-place rotation (큰 heading 오차 전용) -----
     # 15차 (2026-05-25, 시나리오 (0,5) 진단 후): PD + hysteresis 보강.
