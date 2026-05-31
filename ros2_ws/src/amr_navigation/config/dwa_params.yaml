@@ -98,6 +98,11 @@ dwa_planner:
     rejoin_clearance_weight: 2.5  # 합류선이 벽/장애물에 가까울 때 후보 점수 페널티
     rejoin_cross_track_gain_scale: 0.35 # REJOIN 중 nearest CTE 보정 완화
     rejoin_align_angle_thresh: 1.75     # rad, REJOIN 중 ALIGN 진입 완화(약 100도)
+    # Path가 로봇 근처에서 접히면 arc-length lookahead는 0.65m여도 실제 local L은 0.1m 수준이 된다.
+    # 이때 NORMAL PP로 처리하면 큰 곡률 + ALIGN 반복이 생기므로 미래 path 후보로 즉시 합류한다.
+    short_lookahead_rejoin_min_distance: 0.35 # m, 실제 local lookahead가 이보다 짧으면 접힘으로 간주
+    short_lookahead_rejoin_ratio: 0.55        # local L < effective_lookahead * ratio 조건
+    short_lookahead_goal_margin: 1.0          # m, goal 근처 final approach에서는 적용하지 않음
 
     max_clearance: 1.0       # m, [unused] 호환 위해 유지
     goal_tolerance: 0.20     # m, 도착 판정
@@ -129,6 +134,11 @@ dwa_planner:
     near_wall_creep_speed: 0.12
     near_wall_creep_min_clearance: 0.60
     rejoin_creep_min_clearance: 0.70
+    # 전방은 열렸는데 측면/arc clearance만 낮아 벽 옆에서 0.1m/s대로 기어가는 구간을 줄인다.
+    near_wall_escape_clearance: 0.45
+    near_wall_escape_speed: 0.28
+    near_wall_escape_turn: 0.22
+    near_wall_escape_max_curvature: 0.80
 
     # ----- In-place rotation (큰 heading 오차 전용) -----
     # 15차 (2026-05-25, 시나리오 (0,5) 진단 후): PD + hysteresis 보강.

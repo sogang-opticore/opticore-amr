@@ -97,6 +97,27 @@ def should_retain_previous_path(
     )
 
 
+def clearance_switch_should_replace_previous(
+    previous_min_clearance: float,
+    candidate_min_clearance: float,
+    extra_length: float,
+    bad_clearance: float,
+    min_clearance_gain: float,
+    max_extra_length: float,
+) -> bool:
+    """Allow a slightly longer path when it is much safer than a wall-hugging path."""
+    if (not math.isfinite(previous_min_clearance)
+            or not math.isfinite(candidate_min_clearance)):
+        return False
+    if previous_min_clearance >= bad_clearance:
+        return False
+    if candidate_min_clearance - previous_min_clearance < min_clearance_gain:
+        return False
+    if max_extra_length >= 0.0 and extra_length > max_extra_length:
+        return False
+    return True
+
+
 def cells_on_segment(a: tuple, b: tuple) -> list[tuple]:
     """두 grid cell 사이의 직선 segment를 중복 없이 촘촘한 cell path로 반환."""
     dr = int(b[0]) - int(a[0])
@@ -218,6 +239,10 @@ class AstarPlanner(Node):
         self.declare_parameter('goal_dedup_yaw', 0.10)   # rad
         self.declare_parameter('path_switch_hysteresis', 0.35)  # m
         self.declare_parameter('path_switch_max_start_offset', 0.80)  # m
+        self.declare_parameter('path_switch_bad_clearance', 0.80)  # m
+        self.declare_parameter('path_switch_clearance_gain', 0.25)  # m
+        self.declare_parameter('path_switch_clearance_max_extra_length', 3.0)  # m
+        self.declare_parameter('path_switch_clearance_skip_distance', 0.75)  # m
         self.declare_parameter('path_hysteresis_stable_states', ['NORMAL', 'ALIGN'])
         self.declare_parameter('new_goal_force_publish_sec', 5.0)  # s
         self.declare_parameter('goal_direct_distance', 2.0)  # m
@@ -248,6 +273,14 @@ class AstarPlanner(Node):
         self.path_switch_hysteresis = self.get_parameter('path_switch_hysteresis').value
         self.path_switch_max_start_offset = self.get_parameter(
             'path_switch_max_start_offset').value
+        self.path_switch_bad_clearance = self.get_parameter(
+            'path_switch_bad_clearance').value
+        self.path_switch_clearance_gain = self.get_parameter(
+            'path_switch_clearance_gain').value
+        self.path_switch_clearance_max_extra_length = self.get_parameter(
+            'path_switch_clearance_max_extra_length').value
+        self.path_switch_clearance_skip_distance = self.get_parameter(
+            'path_switch_clearance_skip_distance').value
         self.path_hysteresis_stable_states = _status_param_to_set(
             self.get_parameter('path_hysteresis_stable_states').value)
         self.new_goal_force_publish_sec = self.get_parameter(
@@ -537,6 +570,7 @@ class AstarPlanner(Node):
         if self.smoothing == 'catmull_rom':
             cell_path = self._smooth_catmull_rom(cell_path)
 
+        path_min_clearance = self._path_min_clearance(cell_path)
         now = self._sec_now()
         if (should_apply_path_hysteresis(
                 allow_path_hysteresis,
@@ -553,6 +587,32 @@ class AstarPlanner(Node):
                 max_start_offset=self.path_switch_max_start_offset,
             )
             if keep:
+                prev_min_clearance = self._path_min_clearance_ahead(
+                    self._last_path_cells,
+                    start_cell,
+                    self.path_switch_clearance_skip_distance,
+                )
+                cand_switch_clearance = self._path_min_clearance_ahead(
+                    cell_path,
+                    start_cell,
+                    self.path_switch_clearance_skip_distance,
+                )
+                extra_length = cand_len - prev_len
+                if clearance_switch_should_replace_previous(
+                        prev_min_clearance,
+                        cand_switch_clearance,
+                        extra_length,
+                        self.path_switch_bad_clearance,
+                        self.path_switch_clearance_gain,
+                        self.path_switch_clearance_max_extra_length):
+                    keep = False
+                    self.get_logger().info(
+                        'clearance 개선 경로로 전환: '
+                        f'prev_clear={prev_min_clearance:.2f}m '
+                        f'cand_clear={cand_switch_clearance:.2f}m '
+                        f'extra={extra_length:.2f}m',
+                        throttle_duration_sec=2.0)
+            if keep:
                 self._has_valid_path_for_goal = True
                 self.get_logger().info(
                     '기존 경로 유지: '
@@ -561,7 +621,6 @@ class AstarPlanner(Node):
                     throttle_duration_sec=2.0)
                 return True
 
-        path_min_clearance = self._path_min_clearance(cell_path)
         path_msg = self._cells_to_path(cell_path)
         self.path_pub.publish(path_msg)
         self._has_valid_path_for_goal = True
@@ -846,6 +905,39 @@ class AstarPlanner(Node):
         if not cells:
             return 0.0
         return min(self._clearance_at_cell(c) for c in cells)
+
+    def _path_min_clearance_ahead(
+        self,
+        cells: list[tuple] | None,
+        start_cell: tuple,
+        skip_distance: float,
+    ) -> float:
+        if not cells:
+            return 0.0
+        nearest_idx = min(
+            range(len(cells)),
+            key=lambda i: (
+                cells[i][0] - start_cell[0]) ** 2
+                + (cells[i][1] - start_cell[1]) ** 2
+        )
+        skip_distance = max(0.0, skip_distance)
+        resolution = self.map_data.info.resolution
+        cumulative = 0.0
+        selected: list[tuple] = []
+        prev = cells[nearest_idx]
+        if skip_distance <= 0.0:
+            selected.append(prev)
+        for cell in cells[nearest_idx + 1:]:
+            cumulative += math.hypot(
+                cell[0] - prev[0],
+                cell[1] - prev[1],
+            ) * resolution
+            if cumulative >= skip_distance:
+                selected.append(cell)
+            prev = cell
+        if not selected:
+            selected = cells[nearest_idx:]
+        return self._path_min_clearance(selected)
 
     def _try_goal_direct_path(
         self,

@@ -246,6 +246,9 @@ angular:
 | `rejoin_clearance_weight` | 2.5 | 합류선이 벽/장애물에 가까운 후보를 밀어내는 비용 |
 | `rejoin_cross_track_gain_scale` | 0.35 | `REJOIN` 중 nearest CTE 보정 완화 |
 | `rejoin_align_angle_thresh` | 1.75 rad | `REJOIN` 중 ALIGN 진입 완화(약 100도) |
+| `short_lookahead_rejoin_min_distance` | 0.35 m | path가 로봇 근처에서 접혀 실제 local lookahead가 너무 짧아지면 `REJOIN`으로 승격 |
+| `short_lookahead_rejoin_ratio` | 0.55 | 실제 local lookahead가 effective lookahead 대비 이 비율보다 짧으면 접힌 lookahead로 판단 |
+| `short_lookahead_goal_margin` | 1.0 m | goal 근처 final approach에서는 short-lookahead REJOIN을 비활성화 |
 | `align_release_angle` | 0.70 rad | ALIGN 중 안전하면 15도까지 기다리지 않고 NORMAL로 조기 복귀 |
 | `rejoin_align_release_angle` | 0.95 rad | REJOIN 중 안전하면 더 이른 각도에서 path 추종으로 복귀 |
 | `align_drive_angle` | 1.57 rad | ALIGN 중 전방 여유가 있으면 저속 turn-in-motion 허용 각도 |
@@ -282,6 +285,10 @@ angular:
 | `near_wall_creep_speed` | 0.12 m/s | 전방이 열린 측면 벽 근접 상황에서 v=0 고착 방지. **TODO 미확정, RunPod 튜닝 필요** |
 | `near_wall_creep_min_clearance` | 0.60 m | creep을 허용할 최소 arc clearance. 이보다 벽에 붙으면 전진 대신 STOPPED/RECOVERY로 넘김 |
 | `rejoin_creep_min_clearance` | 0.70 m | `REJOIN` 중 creep을 허용할 더 보수적인 최소 arc clearance |
+| `near_wall_escape_clearance` | 0.45 m | 전방이 열려 있고 arc clearance만 낮은 경우 벽 반대 방향 보정을 켜는 기준 |
+| `near_wall_escape_speed` | 0.28 m/s | 벽 옆 저속 탈출 시 제동거리 한도 안에서 허용하는 최소 속도 후보 |
+| `near_wall_escape_turn` | 0.22 rad/s | 가까운 벽 반대쪽으로 더하는 작은 조향 bias |
+| `near_wall_escape_max_curvature` | 0.80 | 이미 큰 곡률로 돌고 있을 때 wall escape bias를 막는 상한 |
 | `odom_timeout` | 0.5 s | 이 시간 안에 `/odometry/filtered` 없으면 `/odom` fallback |
 
 ### 4.6 A\* — 그리드 / 휴리스틱 (제안, HU 확정 대기)
@@ -309,6 +316,10 @@ angular:
 | `new_goal_force_publish_sec` | 5.0 s | 새 goal 직후 이 시간 동안 hysteresis를 건너뛰어 `/global_path` 재수신 기회 확보 |
 | `goal_direct_distance` | 2.0 m | 목표 근처에서 안전한 직선 final approach path 허용 거리 |
 | `goal_direct_min_clearance` | 0.90 m | 직선 final approach segment의 최소 raw obstacle clearance |
+| `path_switch_bad_clearance` | 0.80 m | 기존 path 최소 clearance가 이보다 낮으면 safety switch 후보로 본다 |
+| `path_switch_clearance_gain` | 0.25 m | 후보 path 최소 clearance가 이만큼 개선되면 길이 hysteresis보다 안전성을 우선 |
+| `path_switch_clearance_max_extra_length` | 3.0 m | clearance 개선으로 바꿀 때 허용하는 후보 path 추가 길이 상한 |
+| `path_switch_clearance_skip_distance` | 0.75 m | 현재 위치 바로 주변의 공통 벽 근접 구간을 제외하고 앞쪽 clearance를 비교 |
 
 ---
 

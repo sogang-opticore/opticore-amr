@@ -9,6 +9,7 @@ from amr_navigation.astar_node import (
     AstarPlanner,
     cell_path_length,
     cells_on_segment,
+    clearance_switch_should_replace_previous,
     remaining_path_metrics,
     should_apply_path_hysteresis,
     should_retain_previous_path,
@@ -204,6 +205,49 @@ class TestAstarPathHysteresis:
         )
 
         assert keep is False
+
+    def test_clearance_switch_replaces_wall_hugging_previous_path(self):
+        assert clearance_switch_should_replace_previous(
+            previous_min_clearance=0.55,
+            candidate_min_clearance=0.90,
+            extra_length=2.4,
+            bad_clearance=0.80,
+            min_clearance_gain=0.25,
+            max_extra_length=3.0,
+        ) is True
+
+    def test_clearance_switch_keeps_candidate_from_detouring_too_far(self):
+        assert clearance_switch_should_replace_previous(
+            previous_min_clearance=0.55,
+            candidate_min_clearance=1.10,
+            extra_length=3.5,
+            bad_clearance=0.80,
+            min_clearance_gain=0.25,
+            max_extra_length=3.0,
+        ) is False
+
+    def test_path_min_clearance_ahead_skips_shared_start_wall(self):
+        node = types.SimpleNamespace()
+        node.map_data = types.SimpleNamespace(
+            info=types.SimpleNamespace(resolution=0.05))
+        clearances = {
+            (0, 0): 0.30,
+            (0, 5): 0.35,
+            (0, 20): 1.10,
+            (0, 30): 1.20,
+        }
+        node._clearance_at_cell = lambda c: clearances[c]
+        node._path_min_clearance = AstarPlanner._path_min_clearance.__get__(node)
+        node._path_min_clearance_ahead = (
+            AstarPlanner._path_min_clearance_ahead.__get__(node))
+
+        result = node._path_min_clearance_ahead(
+            [(0, 0), (0, 5), (0, 20), (0, 30)],
+            start_cell=(0, 0),
+            skip_distance=0.75,
+        )
+
+        assert result == 1.10
 
     def test_remaining_path_metrics_uses_nearest_projection_cell(self):
         remaining, offset = remaining_path_metrics(

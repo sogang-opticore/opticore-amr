@@ -25,6 +25,7 @@ from amr_navigation.dwa_node import (
     sample_path_from_projection,
     choose_rejoin_target,
     should_use_rejoin,
+    should_force_rejoin_for_short_lookahead,
     predict_signed_path_offset,
     should_release_align,
     clamp_forward_velocity,
@@ -33,6 +34,7 @@ from amr_navigation.dwa_node import (
     speed_limit_from_clearance,
     turn_demand_intensity,
     turn_clearance_speed_limit,
+    near_wall_escape_adjustment,
     goal_approach_speed_limit,
     should_mark_goal_reached,
     safe_forward_only_distance,
@@ -391,6 +393,41 @@ class TestPathProjectionLookahead:
 
 
 # ── Predictive REJOIN guard 검증 (Codex, 2026-05-31) ────────────────────
+
+class TestShortLookaheadRejoin:
+    def test_forces_rejoin_when_path_lookahead_is_folded_far_from_goal(self):
+        assert should_force_rejoin_for_short_lookahead(
+            local_lookahead_distance=0.11,
+            effective_lookahead=0.65,
+            dist_to_goal=11.0,
+            goal_tolerance=0.20,
+            min_distance=0.35,
+            ratio=0.55,
+            goal_margin=1.0,
+        ) is True
+
+    def test_does_not_force_rejoin_for_normal_lookahead(self):
+        assert should_force_rejoin_for_short_lookahead(
+            local_lookahead_distance=0.55,
+            effective_lookahead=0.65,
+            dist_to_goal=11.0,
+            goal_tolerance=0.20,
+            min_distance=0.35,
+            ratio=0.55,
+            goal_margin=1.0,
+        ) is False
+
+    def test_does_not_force_rejoin_near_goal(self):
+        assert should_force_rejoin_for_short_lookahead(
+            local_lookahead_distance=0.11,
+            effective_lookahead=0.65,
+            dist_to_goal=0.75,
+            goal_tolerance=0.20,
+            min_distance=0.35,
+            ratio=0.55,
+            goal_margin=1.0,
+        ) is False
+
 
 class TestPredictiveRejoin:
     def test_predict_signed_path_offset_catches_diverging_heading(self):
@@ -844,6 +881,46 @@ class TestNearWallCreep:
         assert node._allow_near_wall_creep(motion_clear=0.71,
                                            fwd_clear=1.20,
                                            is_rejoining=True) is True
+
+
+class TestNearWallEscapeAdjustment:
+    def test_adds_speed_and_turn_away_when_front_is_open(self):
+        speed_floor, turn_bias, active = near_wall_escape_adjustment(
+            motion_clear=0.36,
+            forward_clearance=1.20,
+            curvature=0.05,
+            escape_bias=-1.0,
+            stop_distance=0.30,
+            slowdown_distance=0.80,
+            escape_clearance=0.45,
+            escape_speed=0.28,
+            escape_turn=0.22,
+            escape_max_curvature=0.80,
+            acceleration=1.5,
+        )
+
+        assert active is True
+        assert speed_floor > 0.0
+        assert turn_bias < 0.0
+
+    def test_blocks_escape_when_front_is_not_open(self):
+        speed_floor, turn_bias, active = near_wall_escape_adjustment(
+            motion_clear=0.36,
+            forward_clearance=0.50,
+            curvature=0.05,
+            escape_bias=-1.0,
+            stop_distance=0.30,
+            slowdown_distance=0.80,
+            escape_clearance=0.45,
+            escape_speed=0.28,
+            escape_turn=0.22,
+            escape_max_curvature=0.80,
+            acceleration=1.5,
+        )
+
+        assert active is False
+        assert speed_floor == 0.0
+        assert turn_bias == 0.0
 
 
 class TestGlobalPathStaleGuard:

@@ -87,6 +87,12 @@ astar_planner:
     # TODO(미확정): RunPod에서 branch 전환 로그를 보고 0.25~0.50m 범위 튜닝.
     path_switch_hysteresis: 0.35
     path_switch_max_start_offset: 0.80
+    # 기존 path가 DWA 감속권(0.80m) 안쪽 벽을 물고 있고 새 path가 충분히 안전하면,
+    # 몇 m 더 돌아가더라도 경로를 바꿔 벽 옆 저속 복구 구간을 줄인다.
+    path_switch_bad_clearance: 0.80
+    path_switch_clearance_gain: 0.25
+    path_switch_clearance_max_extra_length: 3.0
+    path_switch_clearance_skip_distance: 0.75
     # path switch hysteresis는 안정 주행 중에만 사용한다.
     # STOPPED_NEAR_WALL/RECOVERY/REJOIN 중에는 더 긴 후보라도 stuck path 탈출을 위해 발행한다.
     path_hysteresis_stable_states: ["NORMAL", "ALIGN"]

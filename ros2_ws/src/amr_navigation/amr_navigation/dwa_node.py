@@ -465,6 +465,27 @@ def should_use_rejoin(
     return path_offset > exit_offset or abs(heading_error) > exit_heading
 
 
+def should_force_rejoin_for_short_lookahead(
+    local_lookahead_distance: float,
+    effective_lookahead: float,
+    dist_to_goal: float,
+    goal_tolerance: float,
+    min_distance: float,
+    ratio: float,
+    goal_margin: float,
+) -> bool:
+    """Detect a folded path lookahead that would make PP crawl/ALIGN in place."""
+    if not math.isfinite(local_lookahead_distance):
+        return False
+    if effective_lookahead <= 0.0 or not math.isfinite(effective_lookahead):
+        return False
+    if dist_to_goal <= goal_tolerance + max(0.0, goal_margin):
+        return False
+
+    threshold = max(0.0, min_distance, effective_lookahead * max(0.0, ratio))
+    return local_lookahead_distance < threshold
+
+
 def predict_signed_path_offset(
     signed_offset: float,
     heading_error: float,
@@ -553,6 +574,44 @@ def turn_clearance_speed_limit(
         return v_target
     t = max(0.0, min(1.0, turn_intensity))
     return max(0.0, (1.0 - t) * v_target + t * clearance_limit)
+
+
+def near_wall_escape_adjustment(
+    motion_clear: float,
+    forward_clearance: float,
+    curvature: float,
+    escape_bias: float,
+    stop_distance: float,
+    slowdown_distance: float,
+    escape_clearance: float,
+    escape_speed: float,
+    escape_turn: float,
+    escape_max_curvature: float,
+    acceleration: float,
+) -> Tuple[float, float, bool]:
+    """Small open-front nudge away from a side wall, bounded by stop distance."""
+    if escape_speed <= 0.0 and escape_turn <= 0.0:
+        return 0.0, 0.0, False
+    if not math.isfinite(motion_clear):
+        return 0.0, 0.0, False
+    if not (math.isfinite(forward_clearance) or math.isinf(forward_clearance)):
+        return 0.0, 0.0, False
+    if motion_clear <= stop_distance or motion_clear >= escape_clearance:
+        return 0.0, 0.0, False
+    if forward_clearance <= slowdown_distance:
+        return 0.0, 0.0, False
+    if abs(curvature) > max(0.0, escape_max_curvature):
+        return 0.0, 0.0, False
+    if abs(escape_bias) <= 1e-6:
+        return 0.0, 0.0, False
+
+    denom = max(escape_clearance - stop_distance, 1e-3)
+    strength = max(0.0, min(1.0, (escape_clearance - motion_clear) / denom))
+    free_distance = max(0.0, motion_clear - stop_distance)
+    brake_limited_speed = math.sqrt(2.0 * max(0.0, acceleration) * free_distance)
+    speed_floor = min(max(0.0, escape_speed), brake_limited_speed)
+    turn_bias = math.copysign(max(0.0, escape_turn) * strength, escape_bias)
+    return speed_floor, turn_bias, True
 
 
 def goal_approach_speed_limit(
@@ -874,6 +933,9 @@ class DwaPlannerNode(Node):
         self.declare_parameter("rejoin_clearance_weight", 2.5)
         self.declare_parameter("rejoin_cross_track_gain_scale", 0.35)
         self.declare_parameter("rejoin_align_angle_thresh", 1.75)
+        self.declare_parameter("short_lookahead_rejoin_min_distance", 0.35)
+        self.declare_parameter("short_lookahead_rejoin_ratio", 0.55)
+        self.declare_parameter("short_lookahead_goal_margin", 1.0)
         self.declare_parameter("max_clearance", 1.0)
         self.declare_parameter("goal_tolerance", 0.20)
         self.declare_parameter("goal_reached_epsilon", 0.03)
@@ -887,6 +949,10 @@ class DwaPlannerNode(Node):
         self.declare_parameter("near_wall_creep_speed", 0.12)
         self.declare_parameter("near_wall_creep_min_clearance", 0.60)
         self.declare_parameter("rejoin_creep_min_clearance", 0.70)
+        self.declare_parameter("near_wall_escape_clearance", 0.45)
+        self.declare_parameter("near_wall_escape_speed", 0.28)
+        self.declare_parameter("near_wall_escape_turn", 0.22)
+        self.declare_parameter("near_wall_escape_max_curvature", 0.80)
         self.declare_parameter("align_angle_thresh", 1.10)
         self.declare_parameter("align_angle_exit", 0.262)
         self.declare_parameter("align_kp", 1.5)
@@ -1069,6 +1135,12 @@ class DwaPlannerNode(Node):
         self.p_rejoin_clearance_weight  = gp("rejoin_clearance_weight").value
         self.p_rejoin_cross_track_gain_scale = gp("rejoin_cross_track_gain_scale").value
         self.p_rejoin_align_angle_thresh = gp("rejoin_align_angle_thresh").value
+        self.p_short_lookahead_rejoin_min_distance = gp(
+            "short_lookahead_rejoin_min_distance").value
+        self.p_short_lookahead_rejoin_ratio = gp(
+            "short_lookahead_rejoin_ratio").value
+        self.p_short_lookahead_goal_margin = gp(
+            "short_lookahead_goal_margin").value
         self.p_max_clearance            = gp("max_clearance").value
         self.p_goal_tolerance           = gp("goal_tolerance").value
         self.p_goal_reached_epsilon     = gp("goal_reached_epsilon").value
@@ -1082,6 +1154,11 @@ class DwaPlannerNode(Node):
         self.p_near_wall_creep_speed    = gp("near_wall_creep_speed").value
         self.p_near_wall_creep_min_clearance = gp("near_wall_creep_min_clearance").value
         self.p_rejoin_creep_min_clearance = gp("rejoin_creep_min_clearance").value
+        self.p_near_wall_escape_clearance = gp("near_wall_escape_clearance").value
+        self.p_near_wall_escape_speed = gp("near_wall_escape_speed").value
+        self.p_near_wall_escape_turn = gp("near_wall_escape_turn").value
+        self.p_near_wall_escape_max_curvature = gp(
+            "near_wall_escape_max_curvature").value
         self.p_align_angle_thresh       = gp("align_angle_thresh").value
         self.p_align_angle_exit         = gp("align_angle_exit").value
         self.p_align_kp                 = gp("align_kp").value
@@ -1466,6 +1543,43 @@ class DwaPlannerNode(Node):
 
         lx, ly = world_to_local(lookahead, self._state)
         L = math.hypot(lx, ly)
+        short_lookahead_rejoin = False
+        if (rejoin_target is None and
+                should_force_rejoin_for_short_lookahead(
+                    local_lookahead_distance=L,
+                    effective_lookahead=effective_lookahead,
+                    dist_to_goal=dist_to_goal,
+                    goal_tolerance=self.p_goal_tolerance,
+                    min_distance=self.p_short_lookahead_rejoin_min_distance,
+                    ratio=self.p_short_lookahead_rejoin_ratio,
+                    goal_margin=self.p_short_lookahead_goal_margin)):
+            rejoin_target = choose_rejoin_target(
+                path_xy=path_xy,
+                robot=self._state,
+                projection=projection,
+                min_lookahead=self.p_rejoin_min_lookahead,
+                max_lookahead=self.p_rejoin_max_lookahead,
+                step=self.p_rejoin_step,
+                heading_weight=self.p_rejoin_heading_weight,
+                distance_weight=self.p_rejoin_distance_weight,
+                curvature_weight=self.p_rejoin_curvature_weight,
+                effective_offset=max(
+                    predicted_path_offset,
+                    path_offset,
+                    self.p_rejoin_entry_offset,
+                ),
+                obstacles_local=obstacles_local,
+                robot_radius=self.p_robot_radius,
+                clearance_min=self.p_rejoin_clearance_min,
+                clearance_weight=self.p_rejoin_clearance_weight,
+            )
+            if rejoin_target is not None:
+                short_lookahead_rejoin = True
+                effective_lookahead = rejoin_target.distance
+                lookahead = rejoin_target.point
+                target_path_yaw = rejoin_target.yaw
+                lx, ly = world_to_local(lookahead, self._state)
+                L = math.hypot(lx, ly)
         alpha = math.atan2(ly, lx)
         path_heading_error = normalize_angle(target_path_yaw - self._state.theta)
 
@@ -1482,6 +1596,7 @@ class DwaPlannerNode(Node):
             "path_heading_error": path_heading_error,
             "effective_lookahead": effective_lookahead,
             "is_rejoining": rejoin_target is not None,
+            "short_lookahead_rejoin": short_lookahead_rejoin,
             "rejoin_distance": rejoin_target.distance if rejoin_target else 0.0,
             "rejoin_alpha": rejoin_target.alpha if rejoin_target else 0.0,
             "rejoin_arrival_error": (
@@ -1620,6 +1735,27 @@ class DwaPlannerNode(Node):
         # (실제 명령 v_cmd 는 아래에서 가속도 제한 dv_max 로 여전히 부드럽게 변함.)
         # (CLAUDE.md §7.2.0 #4: 이전보다 후퇴한 수정은 revert.)
         v_target = max(0.0, min(self.p_v_max, v_target))
+        wall_escape_active = False
+        wall_escape_w = 0.0
+        if dist_to_goal > max(self.p_goal_approach_distance,
+                              self.p_goal_tolerance + 0.5):
+            escape_speed_floor, wall_escape_w, wall_escape_active = (
+                near_wall_escape_adjustment(
+                    motion_clear=motion_clear,
+                    forward_clearance=fwd_clear,
+                    curvature=kappa,
+                    escape_bias=self._escape_turn_bias(obstacles),
+                    stop_distance=self.p_clearance_stop_distance,
+                    slowdown_distance=self.p_clearance_slowdown_distance,
+                    escape_clearance=self.p_near_wall_escape_clearance,
+                    escape_speed=self.p_near_wall_escape_speed,
+                    escape_turn=self.p_near_wall_escape_turn,
+                    escape_max_curvature=self.p_near_wall_escape_max_curvature,
+                    acceleration=self.p_a_max,
+                )
+            )
+            if wall_escape_active:
+                v_target = max(v_target, escape_speed_floor)
 
         # w 계산 (v/w 커플링 해제) — 곡률 감속이 반영된 v_target 으로 ω 를 계산해
         #   실행 곡률 w_cmd/v_cmd ≈ κ 정합 유지.
@@ -1631,7 +1767,7 @@ class DwaPlannerNode(Node):
             self.p_path_heading_gain * path_heading_error
             - cross_track_gain * signed_path_offset
         )
-        w_target_raw = w_pp + w_path
+        w_target_raw = w_pp + w_path + wall_escape_w
         if (self.p_w_min_rotate > 0.0
                 and abs(alpha) > self.p_align_angle_exit
                 and abs(w_target_raw) < self.p_w_min_rotate):
@@ -1660,7 +1796,7 @@ class DwaPlannerNode(Node):
         turn_brake_active = v_target < turn_brake_before - 1e-3
         if turn_brake_active:
             w_pp = kappa * v_target
-            w_target_raw = w_pp + w_path
+            w_target_raw = w_pp + w_path + wall_escape_w
             if (self.p_w_min_rotate > 0.0
                     and abs(alpha) > self.p_align_angle_exit
                     and abs(w_target_raw) < self.p_w_min_rotate):
@@ -1751,6 +1887,8 @@ class DwaPlannerNode(Node):
                 f"clr={motion_clear:.2f} fwd={fwd_clear:.2f} "
                 f"d_goal={dist_to_goal:.2f}"
                 f"{' tbrake=1' if turn_brake_active else ''}"
+                f"{' wesc=1' if wall_escape_active else ''}"
+                f"{' sj=1' if ctx.get('short_lookahead_rejoin', False) else ''}"
                 f"{' creep=1' if near_wall_creep else ''}")
 
     def _execute_align(self, ctx: dict) -> None:
