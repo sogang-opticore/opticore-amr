@@ -257,7 +257,7 @@ angular:
 | `dynamic_path_corridor_width` | 0.50 m | global path 주변 이 폭 안의 LiDAR point cluster를 차단 후보로 판단 |
 | `dynamic_path_min_block_points` | 2 | corridor 차단으로 인정할 최소 LiDAR point 수 |
 | `dynamic_avoid_lateral_offsets` | [0.55, 0.75, 0.95, 1.15] | 좌우 side-offset 우회 목표 후보 거리 |
-| `dynamic_avoid_min_clearance` | 0.45 m | side-offset 우회 목표까지 이동하는 segment의 기본 LiDAR clearance. fallback 후보도 stop margin 근처(기본 약 0.30 m) 아래로는 허용하지 않음 |
+| `dynamic_avoid_min_clearance` | 0.55 m | side-offset 우회 목표까지 이동하는 직선 segment와 초기 Pure Pursuit arc의 기본 LiDAR clearance. fallback 후보도 stop margin 근처(기본 약 0.37 m) 아래로는 허용하지 않음 |
 | `dynamic_avoid_rejoin_distance` | 1.55 m | 차단 지점 뒤쪽 global path로 재합류할 기본 거리 |
 | `dynamic_avoid_side_switch_penalty` | 2.00 | 동적 장애물 우회 중 좌우 side 전환 비용. 장애물 옆에서 `+1/-1` 목표가 번갈아 선택되는 oscillation을 억제 |
 | `dynamic_static_filter_enabled` | true | `/map`의 정적 장애물 근처 LiDAR 점은 동적 차단 후보에서 제외 |

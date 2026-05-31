@@ -48,6 +48,7 @@ from amr_navigation.dwa_node import (
     project_to_path,
     point_segment_distance,
     segment_clearance_margin,
+    pure_pursuit_arc_clearance_margin,
 )
 
 
@@ -341,6 +342,21 @@ class TestPathProjectionLookahead:
 
         assert abs(margin - 0.15) < 1e-9
 
+    def test_pure_pursuit_arc_clearance_catches_curved_path_obstacle(self):
+        direct = segment_clearance_margin(
+            (0.0, 0.0),
+            (1.2, 0.8),
+            [(0.75, 0.15)],
+            robot_radius=0.20,
+        )
+        arc = pure_pursuit_arc_clearance_margin(
+            (1.2, 0.8),
+            [(0.75, 0.15)],
+            robot_radius=0.20,
+        )
+
+        assert arc < direct
+
     def test_detect_path_corridor_blockage_on_global_path(self):
         path = [(0.0, 0.0), (5.0, 0.0)]
         robot = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
@@ -474,7 +490,7 @@ class TestPathProjectionLookahead:
             robot=robot,
             projection=proj,
             blockage=blockage,
-            obstacles_local=[(1.20, 0.00), (1.35, 0.05), (1.45, -0.05)],
+            obstacles_local=[(1.55, 0.05)],
             robot_radius=0.20,
             lateral_offsets=[1.15],
             min_clearance=0.45,
@@ -487,6 +503,7 @@ class TestPathProjectionLookahead:
         )
 
         assert target is not None
+        assert target.mode == "side_lane"
         assert target.clearance >= 0.45
         assert target.rejoin_clearance < 0.45
         assert abs(target.point[1]) > 1.0
@@ -540,7 +557,7 @@ class TestPathProjectionLookahead:
             robot=robot,
             projection=proj,
             blockage=blockage,
-            obstacles_local=[(0.65, 0.00), (0.85, 0.05), (1.00, -0.05)],
+            obstacles_local=[(1.00, 0.00), (1.20, 0.05)],
             robot_radius=0.20,
             lateral_offsets=[0.95, 1.15],
             min_clearance=0.45,

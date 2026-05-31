@@ -277,7 +277,7 @@ dwa_planner:
     dynamic_path_min_block_points: 2
     dynamic_block_enter_ticks: 2
     dynamic_block_exit_ticks: 5
-    dynamic_avoid_min_clearance: 0.45
+    dynamic_avoid_min_clearance: 0.55
     dynamic_avoid_lateral_offsets: [0.55, 0.75, 0.95, 1.15]
     dynamic_avoid_min_lookahead: 0.90
     dynamic_avoid_max_lookahead: 3.40

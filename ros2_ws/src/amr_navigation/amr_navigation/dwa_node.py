@@ -774,6 +774,41 @@ def segment_clearance_margin(
     return max(0.0, best - max(0.0, robot_radius))
 
 
+def pure_pursuit_arc_clearance_margin(
+    local_target: Tuple[float, float],
+    obstacle_points: List[Tuple[float, float]],
+    robot_radius: float,
+    max_arc_length: float = 1.6,
+    step: float = 0.05,
+) -> float:
+    """Clearance margin along the initial pure-pursuit arc to a local target."""
+    if not obstacle_points:
+        return float("inf")
+    lx, ly = local_target
+    L = math.hypot(lx, ly)
+    if L < 1e-6:
+        return float("inf")
+
+    kappa = 2.0 * ly / (L * L)
+    arc_length = min(max_arc_length, max(0.35, L))
+    count = max(2, int(arc_length / max(0.02, step)))
+    points: List[Tuple[float, float]] = []
+    for i in range(1, count + 1):
+        s = arc_length * i / count
+        if abs(kappa) < 1e-6:
+            x = s
+            y = 0.0
+        else:
+            x = math.sin(kappa * s) / kappa
+            y = (1.0 - math.cos(kappa * s)) / kappa
+        points.append((x, y))
+
+    center_dist = min_clearance_distance(points, obstacle_points)
+    if center_dist == float("inf"):
+        return float("inf")
+    return max(0.0, center_dist - max(0.0, robot_radius))
+
+
 def point_segment_projection(
     point: Tuple[float, float],
     seg_start: Tuple[float, float],
@@ -940,8 +975,11 @@ def choose_dynamic_close_bypass_target(
                 if L < 0.10:
                     continue
 
-                clearance = segment_clearance_margin(
+                direct_clear = segment_clearance_margin(
                     (0.0, 0.0), (lx, ly), obstacles_local, robot_radius)
+                arc_clear = pure_pursuit_arc_clearance_margin(
+                    (lx, ly), obstacles_local, robot_radius)
+                clearance = min(direct_clear, arc_clear)
                 alpha = math.atan2(ly, lx)
                 curvature = abs(2.0 * ly / (L * L)) if L >= 1e-3 else float("inf")
                 approach_yaw = normalize_angle(robot.theta + alpha)
@@ -993,8 +1031,8 @@ def choose_dynamic_close_bypass_target(
         return best
 
     # close-sidestep fallback도 stop margin 아래까지 허용하면
-    # 다음 tick에서 STOPPED_NEAR_WALL로 굳기 쉽다. 기본 min_clearance=0.45 기준
-    # 0.30m 부근을 최저선으로 둔다.
+    # 다음 tick에서 STOPPED_NEAR_WALL로 굳기 쉽다. 기본 min_clearance=0.55 기준
+    # 0.37m 부근을 최저선으로 둔다.
     soft_floor = max(
         0.20,
         min_clearance * 0.67,
@@ -1078,6 +1116,8 @@ def choose_dynamic_avoid_target(
 
                 direct_clear = segment_clearance_margin(
                     (0.0, 0.0), (lx, ly), obstacles_local, robot_radius)
+                arc_clear = pure_pursuit_arc_clearance_margin(
+                    (lx, ly), obstacles_local, robot_radius)
                 rejoin_clear = segment_clearance_margin(
                     (lx, ly), (rejoin_lx, rejoin_ly), obstacles_local,
                     robot_radius)
@@ -1085,7 +1125,7 @@ def choose_dynamic_avoid_target(
                 # 정상 path tracking으로 재합류하는 rolling two-step이다.
                 # 여기서 재합류선을 hard gate로 두면 path 위 장애물 때문에
                 # 출발 가능한 side target까지 모두 폐기될 수 있다.
-                clearance = direct_clear
+                clearance = min(direct_clear, arc_clear)
                 alpha = math.atan2(ly, lx)
                 approach_yaw = math.atan2(
                     target_point[1] - robot.y,
@@ -1446,7 +1486,7 @@ class DwaPlannerNode(Node):
         self.declare_parameter("dynamic_path_min_block_points", 2)
         self.declare_parameter("dynamic_block_enter_ticks", 2)
         self.declare_parameter("dynamic_block_exit_ticks", 5)
-        self.declare_parameter("dynamic_avoid_min_clearance", 0.45)
+        self.declare_parameter("dynamic_avoid_min_clearance", 0.55)
         self.declare_parameter("dynamic_avoid_lateral_offsets",
                                [0.55, 0.75, 0.95, 1.15])
         self.declare_parameter("dynamic_avoid_min_lookahead", 0.90)
