@@ -160,6 +160,14 @@ def should_apply_path_hysteresis(
     )
 
 
+def status_allows_path_hysteresis(
+    status: str | None,
+    stable_statuses: set[str],
+) -> bool:
+    """DWA가 안정 추종 중일 때만 A* path switch hysteresis를 허용한다."""
+    return status is None or status in stable_statuses
+
+
 class AstarPlanner(Node):
 
     def __init__(self):
@@ -189,7 +197,7 @@ class AstarPlanner(Node):
         self.declare_parameter('status_replan_cooldown', 2.0)
         self.declare_parameter(
             'status_replan_states',
-            ['EMERGENCY', 'PATH_LOST', 'RECOVERY_DONE'],
+            ['EMERGENCY', 'PATH_LOST', 'RECOVERY_DONE', 'STOPPED_NEAR_WALL'],
         )
         self.declare_parameter('status_replan_after_states', ['FORWARD_ONLY', 'RECOVERY'])
         self.declare_parameter(
@@ -210,6 +218,7 @@ class AstarPlanner(Node):
         self.declare_parameter('goal_dedup_yaw', 0.10)   # rad
         self.declare_parameter('path_switch_hysteresis', 0.35)  # m
         self.declare_parameter('path_switch_max_start_offset', 0.80)  # m
+        self.declare_parameter('path_hysteresis_stable_states', ['NORMAL', 'ALIGN'])
         self.declare_parameter('new_goal_force_publish_sec', 5.0)  # s
         self.declare_parameter('goal_direct_distance', 2.0)  # m
         self.declare_parameter('goal_direct_min_clearance', 0.80)  # m
@@ -239,6 +248,8 @@ class AstarPlanner(Node):
         self.path_switch_hysteresis = self.get_parameter('path_switch_hysteresis').value
         self.path_switch_max_start_offset = self.get_parameter(
             'path_switch_max_start_offset').value
+        self.path_hysteresis_stable_states = _status_param_to_set(
+            self.get_parameter('path_hysteresis_stable_states').value)
         self.new_goal_force_publish_sec = self.get_parameter(
             'new_goal_force_publish_sec').value
         self.goal_direct_distance = self.get_parameter('goal_direct_distance').value
@@ -374,7 +385,13 @@ class AstarPlanner(Node):
         if dist_to_goal < 0.30:   # DWA goal_tolerance(0.20) + 마진
             return
 
-        self._plan(clear_on_failure=False, allow_path_hysteresis=True)
+        self._plan(
+            clear_on_failure=False,
+            allow_path_hysteresis=status_allows_path_hysteresis(
+                self._last_dwa_status,
+                self.path_hysteresis_stable_states,
+            ),
+        )
 
     # ══════════════════════════════════════════════════════════════
     # 콜백

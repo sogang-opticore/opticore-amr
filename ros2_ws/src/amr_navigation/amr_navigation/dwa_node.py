@@ -788,7 +788,7 @@ class DwaPlannerNode(Node):
         self.declare_parameter("v_min", -1.0)
         self.declare_parameter("w_max", 1.5)
         self.declare_parameter("a_max", 1.0)
-        self.declare_parameter("v_brake_a_max", 3.0)
+        self.declare_parameter("v_brake_a_max", 5.0)
         self.declare_parameter("alpha_max", 1.5)
         self.declare_parameter("a_lat_max", 1.0)
         self.declare_parameter("sample_v_n", 11)
@@ -830,6 +830,7 @@ class DwaPlannerNode(Node):
         self.declare_parameter("clearance_stop_distance", 0.30)
         self.declare_parameter("turn_clearance_brake_angle", 0.45)
         self.declare_parameter("near_wall_creep_speed", 0.12)
+        self.declare_parameter("near_wall_creep_min_clearance", 0.45)
         self.declare_parameter("align_angle_thresh", 1.10)
         self.declare_parameter("align_angle_exit", 0.262)
         self.declare_parameter("align_kp", 1.5)
@@ -849,6 +850,8 @@ class DwaPlannerNode(Node):
         self.declare_parameter("w_brake_alpha_max", 6.0)
         self.declare_parameter("allow_backward", False)
         self.declare_parameter("max_path_offset", 1.0)
+        self.declare_parameter("recovery_path_accept_offset", 1.8)
+        self.declare_parameter("recovery_path_accept_duration", 5.0)
         self.declare_parameter("path_lost_offset", 1.8)
         self.declare_parameter("stuck_recovery_sec", 1.5)
         self.declare_parameter("recovery_cooldown", 3.0)
@@ -919,6 +922,7 @@ class DwaPlannerNode(Node):
 
         # RECOVERY 공통 (SPIN/FORWARD_ONLY 완료 후 cooldown)
         self._recovery_cooldown_until = 0.0
+        self._relaxed_path_accept_until = 0.0
         self._stuck_counter = 0
 
         # REACHED
@@ -1018,6 +1022,7 @@ class DwaPlannerNode(Node):
         self.p_clearance_stop_distance  = gp("clearance_stop_distance").value
         self.p_turn_clearance_brake_angle = gp("turn_clearance_brake_angle").value
         self.p_near_wall_creep_speed    = gp("near_wall_creep_speed").value
+        self.p_near_wall_creep_min_clearance = gp("near_wall_creep_min_clearance").value
         self.p_align_angle_thresh       = gp("align_angle_thresh").value
         self.p_align_angle_exit         = gp("align_angle_exit").value
         self.p_align_kp                 = gp("align_kp").value
@@ -1033,6 +1038,8 @@ class DwaPlannerNode(Node):
         self.p_w_brake_alpha_max        = gp("w_brake_alpha_max").value
         self.p_allow_backward           = gp("allow_backward").value
         self.p_max_path_offset          = gp("max_path_offset").value
+        self.p_recovery_path_accept_offset = gp("recovery_path_accept_offset").value
+        self.p_recovery_path_accept_duration = gp("recovery_path_accept_duration").value
         self.p_path_lost_offset         = gp("path_lost_offset").value
         self.p_stuck_recovery_sec       = gp("stuck_recovery_sec").value
         self.p_recovery_cooldown        = gp("recovery_cooldown").value
@@ -1629,6 +1636,7 @@ class DwaPlannerNode(Node):
         in_recovery_cooldown = self._sec_now() < self._recovery_cooldown_until
 
         if collision_imminent or is_velocity_blocked:
+            self._relax_path_acceptance()
             if collision_imminent:
                 self._publish_cmd(VelocityCommand(v=0.0, w=0.0))
                 self._publish_status_value("EMERGENCY")
@@ -1918,6 +1926,7 @@ class DwaPlannerNode(Node):
         (사용자 지시: 후진 거동이 번거로워 회전만으로 복귀. CLAUDE.md §7.2.0.)
         """
         now = self._sec_now()
+        self._relax_path_acceptance()
 
         # Step 1: spin recovery 시도
         # 제자리 회전은 이동 없음 → 몸체(robot_radius)에 안 닿으면 회전 가능.
@@ -1944,6 +1953,7 @@ class DwaPlannerNode(Node):
         self._nav_state = NavState.EMERGENCY
         self._stuck_counter = 0
         self._recovery_cooldown_until = now + self.p_recovery_cooldown
+        self._relax_path_acceptance()
         self.get_logger().warn(
             f"stuck + 회전 공간 없음 → EMERGENCY "
             f"(rotate_clear={rotate_clear:.2f}m, motion_clear={motion_clear:.2f}m). "
@@ -1962,6 +1972,7 @@ class DwaPlannerNode(Node):
         side_margin_floor = max(
             self.p_clearance_stop_distance,
             self.p_robot_radius + self.p_hard_collision_distance,
+            self.p_near_wall_creep_min_clearance,
         )
         return motion_clear >= side_margin_floor
 
@@ -2232,14 +2243,27 @@ class DwaPlannerNode(Node):
         nx, ny = path_xy[nearest_idx]
         return math.hypot(nx - self._state.x, ny - self._state.y)
 
+    def _relax_path_acceptance(self) -> None:
+        """복구 직후 현재 pose에서 조금 떨어진 새 global path도 받을 수 있게 한다."""
+        duration = max(0.0, float(getattr(self, 'p_recovery_path_accept_duration', 0.0)))
+        if duration <= 0.0:
+            return
+        self._relaxed_path_accept_until = max(
+            getattr(self, '_relaxed_path_accept_until', 0.0),
+            self._sec_now() + duration,
+        )
+
     def _is_path_close_to_state(self, path_msg: Path) -> bool:
         """현재 pose와 너무 먼 stale path를 수신 단계에서 거부한다."""
         offset = self._path_offset_to_state(path_msg)
-        if offset is None or offset <= self.p_max_path_offset:
+        limit = self.p_max_path_offset
+        if self._sec_now() < getattr(self, '_relaxed_path_accept_until', 0.0):
+            limit = max(limit, self.p_recovery_path_accept_offset)
+        if offset is None or offset <= limit:
             return True
         self.get_logger().warn(
             f"/global_path가 현재 pose와 {offset:.2f}m 떨어져 무시 "
-            f"(max={self.p_max_path_offset:.2f}m, 기존 path 유지)",
+            f"(max={limit:.2f}m, 기존 path 유지)",
             throttle_duration_sec=2.0)
         return False
 

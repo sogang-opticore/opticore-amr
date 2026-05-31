@@ -764,6 +764,7 @@ class TestNearWallCreep:
         node.p_clearance_stop_distance = 0.30
         node.p_robot_radius = 0.20
         node.p_hard_collision_distance = 0.05
+        node.p_near_wall_creep_min_clearance = 0.45
         node._allow_near_wall_creep = (
             DwaPlannerNode._allow_near_wall_creep.__get__(node)
         )
@@ -771,7 +772,7 @@ class TestNearWallCreep:
 
     def test_allows_creep_when_only_side_clearance_is_low(self):
         node = self._make_node()
-        assert node._allow_near_wall_creep(motion_clear=0.30,
+        assert node._allow_near_wall_creep(motion_clear=0.46,
                                            fwd_clear=1.20) is True
 
     def test_blocks_creep_when_front_is_not_clear(self):
@@ -787,6 +788,11 @@ class TestNearWallCreep:
     def test_blocks_creep_below_stop_distance(self):
         node = self._make_node()
         assert node._allow_near_wall_creep(motion_clear=0.29,
+                                           fwd_clear=1.20) is False
+
+    def test_blocks_creep_below_recovery_margin(self):
+        node = self._make_node()
+        assert node._allow_near_wall_creep(motion_clear=0.40,
                                            fwd_clear=1.20) is False
 
 
@@ -815,6 +821,11 @@ class TestGlobalPathStaleGuard:
         node._path_goal_xy_global = (1.0, 0.0)
         node._state = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
         node.p_max_path_offset = 2.0
+        node.p_recovery_path_accept_offset = 3.5
+        node.p_recovery_path_accept_duration = 5.0
+        node._relaxed_path_accept_until = 0.0
+        node._now = 0.0
+        node._sec_now = lambda: node._now
         node.p_goal_dedup_dist = 0.10
         node.p_goal_tolerance = 0.20
         node.p_goal_dedup_yaw = 0.10
@@ -832,7 +843,7 @@ class TestGlobalPathStaleGuard:
                      "_is_path_goal_close_to_latest_goal",
                      "_goal_match_radius",
                      "_path_offset_to_state", "_is_path_close_to_state",
-                     "_is_duplicate_goal"):
+                     "_relax_path_acceptance", "_is_duplicate_goal"):
             setattr(node, name, getattr(DwaPlannerNode, name).__get__(node))
         node._path_xy = DwaPlannerNode._path_xy
         return node
@@ -863,6 +874,13 @@ class TestGlobalPathStaleGuard:
         node = self._make_node()
         current = self._path([(0.1, 0.0), (1.0, 0.0)])
         assert node._is_path_close_to_state(current) is True
+
+    def test_accepts_farther_recovery_path_during_relaxed_window(self):
+        node = self._make_node()
+        node._relax_path_acceptance()
+        recovery_path = self._path([(3.0, 0.0), (4.0, 0.0)])
+
+        assert node._is_path_close_to_state(recovery_path) is True
 
     def test_repeated_goal_does_not_create_new_edge(self):
         node = self._make_node()

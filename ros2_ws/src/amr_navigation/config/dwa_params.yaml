@@ -39,7 +39,7 @@ dwa_planner:
     a_max: 1.0          # m/s², 명세 §4.1
     # 감속은 가속보다 빠르게 허용해 goal overshoot와 벽 앞 관성 전진을 줄인다.
     # TODO(미확정): RunPod에서 2.0~3.5m/s² 범위 튜닝.
-    v_brake_a_max: 3.0
+    v_brake_a_max: 5.0
     alpha_max: 1.5      # rad/s², ⚠ 명세 미명시 — 시뮬 측정 후 갱신
     # 횡가속 한계 (Pure Pursuit v_curve 캐핑). 명세 미명시.
     # 기본 = a_max (보수적). 회전 구간 v 가 작아 보이면 1.5~2.0 으로 시험.
@@ -125,6 +125,7 @@ dwa_planner:
     # 충돌권 밖이면 벽 옆을 빠져나오기 위한 최소 creep 속도.
     # TODO(미확정): RunPod 주행 로그로 0.08~0.15m/s 범위 튜닝.
     near_wall_creep_speed: 0.12
+    near_wall_creep_min_clearance: 0.45
 
     # ----- In-place rotation (큰 heading 오차 전용) -----
     # 15차 (2026-05-25, 시나리오 (0,5) 진단 후): PD + hysteresis 보강.
@@ -185,6 +186,8 @@ dwa_planner:
     # 후진 sample 가능. 정밀 도킹 등 특수 시나리오 전까지 false 권장.
     allow_backward: false
     max_path_offset: 1.0   # m, 새 /global_path 가 현재 pose 와 너무 멀면 stale 로 무시
+    recovery_path_accept_offset: 1.8   # m, stuck/recovery 직후 새 path 수신 허용 거리
+    recovery_path_accept_duration: 5.0 # s, recovery 직후 완화 수신 창
     path_lost_offset: 1.8  # m, 추종 중 path 와 이 이상 떨어지면 정지 + PATH_LOST status
 
     # ----- Stuck Recovery (제자리 회전 SPIN 전용, 2026-05-31 후진 제거) -----

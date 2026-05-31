@@ -248,12 +248,15 @@ angular:
 | `rejoin_align_release_angle` | 0.95 rad | REJOIN 중 안전하면 더 이른 각도에서 path 추종으로 복귀 |
 | `align_drive_angle` | 1.57 rad | ALIGN 중 전방 여유가 있으면 저속 turn-in-motion 허용 각도 |
 | `turn_clearance_brake_angle` | 0.45 rad | 큰 회전 수요에서 전방 LiDAR 여유가 짧으면 제동거리 기반으로 속도 제한 |
+| `v_brake_a_max` | 5.0 m/s² | 목표 선속도가 낮아질 때 적용하는 감속 전용 상한. 벽 근접 시 잔류 전진을 빠르게 줄임 |
 | `w_brake_alpha_max` | 6.0 rad/s² | 목표 회전량이 작아진 뒤 남은 각속도를 빠르게 감쇠 |
 | `forward_only_dist` | 0.35 m | SPIN 후 위치만 살짝 바꾸는 강제 전진 거리 |
 | `forward_only_settle_w` | 0.20 rad/s | SPIN 직후 회전 관성이 이보다 크면 전진 보류 |
 | `forward_only_rejoin_offset` | 0.25 m | FORWARD_ONLY 중 path에 가까워지면 강제 전진 조기 종료 |
 | `spin_forward_clearance_margin` | 0.15 m | SPIN 후 FORWARD_ONLY 시작 전 전방 여유에 추가로 요구하는 안전 마진 |
 | `max_path_offset` | 1.0 m | 새 `/global_path`가 현재 pose와 너무 멀면 stale path로 무시 |
+| `recovery_path_accept_offset` | 1.8 m | stuck/recovery 직후 새 `/global_path` 수신 시 허용하는 완화 offset |
+| `recovery_path_accept_duration` | 5.0 s | stuck/recovery 직후 완화 offset을 적용하는 시간 |
 | `reached_new_path_rearm_dist` | 0.75 m | `REACHED` 중 새 path endpoint가 현재 위치와 충분히 멀면 다음 목표로 보고 재무장 |
 | `path_lost_offset` | 1.8 m | 추종 중 이 이상 path에서 벗어나면 `PATH_LOST` 후 A\* 재계획 유도 |
 
@@ -275,6 +278,7 @@ angular:
 |---|---|---|
 | `safety_distance` | 0.30 m | 명세 §7 안전거리 |
 | `near_wall_creep_speed` | 0.12 m/s | 전방이 열린 측면 벽 근접 상황에서 v=0 고착 방지. **TODO 미확정, RunPod 튜닝 필요** |
+| `near_wall_creep_min_clearance` | 0.45 m | creep을 허용할 최소 arc clearance. 이보다 벽에 붙으면 전진 대신 STOPPED/RECOVERY로 넘김 |
 | `odom_timeout` | 0.5 s | 이 시간 안에 `/odometry/filtered` 없으면 `/odom` fallback |
 
 ### 4.6 A\* — 그리드 / 휴리스틱 (제안, HU 확정 대기)
@@ -294,10 +298,11 @@ angular:
 | `replan_period` | 1.0 s | 0이면 goal 입력 시에만 1회, > 0이면 주기적 재계획 |
 | `dwa_status_topic` | `"/dwa/status"` | A\*가 이벤트 재계획 판단에 쓰는 DWA 상태 토픽 |
 | `status_replan_cooldown` | 2.0 s | 상태 이벤트 재계획 최소 간격 |
-| `status_replan_states` | `["EMERGENCY", "PATH_LOST", "RECOVERY_DONE"]` | 수신 즉시 현재 pose 기준 A\* 재계획 |
+| `status_replan_states` | `["EMERGENCY", "PATH_LOST", "RECOVERY_DONE", "STOPPED_NEAR_WALL"]` | 수신 즉시 현재 pose 기준 A\* 재계획 |
 | `status_replan_after_states` | `["FORWARD_ONLY", "RECOVERY"]` | fallback: 이 상태 뒤 reset 상태가 오면 1회 재계획 |
 | `path_switch_hysteresis` | 0.35 m | 새 주기 재계획 후보가 이만큼 짧지 않으면 기존 path 유지 |
 | `path_switch_max_start_offset` | 0.80 m | 현재 pose가 기존 path에서 이 이상 멀면 hysteresis 해제 |
+| `path_hysteresis_stable_states` | `["NORMAL", "ALIGN"]` | 이 DWA 상태에서만 기존 path 유지 hysteresis 적용. 복구/벽 정지 중에는 새 후보 발행 |
 | `new_goal_force_publish_sec` | 5.0 s | 새 goal 직후 이 시간 동안 hysteresis를 건너뛰어 `/global_path` 재수신 기회 확보 |
 | `goal_direct_distance` | 2.0 m | 목표 근처에서 안전한 직선 final approach path 허용 거리 |
 | `goal_direct_min_clearance` | 0.80 m | 직선 final approach segment의 최소 raw obstacle clearance |
@@ -317,7 +322,7 @@ angular:
 | `/global_path` empty 수신(새 goal 없음 + 기존 path 있음) | — | stale/중복 publisher 가능성으로 보고 기존 path 유지 |
 | `/global_path`가 현재 pose와 `max_path_offset` 초과로 멂 | — | stale path 가능성으로 보고 path 무시, 기존 path 유지 |
 | DWA가 추종 중 path와 `path_lost_offset` 초과로 멂 | 현재 pose 기준 1회 재계획 | 정지, `status="PATH_LOST"` |
-| 전방은 열렸지만 측면 벽/초기 arc clearance가 낮음 | — | 충돌권 밖이면 `near_wall_creep_speed`로 최소 전진해 벽 옆 고착 탈출 |
+| 전방은 열렸지만 측면 벽/초기 arc clearance가 낮음 | — | `near_wall_creep_min_clearance` 이상일 때만 `near_wall_creep_speed`로 최소 전진하고, 그보다 붙으면 STOPPED/RECOVERY로 넘김 |
 | 모든 trajectory 후보 충돌 | — | 정지, `status="EMERGENCY"` |
 | 진행 방향 장애물 거리 < `safety_distance` (0.30 m) | — | 즉시 정지 (명세 §7 안전거리). 측면 벽은 near-wall creep 조건을 별도로 적용 |
 | `/odometry/filtered` 미수신 > 0.5 s | — | `/odom`으로 fallback |

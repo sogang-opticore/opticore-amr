@@ -4,7 +4,11 @@ import types
 
 import numpy as np
 
-from amr_navigation.astar_node import AstarPlanner, clearance_preference_cost
+from amr_navigation.astar_node import (
+    AstarPlanner,
+    clearance_preference_cost,
+    status_allows_path_hysteresis,
+)
 
 
 def _bind(node, *names):
@@ -54,6 +58,21 @@ class TestAstarClearanceCost:
 
         assert edge_cost > safer_cost * 10.0
         assert open_cost == 0.0
+
+
+class TestAstarPathHysteresisStatus:
+    def test_hysteresis_is_allowed_in_stable_tracking_states(self):
+        stable = {"NORMAL", "ALIGN"}
+
+        assert status_allows_path_hysteresis("NORMAL", stable) is True
+        assert status_allows_path_hysteresis("ALIGN", stable) is True
+
+    def test_hysteresis_is_disabled_while_recovering_or_stuck(self):
+        stable = {"NORMAL", "ALIGN"}
+
+        assert status_allows_path_hysteresis("STOPPED_NEAR_WALL", stable) is False
+        assert status_allows_path_hysteresis("RECOVERY", stable) is False
+        assert status_allows_path_hysteresis("REJOIN", stable) is False
 
 
 class TestAstarNeighbors:
