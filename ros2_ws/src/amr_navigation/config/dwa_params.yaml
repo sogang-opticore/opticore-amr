@@ -263,6 +263,7 @@ dwa_planner:
     # goal_pose 콜백과 global_path 콜백 순서가 어긋나도 다음 목표에서 멈춰 있지 않게 한다.
     reached_new_path_rearm_dist: 0.75
     scan_topic: "/lidar"
+    map_topic: "/map"
     cmd_vel_topic: "/cmd_vel"
     rejoin_cross_track_gain_scale: 0.42
 
@@ -285,6 +286,11 @@ dwa_planner:
     dynamic_avoid_side_switch_penalty: 0.65
     dynamic_avoid_side_hold_sec: 1.50
     dynamic_avoid_cross_track_gain_scale: 0.15
+    dynamic_static_filter_enabled: true
+    dynamic_static_filter_radius: 0.30
+    dynamic_static_filter_occupied_threshold: 65
+    dynamic_static_filter_unknown_as_static: false
+    dynamic_static_filter_tf_timeout: 0.01
 
     # ----- 진단 로그 throttle (s) -----
     # 0 = 비활성. control_rate=20Hz 기준 1.0s = 1초당 1회.

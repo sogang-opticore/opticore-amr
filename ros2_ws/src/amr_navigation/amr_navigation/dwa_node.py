@@ -53,10 +53,10 @@ from typing import List, Optional, Tuple
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, QoSReliabilityPolicy
+from rclpy.qos import QoSDurabilityPolicy, QoSProfile, QoSReliabilityPolicy
 
 from geometry_msgs.msg import Twist, Point, PoseStamped
-from nav_msgs.msg import Odometry, Path
+from nav_msgs.msg import OccupancyGrid, Odometry, Path
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import String
 from visualization_msgs.msg import Marker, MarkerArray
@@ -1130,6 +1130,79 @@ def world_to_local(world_xy: Tuple[float, float],
     return (cos_t * dx - sin_t * dy, sin_t * dx + cos_t * dy)
 
 
+def local_to_world(local_xy: Tuple[float, float],
+                   robot: RobotState) -> Tuple[float, float]:
+    lx, ly = local_xy
+    cos_t = math.cos(robot.theta)
+    sin_t = math.sin(robot.theta)
+    return (
+        robot.x + cos_t * lx - sin_t * ly,
+        robot.y + sin_t * lx + cos_t * ly,
+    )
+
+
+def occupancy_grid_world_to_cell(
+    grid: OccupancyGrid,
+    world_xy: Tuple[float, float],
+) -> Optional[Tuple[int, int]]:
+    info = grid.info
+    resolution = float(info.resolution)
+    if resolution <= 0.0:
+        return None
+
+    origin = info.origin
+    dx = world_xy[0] - origin.position.x
+    dy = world_xy[1] - origin.position.y
+    q = origin.orientation
+    yaw = yaw_from_quaternion(q.x, q.y, q.z, q.w)
+    cos_t = math.cos(-yaw)
+    sin_t = math.sin(-yaw)
+    mx = cos_t * dx - sin_t * dy
+    my = sin_t * dx + cos_t * dy
+    col = int(math.floor(mx / resolution))
+    row = int(math.floor(my / resolution))
+    if col < 0 or row < 0 or col >= int(info.width) or row >= int(info.height):
+        return None
+    return col, row
+
+
+def occupancy_grid_has_static_obstacle_near(
+    grid: OccupancyGrid,
+    world_xy: Tuple[float, float],
+    radius: float,
+    occupied_threshold: int,
+    unknown_as_static: bool = False,
+) -> bool:
+    cell = occupancy_grid_world_to_cell(grid, world_xy)
+    if cell is None:
+        return False
+
+    info = grid.info
+    resolution = float(info.resolution)
+    radius = max(0.0, float(radius))
+    radius_cells = max(0, int(math.ceil(radius / resolution)))
+    col, row = cell
+    width = int(info.width)
+    height = int(info.height)
+    threshold = max(0, min(100, int(occupied_threshold)))
+
+    for rr in range(max(0, row - radius_cells),
+                    min(height, row + radius_cells + 1)):
+        dy = (rr - row) * resolution
+        for cc in range(max(0, col - radius_cells),
+                        min(width, col + radius_cells + 1)):
+            dx = (cc - col) * resolution
+            if math.hypot(dx, dy) > radius + 0.5 * resolution:
+                continue
+            idx = rr * width + cc
+            if idx >= len(grid.data):
+                continue
+            value = int(grid.data[idx])
+            if value >= threshold or (unknown_as_static and value < 0):
+                return True
+    return False
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # DWA Planner Node
 # ═══════════════════════════════════════════════════════════════════════
@@ -1214,6 +1287,11 @@ class DwaPlannerNode(Node):
         self.declare_parameter("dynamic_avoid_side_switch_penalty", 0.65)
         self.declare_parameter("dynamic_avoid_side_hold_sec", 1.5)
         self.declare_parameter("dynamic_avoid_cross_track_gain_scale", 0.15)
+        self.declare_parameter("dynamic_static_filter_enabled", True)
+        self.declare_parameter("dynamic_static_filter_radius", 0.30)
+        self.declare_parameter("dynamic_static_filter_occupied_threshold", 65)
+        self.declare_parameter("dynamic_static_filter_unknown_as_static", False)
+        self.declare_parameter("dynamic_static_filter_tf_timeout", 0.01)
         self.declare_parameter("rejoin_predicted_exit_offset", 0.42)
         self.declare_parameter("rejoin_align_angle_thresh", 1.75)
         self.declare_parameter("short_lookahead_rejoin_min_distance", 0.35)
@@ -1283,6 +1361,7 @@ class DwaPlannerNode(Node):
         self.declare_parameter("goal_dedup_yaw", 0.10)
         self.declare_parameter("reached_new_path_rearm_dist", 0.75)
         self.declare_parameter("scan_topic", "/lidar")
+        self.declare_parameter("map_topic", "/map")
         self.declare_parameter("cmd_vel_topic", "/cmd_vel")
         self.declare_parameter("state_log_period", 1.0)
         self.declare_parameter("candidate_log_period", 1.0)
@@ -1294,6 +1373,7 @@ class DwaPlannerNode(Node):
         self._state: Optional[RobotState] = None
         self._path_local: Optional[Path] = None
         self._latest_scan: Optional[LaserScan] = None
+        self._static_map: Optional[OccupancyGrid] = None
         self._last_odom_time: Optional[float] = None
         self._last_odom_was_fallback = False
         self._path_warn_logged = False
@@ -1350,6 +1430,11 @@ class DwaPlannerNode(Node):
                                 reliability=QoSReliabilityPolicy.BEST_EFFORT)
         path_qos = QoSProfile(depth=10,
                               reliability=QoSReliabilityPolicy.RELIABLE)
+        map_qos = QoSProfile(
+            depth=1,
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+        )
 
         # ── 구독 ─────────────────────────────────────────────────────
         self.create_subscription(
@@ -1362,6 +1447,8 @@ class DwaPlannerNode(Node):
             Path, self.p_global_path_topic, self._on_global_path, path_qos)
         self.create_subscription(
             LaserScan, self.p_scan_topic, self._on_scan, sensor_qos)
+        self.create_subscription(
+            OccupancyGrid, self.p_map_topic, self._on_map, map_qos)
 
         # ── 발행 ─────────────────────────────────────────────────────
         self._cmd_pub = self.create_publisher(Twist, self.p_cmd_vel_topic, 10)
@@ -1454,6 +1541,16 @@ class DwaPlannerNode(Node):
             "dynamic_avoid_side_hold_sec").value
         self.p_dynamic_avoid_cross_track_gain_scale = gp(
             "dynamic_avoid_cross_track_gain_scale").value
+        self.p_dynamic_static_filter_enabled = gp(
+            "dynamic_static_filter_enabled").value
+        self.p_dynamic_static_filter_radius = gp(
+            "dynamic_static_filter_radius").value
+        self.p_dynamic_static_filter_occupied_threshold = gp(
+            "dynamic_static_filter_occupied_threshold").value
+        self.p_dynamic_static_filter_unknown_as_static = gp(
+            "dynamic_static_filter_unknown_as_static").value
+        self.p_dynamic_static_filter_tf_timeout = gp(
+            "dynamic_static_filter_tf_timeout").value
         self.p_rejoin_predicted_exit_offset = gp(
             "rejoin_predicted_exit_offset").value
         self.p_rejoin_align_angle_thresh = gp("rejoin_align_angle_thresh").value
@@ -1524,6 +1621,7 @@ class DwaPlannerNode(Node):
         self.p_goal_dedup_yaw           = gp("goal_dedup_yaw").value
         self.p_reached_new_path_rearm_dist = gp("reached_new_path_rearm_dist").value
         self.p_scan_topic               = gp("scan_topic").value
+        self.p_map_topic                = gp("map_topic").value
         self.p_cmd_vel_topic            = gp("cmd_vel_topic").value
         self.p_state_log_period         = gp("state_log_period").value
         self.p_candidate_log_period     = gp("candidate_log_period").value
@@ -1703,6 +1801,9 @@ class DwaPlannerNode(Node):
     def _on_scan(self, msg: LaserScan) -> None:
         self._latest_scan = msg
 
+    def _on_map(self, msg: OccupancyGrid) -> None:
+        self._static_map = msg
+
     # ───────────────────────────────────────────────────────────────
     # 메인 제어 루프 — NavState 디스패처
     # ───────────────────────────────────────────────────────────────
@@ -1794,6 +1895,71 @@ class DwaPlannerNode(Node):
             return True
         return False
 
+    def _lookup_local_to_map_transform(
+        self,
+    ) -> Optional[Tuple[float, float, float]]:
+        try:
+            t = self._tf_buffer.lookup_transform(
+                self.GLOBAL_FRAME, self.LOCAL_FRAME,
+                rclpy.time.Time(),
+                timeout=rclpy.duration.Duration(
+                    seconds=self.p_dynamic_static_filter_tf_timeout))
+        except (TransformException, tf2_ros.LookupException,
+                tf2_ros.ExtrapolationException,
+                tf2_ros.ConnectivityException) as e:
+            self.get_logger().warn(
+                f"dynamic static-filter TF lookup failed: {e}",
+                throttle_duration_sec=2.0)
+            return None
+
+        q = t.transform.rotation
+        return (
+            t.transform.translation.x,
+            t.transform.translation.y,
+            yaw_from_quaternion(q.x, q.y, q.z, q.w),
+        )
+
+    @staticmethod
+    def _transform_xy(
+        xy: Tuple[float, float],
+        transform_xy_yaw: Tuple[float, float, float],
+    ) -> Tuple[float, float]:
+        tx, ty, yaw = transform_xy_yaw
+        cos_t = math.cos(yaw)
+        sin_t = math.sin(yaw)
+        x, y = xy
+        return (tx + cos_t * x - sin_t * y,
+                ty + sin_t * x + cos_t * y)
+
+    def _filter_static_obstacles_for_dynamic(
+        self,
+        obstacles_local: List[Tuple[float, float]],
+    ) -> Tuple[List[Tuple[float, float]], int]:
+        if (not self.p_dynamic_static_filter_enabled or
+                not obstacles_local or self._state is None or
+                self._static_map is None):
+            return obstacles_local, 0
+
+        transform = self._lookup_local_to_map_transform()
+        if transform is None:
+            return obstacles_local, 0
+
+        dynamic_candidates: List[Tuple[float, float]] = []
+        static_count = 0
+        for obs in obstacles_local:
+            local_frame_xy = local_to_world(obs, self._state)
+            map_xy = self._transform_xy(local_frame_xy, transform)
+            if occupancy_grid_has_static_obstacle_near(
+                    self._static_map,
+                    map_xy,
+                    self.p_dynamic_static_filter_radius,
+                    int(self.p_dynamic_static_filter_occupied_threshold),
+                    bool(self.p_dynamic_static_filter_unknown_as_static)):
+                static_count += 1
+                continue
+            dynamic_candidates.append(obs)
+        return dynamic_candidates, static_count
+
     def _compute_context(self) -> Optional[dict]:
         """경로 추종에 필요한 공통 값을 계산해 dict 로 반환.
 
@@ -1841,6 +2007,8 @@ class DwaPlannerNode(Node):
             predicted_exit_offset=self.p_rejoin_predicted_exit_offset,
         )
         obstacles_local = self._extract_obstacles_from_scan()
+        dynamic_obstacles_local = obstacles_local
+        dynamic_static_filtered = 0
         dynamic_blockage = DynamicPathBlockage(
             False, float("inf"), 0, 0.0, 0.0)
         dynamic_blocked = False
@@ -1929,11 +2097,14 @@ class DwaPlannerNode(Node):
         if (self.p_dynamic_avoid_enabled and
                 dist_to_goal > max(self.p_goal_approach_distance,
                                    self.p_goal_tolerance + 0.5)):
+            dynamic_obstacles_local, dynamic_static_filtered = (
+                self._filter_static_obstacles_for_dynamic(obstacles_local)
+            )
             dynamic_blockage = detect_path_corridor_blockage(
                 path_xy=path_xy,
                 robot=self._state,
                 projection=projection,
-                obstacles_local=obstacles_local,
+                obstacles_local=dynamic_obstacles_local,
                 corridor_width=self.p_dynamic_path_corridor_width,
                 check_distance=self.p_dynamic_path_check_distance,
                 min_points=int(self.p_dynamic_path_min_block_points),
@@ -2013,6 +2184,9 @@ class DwaPlannerNode(Node):
             "dynamic_block_distance": dynamic_blockage.distance,
             "dynamic_block_side_bias": dynamic_blockage.side_bias,
             "dynamic_block_margin": dynamic_blockage.min_margin,
+            "dynamic_raw_obstacle_count": len(obstacles_local),
+            "dynamic_obstacle_count": len(dynamic_obstacles_local),
+            "dynamic_static_filtered": dynamic_static_filtered,
             "is_dynamic_avoiding": dynamic_avoid_target is not None,
             "dynamic_avoid_side": (
                 dynamic_avoid_target.side if dynamic_avoid_target else 0
@@ -2078,7 +2252,10 @@ class DwaPlannerNode(Node):
                 "clearance or safer local bypass "
                 f"(hits={ctx.get('dynamic_block_count', 0)}, "
                 f"d={ctx.get('dynamic_block_distance', float('inf')):.2f}m, "
-                f"bias={ctx.get('dynamic_block_side_bias', 0.0):+.2f})",
+                f"bias={ctx.get('dynamic_block_side_bias', 0.0):+.2f}, "
+                f"raw_pts={ctx.get('dynamic_raw_obstacle_count', 0)}, "
+                f"dyn_pts={ctx.get('dynamic_obstacle_count', 0)}, "
+                f"static_filtered={ctx.get('dynamic_static_filtered', 0)})",
                 throttle_duration_sec=1.0)
             return
 
@@ -2329,6 +2506,9 @@ class DwaPlannerNode(Node):
                 f" dyn_side={ctx.get('dynamic_avoid_side', 0):+d}"
                 f" dyn_off={ctx.get('dynamic_avoid_offset', 0.0):.2f}"
                 f" dyn_clr={ctx.get('dynamic_avoid_clearance', float('inf')):.2f}"
+                f" dyn_raw={ctx.get('dynamic_raw_obstacle_count', 0)}"
+                f" dyn_pts={ctx.get('dynamic_obstacle_count', 0)}"
+                f" dyn_static={ctx.get('dynamic_static_filtered', 0)}"
             )
         self._candidate_log_counter += 1
         target = int(self.p_control_rate * self.p_candidate_log_period)

@@ -54,7 +54,7 @@
 | 토픽 | 타입 | 발행 주체 | 구독자 | QoS | 비고 |
 |---|---|---|---|---|---|
 | `/goal_pose` | `geometry_msgs/PoseStamped` | RViz2 / BT / 사용자 | **A\***, DWA | Reliable, depth 1 | frame_id = `map`. DWA는 새 goal edge 확인용으로만 구독하며 반복 goal은 dedup |
-| `/map` | `nav_msgs/OccupancyGrid` | slam_toolbox | **A\*** | Reliable, depth 1, **TRANSIENT_LOCAL** | frame_id = `map`, latched |
+| `/map` | `nav_msgs/OccupancyGrid` | slam_toolbox | **A\***, DWA | Reliable, depth 1, **TRANSIENT_LOCAL** | frame_id = `map`, latched. DWA는 동적 장애물 판정에서 static wall LiDAR 점을 제외하는 데 사용 |
 | `/dwa/status` | `std_msgs/String` | DWA | **A\*** | Reliable, depth 10 | 경로 재계획 이벤트 입력 (`EMERGENCY`/`PATH_LOST`/`RECOVERY_DONE` 등) |
 | `/global_path` | `nav_msgs/Path` | A\* | **DWA** | Reliable, depth 1, **TRANSIENT_LOCAL** | frame_id = `map`, latched |
 | `/odometry/filtered` | `nav_msgs/Odometry` | EKF (robot_localization) | DWA (1순위) | Reliable | frame_id = `odom_filtered` |
@@ -259,6 +259,10 @@ angular:
 | `dynamic_avoid_lateral_offsets` | [0.55, 0.75, 0.95, 1.15] | 좌우 side-offset 우회 목표 후보 거리 |
 | `dynamic_avoid_min_clearance` | 0.45 m | 우회 목표/재합류 segment가 요구하는 최소 LiDAR clearance |
 | `dynamic_avoid_rejoin_distance` | 1.55 m | 차단 지점 뒤쪽 global path로 재합류할 기본 거리 |
+| `dynamic_static_filter_enabled` | true | `/map`의 정적 장애물 근처 LiDAR 점은 동적 차단 후보에서 제외 |
+| `dynamic_static_filter_radius` | 0.30 m | LiDAR 점과 static occupied cell을 같은 정적 장애물로 볼 반경 |
+| `dynamic_static_filter_occupied_threshold` | 65 | 정적 장애물로 인정할 OccupancyGrid 점유값 |
+| `dynamic_static_filter_unknown_as_static` | false | unknown cell은 기본적으로 동적 후보를 숨기지 않음 |
 | `align_release_angle` | 0.70 rad | ALIGN 중 안전하면 15도까지 기다리지 않고 NORMAL로 조기 복귀 |
 | `rejoin_align_release_angle` | 0.95 rad | REJOIN 중 안전하면 더 이른 각도에서 path 추종으로 복귀 |
 | `align_drive_angle` | 1.57 rad | ALIGN 중 전방 여유가 있으면 저속 turn-in-motion 허용 각도 |

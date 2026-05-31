@@ -8,6 +8,7 @@ ROS 의존성 없는 순수 알고리즘 테스트.
 """
 
 import math
+from types import SimpleNamespace
 
 
 from amr_navigation.dwa_node import (
@@ -27,6 +28,7 @@ from amr_navigation.dwa_node import (
     detect_path_corridor_blockage,
     choose_dynamic_avoid_target,
     choose_rejoin_target,
+    occupancy_grid_has_static_obstacle_near,
     should_use_rejoin,
     should_force_rejoin_for_short_lookahead,
     predict_signed_path_offset,
@@ -375,6 +377,50 @@ class TestPathProjectionLookahead:
             step=0.25,
         )
 
+        assert blockage.blocked is False
+
+    def test_static_map_filter_ignores_wall_points_for_dynamic_blockage(self):
+        path = [(0.0, 0.0), (5.0, 0.0)]
+        robot = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
+        proj = project_to_path(path, (robot.x, robot.y), 0)
+        obstacles = [(1.20, 0.10), (1.25, -0.08)]
+        grid = SimpleNamespace(
+            info=SimpleNamespace(
+                resolution=0.05,
+                width=120,
+                height=40,
+                origin=SimpleNamespace(
+                    position=SimpleNamespace(x=-0.5, y=-1.0),
+                    orientation=SimpleNamespace(x=0.0, y=0.0, z=0.0, w=1.0),
+                ),
+            ),
+            data=[0] * (120 * 40),
+        )
+        for ox, oy in obstacles:
+            col = int(math.floor((ox - grid.info.origin.position.x) /
+                                 grid.info.resolution))
+            row = int(math.floor((oy - grid.info.origin.position.y) /
+                                 grid.info.resolution))
+            grid.data[row * grid.info.width + col] = 100
+
+        dynamic_obstacles = [
+            obs for obs in obstacles
+            if not occupancy_grid_has_static_obstacle_near(
+                grid, obs, radius=0.30, occupied_threshold=65)
+        ]
+
+        blockage = detect_path_corridor_blockage(
+            path_xy=path,
+            robot=robot,
+            projection=proj,
+            obstacles_local=dynamic_obstacles,
+            corridor_width=0.50,
+            check_distance=3.0,
+            min_points=2,
+            step=0.25,
+        )
+
+        assert dynamic_obstacles == []
         assert blockage.blocked is False
 
     def test_dynamic_avoid_target_offsets_away_from_blocked_side(self):
