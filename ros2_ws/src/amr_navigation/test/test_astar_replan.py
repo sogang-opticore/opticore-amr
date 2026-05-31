@@ -72,20 +72,23 @@ def _make_status_node():
     node.goal = object()
     node.map_data = object()
     node.status_replan_states = {"EMERGENCY", "PATH_LOST", "RECOVERY_DONE"}
+    node.dynamic_status_replan_states = {"DYNAMIC_BLOCKED", "INSIDE_DYNAMIC_ZONE"}
     node.status_replan_after_states = {"FORWARD_ONLY", "RECOVERY"}
     node.status_replan_reset_states = {
         "NORMAL", "ALIGN", "STOPPED", "REACHED", "GOAL_REACHED"}
     node.status_replan_cooldown = 2.0
+    node.dynamic_status_replan_cooldown = 0.5
     node._status_replan_armed = True
     node._last_status_replan_time = -float("inf")
+    node._last_dynamic_status_replan_time = -float("inf")
     node._last_dwa_status = None
     node.now = 10.0
     node.plan_calls = []
     node.logger = _FakeLogger()
     node.get_logger = lambda: node.logger
     node._sec_now = lambda: node.now
-    node._plan = lambda clear_on_failure=False: (
-        node.plan_calls.append(clear_on_failure) or True
+    node._plan = lambda **kwargs: (
+        node.plan_calls.append(kwargs) or True
     )
     node._request_status_replan = AstarPlanner._request_status_replan.__get__(node)
     node._on_dwa_status = AstarPlanner._on_dwa_status.__get__(node)
@@ -122,6 +125,20 @@ class TestAstarStatusEventReplan:
         node._on_dwa_status(types.SimpleNamespace(data="RECOVERY_DONE"))
 
         assert len(node.plan_calls) == 1
+
+    def test_dynamic_status_uses_short_cooldown_without_disarming_regular_events(self):
+        node = _make_status_node()
+        node.status_replan_states.add("INSIDE_DYNAMIC_ZONE")
+
+        node._on_dwa_status(types.SimpleNamespace(data="INSIDE_DYNAMIC_ZONE"))
+        node.now = 10.3
+        node._on_dwa_status(types.SimpleNamespace(data="INSIDE_DYNAMIC_ZONE"))
+        node.now = 10.6
+        node._on_dwa_status(types.SimpleNamespace(data="INSIDE_DYNAMIC_ZONE"))
+        node.now = 10.7
+        node._on_dwa_status(types.SimpleNamespace(data="EMERGENCY"))
+
+        assert len(node.plan_calls) == 3
 
     def test_recovery_to_stopped_triggers_replan_fallback(self):
         node = _make_status_node()

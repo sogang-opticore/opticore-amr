@@ -71,7 +71,7 @@
 | `/cmd_vel` | `geometry_msgs/Twist` | **DWA 단독** ★ | 20 Hz (control_rate) | Reliable, depth 10 | Ignition DiffDrive 입력 |
 | `/dwa/trajectories` | `visualization_msgs/MarkerArray` | DWA | 5 Hz | Reliable | 후보 trajectory 시각화 (Foxglove) |
 | `/dwa/best_trajectory` | `visualization_msgs/Marker` | DWA | 5 Hz | Reliable | 선택된 trajectory 강조 |
-| `/dwa/status` | `std_msgs/String` | DWA | 1 Hz + edge 이벤트 | Reliable | 상태 문자열 — 상세는 §3.3 (`NORMAL`/`ALIGN`/`REJOIN`/`AVOIDING_DYNAMIC`/`DYNAMIC_BLOCKED`/`RECOVERY`/`EMERGENCY`/`PATH_LOST`/`REACHED` 등) |
+| `/dwa/status` | `std_msgs/String` | DWA | 1 Hz + edge 이벤트 | Reliable | 상태 문자열 — 상세는 §3.3 (`NORMAL`/`ALIGN`/`REJOIN`/`AVOIDING_DYNAMIC`/`DYNAMIC_BLOCKED`/`INSIDE_DYNAMIC_ZONE`/`RECOVERY`/`EMERGENCY`/`PATH_LOST`/`REACHED` 등) |
 | `/dynamic_obstacle_layer` | `nav_msgs/OccupancyGrid` | DWA | 0.5 s 기본, 변경/해제 시 | Reliable, depth 1, TRANSIENT_LOCAL | A\*가 static map에 overlay하는 임시 no-go layer |
 
 > ★ **`/cmd_vel`은 DWA만 발행한다.** A\*은 경로만 만들고 운동 명령은 만들지 않는다. 이중 발행자가 생기면 Twist가 충돌하므로 절대 금지.
@@ -163,6 +163,7 @@ angular:
 | `NORMAL` | path 수신 완료, Pure Pursuit 정상 추종 루프 실행 중 (코드가 발행하는 실제 값; 구 문서 `PLANNING`) |
 | `REJOIN` | path 이탈 상태. 가장 가까운 점 대신 미래 path 후보를 골라 작은 조향각으로 재합류 중 |
 | `DYNAMIC_BLOCKED` | LiDAR 동적 장애물이 global path corridor를 막고 있으며, 기본값에서는 dynamic layer 기반 A\* 우회 재계획을 기다림 |
+| `INSIDE_DYNAMIC_ZONE` | 로봇 현재 pose가 `/dynamic_obstacle_layer` no-go 내부 또는 가장자리에 있어 A\*가 start escape corridor를 열어 탈출 경로를 재계획해야 하는 상태 |
 | `APPROACHING_DYNAMIC` | 추적된 동적 장애물의 CPA/closing speed가 위험해 정지, 짧은 후퇴, 또는 제자리 회피 회전을 우선 |
 | `CROSSING_DYNAMIC` | 동적 장애물이 움직이며 path를 가로지르는 중으로 판단되어 우회보다 감속 대기를 우선 |
 | `RECEDING_DYNAMIC` | 동적 장애물이 로봇/경로에서 멀어지는 중으로 판단되어 path가 clear될 때까지 감속 대기 |
@@ -295,6 +296,7 @@ angular:
 | `dynamic_layer_trail_ttl_sec` | 300.0 s | 동적 장애물이 지나간 관측 궤적을 no-go corridor로 유지할 시간 |
 | `dynamic_layer_trail_min_distance` | 0.25 m | trail point를 새로 남기는 최소 이동 거리 |
 | `dynamic_layer_escape_distance` | 1.20 m | layer 재계획 대기 중이어도 접근 장애물이 이 거리 안이면 짧은 escape 허용 |
+| `dynamic_layer_inside_margin` | 0.10 m | DWA가 로봇이 dynamic no-go block/trail 안에 있는지 판단할 때 block radius에 더하는 여유 |
 | `align_release_angle` | 0.70 rad | ALIGN 중 안전하면 15도까지 기다리지 않고 NORMAL로 조기 복귀 |
 | `rejoin_align_release_angle` | 0.95 rad | REJOIN 중 안전하면 더 이른 각도에서 path 추종으로 복귀 |
 | `align_drive_angle` | 1.57 rad | ALIGN 중 전방 여유가 있으면 저속 turn-in-motion 허용 각도 |
@@ -354,14 +356,16 @@ angular:
 | `replan_period` | 1.0 s | 0이면 goal 입력 시에만 1회, > 0이면 주기적 재계획 |
 | `dwa_status_topic` | `"/dwa/status"` | A\*가 이벤트 재계획 판단에 쓰는 DWA 상태 토픽 |
 | `status_replan_cooldown` | 2.0 s | 상태 이벤트 재계획 최소 간격 |
-| `status_replan_states` | `["EMERGENCY", "PATH_LOST", "RECOVERY_DONE", "STOPPED_NEAR_WALL", "DYNAMIC_BLOCKED", "APPROACHING_DYNAMIC", ...]` | 수신 즉시 현재 pose 기준 A\* 재계획. 동적 상태는 `/dynamic_obstacle_layer` overlay를 반영한 우회 경로 생성을 유도 |
+| `dynamic_status_replan_cooldown` | 0.5 s | 동적 장애물 상태 전용 빠른 재계획 최소 간격. 일반 복구 이벤트의 2초 cooldown과 분리 |
+| `status_replan_states` | `["EMERGENCY", "PATH_LOST", "RECOVERY_DONE", "STOPPED_NEAR_WALL", "DYNAMIC_BLOCKED", "INSIDE_DYNAMIC_ZONE", "APPROACHING_DYNAMIC", ...]` | 수신 즉시 현재 pose 기준 A\* 재계획. 동적 상태는 `/dynamic_obstacle_layer` overlay를 반영한 우회 경로 생성을 유도 |
 | `status_replan_after_states` | `["FORWARD_ONLY", "RECOVERY"]` | fallback: 이 상태 뒤 reset 상태가 오면 1회 재계획 |
 | `dynamic_layer_enabled` | true | DWA가 발행한 `/dynamic_obstacle_layer`를 static inflated grid 위에 합성 |
 | `dynamic_layer_occupied_threshold` | 65 | dynamic layer cell을 점유로 볼 최소 OccupancyGrid 값 |
 | `dynamic_layer_timeout_sec` | 3.0 s | 이 시간보다 오래된 dynamic layer는 stale로 보고 overlay 무시 |
+| `dynamic_layer_start_escape_*` | enabled=true, search=3.0m, corridor=0.45m, min_clear=0.60m | start cell이 정적 맵에서는 free지만 dynamic layer 때문에 막힌 경우, 정적 장애물은 보존한 채 dynamic layer 안에서 가장 안전한 바깥 셀까지 임시 escape corridor를 열어 A\*가 탈출 경로를 만들게 함 |
 | `path_switch_hysteresis` | 0.35 m | 새 주기 재계획 후보가 이만큼 짧지 않으면 기존 path 유지 |
 | `path_switch_max_start_offset` | 0.80 m | 현재 pose가 기존 path에서 이 이상 멀면 hysteresis 해제 |
-| `path_hysteresis_stable_states` | `["NORMAL", "ALIGN", "AVOIDING_DYNAMIC", "DYNAMIC_BLOCKED", "APPROACHING_DYNAMIC", "CROSSING_DYNAMIC", "RECEDING_DYNAMIC", "STOPPED_DYNAMIC"]` | 이 DWA 상태에서만 기존 path 유지 hysteresis 적용. REJOIN/복구/벽 정지 중에는 새 후보 수용성 우선 |
+| `path_hysteresis_stable_states` | `["NORMAL", "ALIGN", "AVOIDING_DYNAMIC", "DYNAMIC_BLOCKED", "INSIDE_DYNAMIC_ZONE", "APPROACHING_DYNAMIC", "CROSSING_DYNAMIC", "RECEDING_DYNAMIC", "STOPPED_DYNAMIC"]` | 이 DWA 상태에서만 기존 path 유지 hysteresis 적용. REJOIN/복구/벽 정지 중에는 새 후보 수용성 우선 |
 | `new_goal_force_publish_sec` | 5.0 s | 새 goal 직후 이 시간 동안 hysteresis를 건너뛰어 `/global_path` 재수신 기회 확보 |
 | `goal_direct_distance` | 2.0 m | 목표 근처에서 안전한 직선 final approach path 허용 거리 |
 | `goal_direct_min_clearance` | 0.90 m | 직선 final approach segment의 최소 raw obstacle clearance |
@@ -383,6 +387,7 @@ angular:
 | DWA가 `EMERGENCY`/`PATH_LOST`/`RECOVERY_DONE` 발행 | 현재 pose 기준 1회 재계획. 실패해도 기존 성공 path가 있으면 빈 path 미발행 | 새 path 수신 시 추종 재개 |
 | DWA가 `NORMAL`/`ALIGN`으로 정상 추종 중 | 기본값에서는 재계획 없음. 기존 latched path 유지 | path 초입 재정렬 반복 방지 |
 | DWA가 `DYNAMIC_BLOCKED`/동적 motion 상태를 발행 | `/dynamic_obstacle_layer`를 static inflated grid 위에 overlay한 뒤 현재 pose 기준 재계획한다. layer block이 있으면 해당 영역을 임시 no-go로 보고 우회 경로를 찾는다 | 기본값에서는 즉석 side bypass보다 전역 우회 재계획을 우선한다. 새 path가 오기 전까지는 감속/정지 상태를 유지한다 |
+| DWA가 `INSIDE_DYNAMIC_ZONE`을 발행하거나 start가 dynamic layer 안에 있음 | start가 정적 맵에서는 free이고 dynamic layer 때문에만 막혔다면, A\*가 작은 start escape corridor를 임시로 열어 no-go 바깥쪽 안전 셀까지 빠지는 경로를 만든다 | 기존 path를 무작정 따라 동적 장애물 궤적으로 들어가는 대신 새 `/global_path`를 기다리거나, corridor가 열리면 저속 추종으로 빠져나온다 |
 | 주기 재계획 실패 + 기존 성공 path 있음 | 빈 path 미발행, 기존 path 유지 | 기존 path 계속 추종 |
 | `/global_path` empty 수신(새 goal 직후) | — | 즉시 정지, `status="STOPPED"` |
 | `/global_path` empty 수신(새 goal 없음 + 기존 path 있음) | — | stale/중복 publisher 가능성으로 보고 기존 path 유지 |

@@ -218,12 +218,25 @@ def overlay_dynamic_occupancy(
     occupied_threshold: int,
 ) -> tuple[np.ndarray, int]:
     """Return static inflated grid with dynamic occupied cells painted in."""
-    dynamic = np.asarray(dynamic_values, dtype=np.int16).reshape(
-        static_inflated_grid.shape)
-    mask = dynamic >= max(1, min(100, int(occupied_threshold)))
+    mask = dynamic_occupancy_mask(
+        static_inflated_grid.shape,
+        dynamic_values,
+        occupied_threshold,
+    )
     combined = static_inflated_grid.copy()
     combined[mask] = 1
     return combined, int(np.count_nonzero(mask))
+
+
+def dynamic_occupancy_mask(
+    grid_shape: tuple[int, int],
+    dynamic_values,
+    occupied_threshold: int,
+) -> np.ndarray:
+    """Return a bool mask for dynamic obstacle overlay cells."""
+    dynamic = np.asarray(dynamic_values, dtype=np.int16).reshape(grid_shape)
+    threshold = max(1, min(100, int(occupied_threshold)))
+    return dynamic >= threshold
 
 
 class AstarPlanner(Node):
@@ -256,8 +269,9 @@ class AstarPlanner(Node):
         self.declare_parameter(
             'status_replan_states',
             ['EMERGENCY', 'PATH_LOST', 'RECOVERY_DONE', 'STOPPED_NEAR_WALL',
-             'DYNAMIC_BLOCKED', 'APPROACHING_DYNAMIC', 'CROSSING_DYNAMIC',
-             'RECEDING_DYNAMIC', 'STOPPED_DYNAMIC', 'AVOIDING_DYNAMIC'],
+             'DYNAMIC_BLOCKED', 'INSIDE_DYNAMIC_ZONE', 'APPROACHING_DYNAMIC',
+             'CROSSING_DYNAMIC', 'RECEDING_DYNAMIC', 'STOPPED_DYNAMIC',
+             'AVOIDING_DYNAMIC'],
         )
         self.declare_parameter('status_replan_after_states', ['FORWARD_ONLY', 'RECOVERY'])
         self.declare_parameter(
@@ -287,8 +301,8 @@ class AstarPlanner(Node):
         self.declare_parameter(
             'path_hysteresis_stable_states',
             ['NORMAL', 'ALIGN', 'AVOIDING_DYNAMIC', 'DYNAMIC_BLOCKED',
-             'APPROACHING_DYNAMIC', 'CROSSING_DYNAMIC', 'RECEDING_DYNAMIC',
-             'STOPPED_DYNAMIC'])
+             'INSIDE_DYNAMIC_ZONE', 'APPROACHING_DYNAMIC', 'CROSSING_DYNAMIC',
+             'RECEDING_DYNAMIC', 'STOPPED_DYNAMIC'])
         self.declare_parameter('new_goal_force_publish_sec', 5.0)  # s
         self.declare_parameter('goal_direct_distance', 2.0)  # m
         self.declare_parameter('goal_direct_min_clearance', 0.90)  # m
@@ -296,6 +310,17 @@ class AstarPlanner(Node):
         self.declare_parameter('dynamic_layer_topic', '/dynamic_obstacle_layer')
         self.declare_parameter('dynamic_layer_occupied_threshold', 65)
         self.declare_parameter('dynamic_layer_timeout_sec', 3.0)
+        self.declare_parameter('dynamic_status_replan_cooldown', 0.5)
+        self.declare_parameter(
+            'dynamic_status_replan_states',
+            ['DYNAMIC_BLOCKED', 'INSIDE_DYNAMIC_ZONE', 'APPROACHING_DYNAMIC',
+             'CROSSING_DYNAMIC', 'RECEDING_DYNAMIC', 'STOPPED_DYNAMIC',
+             'AVOIDING_DYNAMIC'],
+        )
+        self.declare_parameter('dynamic_layer_start_escape_enabled', True)
+        self.declare_parameter('dynamic_layer_start_escape_search_radius', 3.0)
+        self.declare_parameter('dynamic_layer_start_escape_corridor_radius', 0.45)
+        self.declare_parameter('dynamic_layer_start_escape_min_clearance', 0.60)
 
         self.heuristic_type   = self.get_parameter('heuristic').value
         self.allow_diagonal   = self.get_parameter('allow_diagonal').value
@@ -348,11 +373,24 @@ class AstarPlanner(Node):
             'dynamic_layer_occupied_threshold').value
         self.dynamic_layer_timeout_sec = self.get_parameter(
             'dynamic_layer_timeout_sec').value
+        self.dynamic_status_replan_cooldown = self.get_parameter(
+            'dynamic_status_replan_cooldown').value
+        self.dynamic_status_replan_states = _status_param_to_set(
+            self.get_parameter('dynamic_status_replan_states').value)
+        self.dynamic_layer_start_escape_enabled = self.get_parameter(
+            'dynamic_layer_start_escape_enabled').value
+        self.dynamic_layer_start_escape_search_radius = self.get_parameter(
+            'dynamic_layer_start_escape_search_radius').value
+        self.dynamic_layer_start_escape_corridor_radius = self.get_parameter(
+            'dynamic_layer_start_escape_corridor_radius').value
+        self.dynamic_layer_start_escape_min_clearance = self.get_parameter(
+            'dynamic_layer_start_escape_min_clearance').value
 
         # ── 내부 상태 ──────────────────────────────────────────────
         self.map_data: OccupancyGrid | None = None
         self.static_inflated_grid: np.ndarray | None = None
         self.inflated_grid: np.ndarray | None = None
+        self.dynamic_layer_mask: np.ndarray | None = None
         self.clearance_grid: np.ndarray | None = None
         self.dynamic_layer: OccupancyGrid | None = None
         self.dynamic_layer_active_cells = 0
@@ -362,6 +400,7 @@ class AstarPlanner(Node):
         self._has_valid_path_for_goal = False
         self._status_replan_armed = True
         self._last_status_replan_time = -float('inf')
+        self._last_dynamic_status_replan_time = -float('inf')
         self._last_dwa_status: str | None = None
         self._last_path_cells: list[tuple] | None = None
         self._force_publish_until = -float('inf')
@@ -437,18 +476,28 @@ class AstarPlanner(Node):
         """DWA가 막힘/복구 이벤트를 보냈을 때 현재 pose 기준 path를 갱신한다."""
         if self.goal is None or self.map_data is None:
             return False
-        if not self._status_replan_armed:
-            return False
-
         now = self._sec_now()
-        if now - self._last_status_replan_time < self.status_replan_cooldown:
-            return False
-
-        self._last_status_replan_time = now
+        dynamic_states = getattr(self, 'dynamic_status_replan_states', set())
+        is_dynamic_replan = reason in dynamic_states
+        if is_dynamic_replan:
+            cooldown = max(0.0, float(getattr(
+                self, 'dynamic_status_replan_cooldown',
+                self.status_replan_cooldown)))
+            last_time = getattr(
+                self, '_last_dynamic_status_replan_time', -float('inf'))
+            if now - last_time < cooldown:
+                return False
+            self._last_dynamic_status_replan_time = now
+        else:
+            if not self._status_replan_armed:
+                return False
+            if now - self._last_status_replan_time < self.status_replan_cooldown:
+                return False
+            self._last_status_replan_time = now
         self.get_logger().warn(
             f'DWA 상태 {reason} 감지 — 현재 pose 기준 A* 이벤트 재계획')
         success = self._plan(clear_on_failure=False, allow_path_hysteresis=False)
-        if success:
+        if success and not is_dynamic_replan:
             self._status_replan_armed = False
         return success
 
@@ -544,24 +593,31 @@ class AstarPlanner(Node):
     def _rebuild_planning_grid(self) -> None:
         if self.static_inflated_grid is None:
             self.inflated_grid = None
+            self.dynamic_layer_mask = None
             self.dynamic_layer_active_cells = 0
             return
 
         self.inflated_grid = self.static_inflated_grid.copy()
+        self.dynamic_layer_mask = np.zeros(
+            self.static_inflated_grid.shape, dtype=bool)
         self.dynamic_layer_active_cells = 0
         if (not self.dynamic_layer_enabled or self.dynamic_layer is None or
                 not self._dynamic_layer_is_usable(self.dynamic_layer)):
             return
 
         try:
-            self.inflated_grid, self.dynamic_layer_active_cells = (
-                overlay_dynamic_occupancy(
-                    self.static_inflated_grid,
-                    self.dynamic_layer.data,
-                    self.dynamic_layer_occupied_threshold,
-                )
+            self.dynamic_layer_mask = dynamic_occupancy_mask(
+                self.static_inflated_grid.shape,
+                self.dynamic_layer.data,
+                self.dynamic_layer_occupied_threshold,
             )
+            self.inflated_grid = self.static_inflated_grid.copy()
+            self.inflated_grid[self.dynamic_layer_mask] = 1
+            self.dynamic_layer_active_cells = int(
+                np.count_nonzero(self.dynamic_layer_mask))
         except ValueError:
+            self.dynamic_layer_mask = np.zeros(
+                self.static_inflated_grid.shape, dtype=bool)
             self.dynamic_layer_active_cells = 0
             self.get_logger().warn(
                 'dynamic obstacle layer size mismatch; overlay ignored',
@@ -647,6 +703,16 @@ class AstarPlanner(Node):
         start_cell = self._world_to_cell(start_world)
         goal_cell  = self._world_to_cell(goal_world)
 
+        dynamic_start_escape_applied = False
+        if self._dynamic_start_escape_required(start_cell):
+            dynamic_start_escape_applied = self._apply_dynamic_start_escape_grid(
+                start_cell, goal_cell)
+            if not dynamic_start_escape_applied:
+                self.get_logger().warn(
+                    'dynamic start escape needed but corridor could not be carved; '
+                    f'start={start_cell}, active_cells={self.dynamic_layer_active_cells}',
+                    throttle_duration_sec=1.0)
+
         # 2026-05-25 보강(SW · 페어): start 셀이 inflation/점유 영역이면 인근
         # free 셀로 보정. 좁은 통로에서 로봇이 inflation 안쪽으로 살짝 들어가면
         # A* 가 첫 노드부터 막혀 "경로 없음" 무한 반복 → DWA STOPPED 무한 루프.
@@ -702,6 +768,7 @@ class AstarPlanner(Node):
                 using_direct_path,
                 now,
                 self._force_publish_until)
+                and not dynamic_start_escape_applied
                 and self._path_is_still_free(self._last_path_cells)):
             keep, improvement, prev_len, cand_len, offset = should_retain_previous_path(
                 previous_cells=self._last_path_cells,
@@ -766,7 +833,8 @@ class AstarPlanner(Node):
         self._last_path_cells = list(cell_path)
         self.get_logger().info(
             f'경로 발행: {len(path_msg.poses)} 웨이포인트, '
-            f'min_clear={path_min_clearance:.2f}m')
+            f'min_clear={path_min_clearance:.2f}m'
+            f'{" dyn_escape=1" if dynamic_start_escape_applied else ""}')
         return True
 
     def _handle_plan_failure(self, reason: str, *, clear_on_failure: bool) -> None:
@@ -958,6 +1026,204 @@ class AstarPlanner(Node):
         if row < 0 or col < 0 or row >= h or col >= w:
             return False
         return self.inflated_grid[row, col] == 0
+
+    def _is_static_free_cell(self, cell: tuple) -> bool:
+        """Check only the static inflated map, ignoring dynamic overlay."""
+        if self.static_inflated_grid is None:
+            return False
+        row, col = cell
+        h, w = self.static_inflated_grid.shape
+        if row < 0 or col < 0 or row >= h or col >= w:
+            return False
+        return self.static_inflated_grid[row, col] == 0
+
+    def _is_dynamic_layer_cell(self, cell: tuple) -> bool:
+        if self.dynamic_layer_mask is None:
+            return False
+        row, col = cell
+        h, w = self.dynamic_layer_mask.shape
+        if row < 0 or col < 0 or row >= h or col >= w:
+            return False
+        return bool(self.dynamic_layer_mask[row, col])
+
+    def _dynamic_start_escape_required(self, cell: tuple) -> bool:
+        return (
+            bool(getattr(self, 'dynamic_layer_start_escape_enabled', True))
+            and self._is_static_free_cell(cell)
+            and self._is_dynamic_layer_cell(cell)
+        )
+
+    def _find_dynamic_start_escape_path(
+        self,
+        start_cell: tuple,
+        goal_cell: tuple,
+    ) -> list[tuple] | None:
+        """Find a static-free route from inside the dynamic layer to its edge."""
+        if (self.map_data is None or self.static_inflated_grid is None or
+                self.dynamic_layer_mask is None):
+            return None
+        if not self._dynamic_start_escape_required(start_cell):
+            return None
+
+        from collections import deque
+
+        res = max(1e-6, float(self.map_data.info.resolution))
+        max_radius = max(
+            1,
+            int(math.ceil(
+                max(0.0, float(self.dynamic_layer_start_escape_search_radius))
+                / res)),
+        )
+        min_clearance = max(
+            0.0, float(self.dynamic_layer_start_escape_min_clearance))
+        h, w = self.static_inflated_grid.shape
+        r0, c0 = start_cell
+        gr, gc = goal_cell
+        goal_vec = (gr - r0, gc - c0)
+        goal_norm = math.hypot(goal_vec[0], goal_vec[1])
+        deltas = (
+            (-1, -1), (-1, 0), (-1, 1),
+            (0, -1),           (0, 1),
+            (1, -1),  (1, 0),  (1, 1),
+        )
+
+        parent: dict[tuple, tuple | None] = {start_cell: None}
+        depth: dict[tuple, int] = {start_cell: 0}
+        q = deque([start_cell])
+        best_cell: tuple | None = None
+        best_score = -float('inf')
+        best_clearance = 0.0
+        best_distance = float('inf')
+        fallback_cell: tuple | None = None
+        fallback_score = -float('inf')
+        fallback_clearance = 0.0
+        fallback_distance = float('inf')
+
+        while q:
+            cell = q.popleft()
+            r, c = cell
+            d_cells = depth[cell]
+            distance = math.hypot(r - r0, c - c0) * res
+            if cell != start_cell and not self._is_dynamic_layer_cell(cell):
+                clearance = self._clearance_at_cell(cell)
+                escape_vec = (r - r0, c - c0)
+                escape_norm = math.hypot(escape_vec[0], escape_vec[1])
+                alignment = 0.0
+                if goal_norm > 1e-6 and escape_norm > 1e-6:
+                    alignment = max(0.0, (
+                        escape_vec[0] * goal_vec[0]
+                        + escape_vec[1] * goal_vec[1]
+                    ) / (escape_norm * goal_norm))
+                clearance_score = min(clearance, self.preferred_clearance)
+                score = clearance_score - 0.30 * distance + 0.15 * alignment
+                if score > fallback_score:
+                    fallback_cell = cell
+                    fallback_score = score
+                    fallback_clearance = clearance
+                    fallback_distance = distance
+                if clearance >= min_clearance and score > best_score:
+                    best_cell = cell
+                    best_score = score
+                    best_clearance = clearance
+                    best_distance = distance
+
+            if d_cells >= max_radius:
+                continue
+
+            for dr, dc in deltas:
+                nr, nc = r + dr, c + dc
+                neighbor = (nr, nc)
+                if neighbor in parent:
+                    continue
+                if nr < 0 or nc < 0 or nr >= h or nc >= w:
+                    continue
+                if math.hypot(nr - r0, nc - c0) > max_radius:
+                    continue
+                if not self._is_static_free_cell(neighbor):
+                    continue
+                if dr != 0 and dc != 0:
+                    if (not self._is_static_free_cell((r + dr, c)) or
+                            not self._is_static_free_cell((r, c + dc))):
+                        continue
+                parent[neighbor] = cell
+                depth[neighbor] = d_cells + 1
+                q.append(neighbor)
+
+        selected = best_cell if best_cell is not None else fallback_cell
+        if selected is None:
+            self.get_logger().warn(
+                'dynamic start escape failed: no static-free exit '
+                f'within {max_radius * res:.2f}m from {start_cell}',
+                throttle_duration_sec=1.0)
+            return None
+
+        if best_cell is None:
+            self.get_logger().warn(
+                'dynamic start escape using low-clearance fallback: '
+                f'exit={selected}, clear={fallback_clearance:.2f}m, '
+                f'dist={fallback_distance:.2f}m, '
+                f'wanted_clear={min_clearance:.2f}m',
+                throttle_duration_sec=1.0)
+        else:
+            self.get_logger().warn(
+                'dynamic start escape exit selected: '
+                f'exit={selected}, clear={best_clearance:.2f}m, '
+                f'dist={best_distance:.2f}m, score={best_score:.2f}',
+                throttle_duration_sec=1.0)
+
+        path: list[tuple] = []
+        cur: tuple | None = selected
+        while cur is not None:
+            path.append(cur)
+            cur = parent[cur]
+        path.reverse()
+        return path
+
+    def _apply_dynamic_start_escape_grid(
+        self,
+        start_cell: tuple,
+        goal_cell: tuple,
+    ) -> bool:
+        """Temporarily carve only the escape corridor through dynamic overlay."""
+        if (self.inflated_grid is None or self.static_inflated_grid is None or
+                self.map_data is None):
+            return False
+        escape_path = self._find_dynamic_start_escape_path(start_cell, goal_cell)
+        if not escape_path:
+            return False
+
+        res = max(1e-6, float(self.map_data.info.resolution))
+        radius_cells = max(
+            0,
+            int(math.ceil(
+                max(0.0, float(
+                    self.dynamic_layer_start_escape_corridor_radius)) / res)),
+        )
+        carved = self.inflated_grid.copy()
+        h, w = carved.shape
+        cleared = 0
+        for r0, c0 in escape_path:
+            for rr in range(max(0, r0 - radius_cells),
+                            min(h, r0 + radius_cells + 1)):
+                for cc in range(max(0, c0 - radius_cells),
+                                min(w, c0 + radius_cells + 1)):
+                    if math.hypot(rr - r0, cc - c0) > radius_cells + 0.5:
+                        continue
+                    if self.static_inflated_grid[rr, cc] != 0:
+                        continue
+                    if carved[rr, cc] != 0:
+                        cleared += 1
+                    carved[rr, cc] = 0
+
+        self.inflated_grid = carved
+        exit_cell = escape_path[-1]
+        self.get_logger().warn(
+            'dynamic start escape corridor carved: '
+            f'start={start_cell}, exit={exit_cell}, '
+            f'len={len(escape_path)}, radius={radius_cells * res:.2f}m, '
+            f'cleared={cleared}, dyn_cells={self.dynamic_layer_active_cells}',
+            throttle_duration_sec=1.0)
+        return True
 
     def _build_inflated_grid(self, msg: OccupancyGrid) -> np.ndarray:
         """

@@ -217,6 +217,7 @@ class NavState(Enum):
     REJOIN       = "REJOIN"        # path 이탈 후 미래 path 지점으로 부드럽게 재합류
     ALIGN        = "ALIGN"         # in-place 회전 (heading 오차 큼)
     DYNAMIC_BLOCKED = "DYNAMIC_BLOCKED"  # 동적 장애물이 path corridor를 막음
+    INSIDE_DYNAMIC_ZONE = "INSIDE_DYNAMIC_ZONE"  # 로봇 현재 위치가 dynamic no-go 내부
     APPROACHING_DYNAMIC = "APPROACHING_DYNAMIC"  # closing dynamic obstacle
     CROSSING_DYNAMIC = "CROSSING_DYNAMIC"  # moving obstacle is likely crossing
     RECEDING_DYNAMIC = "RECEDING_DYNAMIC"  # moving obstacle is moving away
@@ -1701,6 +1702,7 @@ class DwaPlannerNode(Node):
         self.declare_parameter("dynamic_layer_trail_max_points", 80)
         self.declare_parameter("dynamic_layer_escape_distance", 1.20)
         self.declare_parameter("dynamic_layer_escape_t_cpa", 1.00)
+        self.declare_parameter("dynamic_layer_inside_margin", 0.10)
         self.declare_parameter("dynamic_layer_occupied_value", 100)
         self.declare_parameter("rejoin_predicted_exit_offset", 0.42)
         self.declare_parameter("rejoin_align_angle_thresh", 1.75)
@@ -2031,6 +2033,8 @@ class DwaPlannerNode(Node):
             "dynamic_layer_escape_distance").value
         self.p_dynamic_layer_escape_t_cpa = gp(
             "dynamic_layer_escape_t_cpa").value
+        self.p_dynamic_layer_inside_margin = gp(
+            "dynamic_layer_inside_margin").value
         self.p_dynamic_layer_occupied_value = gp(
             "dynamic_layer_occupied_value").value
         self.p_rejoin_predicted_exit_offset = gp(
@@ -2698,6 +2702,64 @@ class DwaPlannerNode(Node):
             return False
         return True
 
+    def _robot_dynamic_layer_membership(self) -> Tuple[bool, float, int]:
+        """Return whether the robot is inside a dynamic no-go block/trail."""
+        if self._state is None or not self._dynamic_layer_blocks:
+            return False, float("inf"), -1
+
+        transform = self._lookup_local_to_map_transform()
+        if transform is None:
+            return False, float("inf"), -1
+
+        robot_map = self._transform_xy((self._state.x, self._state.y), transform)
+        now = self._sec_now()
+        horizon = max(0.0, self.p_dynamic_layer_prediction_horizon)
+        max_prediction = max(0.0, self.p_dynamic_layer_prediction_max_distance)
+        max_speed = max(0.0, self.p_dynamic_layer_prediction_speed_max)
+        inside_margin = max(0.0, self.p_dynamic_layer_inside_margin)
+        best_margin = float("inf")
+        best_id = -1
+
+        for block_id, block in self._dynamic_layer_blocks.items():
+            if now >= block.expire_at:
+                continue
+
+            radius = max(0.0, block.radius + inside_margin)
+            dist = math.hypot(robot_map[0] - block.x, robot_map[1] - block.y)
+            if len(block.trail) >= 2:
+                for start, end in zip(block.trail, block.trail[1:]):
+                    dist = min(
+                        dist,
+                        point_segment_distance(
+                            robot_map,
+                            (start[0], start[1]),
+                            (end[0], end[1]),
+                        ),
+                    )
+            elif block.trail:
+                tx, ty, _ = block.trail[-1]
+                dist = min(dist, math.hypot(robot_map[0] - tx,
+                                            robot_map[1] - ty))
+
+            raw_speed = math.hypot(block.vx, block.vy)
+            speed = min(raw_speed, max_speed) if max_speed > 0.0 else raw_speed
+            travel = min(speed * horizon, max_prediction)
+            if travel > 0.05 and raw_speed > 1e-6:
+                scale = travel / raw_speed
+                pred_end = (block.x + block.vx * scale,
+                            block.y + block.vy * scale)
+                dist = min(
+                    dist,
+                    point_segment_distance(robot_map, (block.x, block.y), pred_end),
+                )
+
+            margin = dist - radius
+            if margin < best_margin:
+                best_margin = margin
+                best_id = block_id
+
+        return best_margin <= 0.0, best_margin, best_id
+
     def _update_dynamic_obstacle_layer(
         self,
         tracks: List[DynamicObstacleTrack],
@@ -2954,6 +3016,9 @@ class DwaPlannerNode(Node):
         dynamic_motion = DynamicMotionEstimate("UNKNOWN")
         dynamic_layer_blocks = len(self._dynamic_layer_blocks)
         dynamic_layer_prefer_global_replan = False
+        inside_dynamic_layer = False
+        inside_dynamic_margin = float("inf")
+        inside_dynamic_block_id = -1
         rejoin_target: Optional[RejoinTarget] = None
         if rejoin_requested:
             rejoin_target = choose_rejoin_target(
@@ -3053,6 +3118,9 @@ class DwaPlannerNode(Node):
                 bool(self.p_dynamic_layer_prefer_global_replan)
                 and dynamic_layer_blocks > 0
             )
+            inside_dynamic_layer, inside_dynamic_margin, inside_dynamic_block_id = (
+                self._robot_dynamic_layer_membership()
+            )
             dynamic_motion = self._select_dynamic_motion_estimate(
                 path_xy, self._state, projection, dynamic_tracks)
             dynamic_blockage = detect_path_corridor_blockage(
@@ -3148,6 +3216,9 @@ class DwaPlannerNode(Node):
             "dynamic_track_count": len(dynamic_tracks),
             "dynamic_layer_block_count": dynamic_layer_blocks,
             "dynamic_layer_prefer_global_replan": dynamic_layer_prefer_global_replan,
+            "inside_dynamic_layer": inside_dynamic_layer,
+            "inside_dynamic_margin": inside_dynamic_margin,
+            "inside_dynamic_block_id": inside_dynamic_block_id,
             "dynamic_motion_state": dynamic_motion.state,
             "dynamic_motion_track_id": dynamic_motion.track_id,
             "dynamic_motion_distance": dynamic_motion.distance,
@@ -3255,18 +3326,22 @@ class DwaPlannerNode(Node):
         is_rejoining = ctx.get("is_rejoining", False)
         dynamic_blocked = ctx.get("dynamic_blocked", False)
         is_dynamic_avoiding = ctx.get("is_dynamic_avoiding", False)
+        inside_dynamic_layer = ctx.get("inside_dynamic_layer", False)
         dynamic_motion_state = ctx.get("dynamic_motion_state", "UNKNOWN")
 
         if is_dynamic_avoiding:
             self._nav_state = NavState.AVOIDING_DYNAMIC
         elif dynamic_blocked:
             self._nav_state = self._dynamic_wait_nav_state(dynamic_motion_state)
+        elif inside_dynamic_layer:
+            self._nav_state = NavState.INSIDE_DYNAMIC_ZONE
         elif is_rejoining:
             self._nav_state = NavState.REJOIN
         elif self._nav_state in (
                 NavState.REJOIN,
                 NavState.AVOIDING_DYNAMIC,
                 NavState.DYNAMIC_BLOCKED,
+                NavState.INSIDE_DYNAMIC_ZONE,
                 NavState.APPROACHING_DYNAMIC,
                 NavState.CROSSING_DYNAMIC,
                 NavState.RECEDING_DYNAMIC,
@@ -3292,7 +3367,11 @@ class DwaPlannerNode(Node):
                     (not prefer_layer_replan or close_approach_escape) and
                     self._execute_dynamic_approach_escape(ctx)):
                 return
-            status_value = self._dynamic_wait_nav_state(dynamic_motion_state).value
+            status_value = (
+                NavState.INSIDE_DYNAMIC_ZONE.value
+                if inside_dynamic_layer
+                else self._dynamic_wait_nav_state(dynamic_motion_state).value
+            )
             self._relax_path_acceptance()
             self._publish_cmd(VelocityCommand(v=0.0, w=0.0))
             self._publish_status_value(status_value)
@@ -3309,6 +3388,9 @@ class DwaPlannerNode(Node):
                 f"tcpa={ctx.get('dynamic_motion_t_cpa', float('inf')):.2f}, "
                 f"dcpa={ctx.get('dynamic_motion_d_cpa', float('inf')):.2f}, "
                 f"held_side={ctx.get('dynamic_held_side', 0):+d}, "
+                f"inside_dyn={int(inside_dynamic_layer)}, "
+                f"inside_margin={ctx.get('inside_dynamic_margin', float('inf')):.2f}, "
+                f"inside_block={ctx.get('inside_dynamic_block_id', -1)}, "
                 f"raw_pts={ctx.get('dynamic_raw_obstacle_count', 0)}, "
                 f"dyn_pts={ctx.get('dynamic_obstacle_count', 0)}, "
                 f"clusters={ctx.get('dynamic_cluster_count', 0)}, "
@@ -3559,6 +3641,8 @@ class DwaPlannerNode(Node):
         self._publish_cmd(VelocityCommand(v=v_cmd, w=w_cmd))
         if is_dynamic_avoiding:
             status_value = "AVOIDING_DYNAMIC"
+        elif inside_dynamic_layer:
+            status_value = "INSIDE_DYNAMIC_ZONE"
         elif is_rejoining:
             status_value = "REJOIN"
         else:
@@ -3570,10 +3654,11 @@ class DwaPlannerNode(Node):
 
         # 진단 로그
         dynamic_diag = ""
-        if dynamic_blocked or is_dynamic_avoiding:
+        if dynamic_blocked or is_dynamic_avoiding or inside_dynamic_layer:
             dynamic_diag = (
                 f"{' dyn=1' if is_dynamic_avoiding else ''}"
                 f"{' dynblk=1' if dynamic_blocked else ''}"
+                f"{' dyninside=1' if inside_dynamic_layer else ''}"
                 f" dyn_d={ctx.get('dynamic_block_distance', float('inf')):.2f}"
                 f" dyn_side={ctx.get('dynamic_avoid_side', 0):+d}"
                 f" dyn_off={ctx.get('dynamic_avoid_offset', 0.0):.2f}"
@@ -3591,6 +3676,8 @@ class DwaPlannerNode(Node):
                 f" dyn_clusters={ctx.get('dynamic_cluster_count', 0)}"
                 f" dyn_tracks={ctx.get('dynamic_track_count', 0)}"
                 f" dyn_layer={ctx.get('dynamic_layer_block_count', 0)}"
+                f" dyn_in_margin={ctx.get('inside_dynamic_margin', float('inf')):.2f}"
+                f" dyn_in_block={ctx.get('inside_dynamic_block_id', -1)}"
                 f" dyn_static={ctx.get('dynamic_static_filtered', 0)}"
             )
         self._candidate_log_counter += 1

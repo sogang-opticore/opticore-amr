@@ -18,6 +18,18 @@ def _bind(node, *names):
         setattr(node, name, getattr(AstarPlanner, name).__get__(node))
 
 
+class _FakeLogger:
+    def __init__(self):
+        self.warns = []
+        self.infos = []
+
+    def warn(self, msg, **_kwargs):
+        self.warns.append(msg)
+
+    def info(self, msg, **_kwargs):
+        self.infos.append(msg)
+
+
 class TestAstarClearanceCost:
     def test_clearance_cost_penalizes_wall_edge_cells(self):
         node = types.SimpleNamespace()
@@ -146,6 +158,52 @@ class TestAstarDynamicLayerOverlay:
         _bind(node, "_is_free_cell", "_segment_is_free", "_path_is_still_free")
 
         assert node._path_is_still_free([(1, 0), (1, 2), (1, 4)]) is False
+
+    def test_dynamic_start_escape_carves_only_static_free_corridor(self):
+        node = types.SimpleNamespace()
+        node.static_inflated_grid = np.zeros((7, 7), dtype=np.uint8)
+        node.dynamic_layer_mask = np.zeros((7, 7), dtype=bool)
+        node.dynamic_layer_mask[3, 3] = True
+        node.dynamic_layer_mask[3, 4] = True
+        node.dynamic_layer_mask[2, 3] = True
+        node.inflated_grid = node.static_inflated_grid.copy()
+        node.inflated_grid[node.dynamic_layer_mask] = 1
+        node.clearance_grid = np.ones((7, 7), dtype=np.float32)
+        node.preferred_clearance = 1.0
+        node.dynamic_layer_active_cells = 3
+        node.dynamic_layer_start_escape_enabled = True
+        node.dynamic_layer_start_escape_search_radius = 3.0
+        node.dynamic_layer_start_escape_corridor_radius = 0.0
+        node.dynamic_layer_start_escape_min_clearance = 0.60
+        node.map_data = types.SimpleNamespace(
+            info=types.SimpleNamespace(resolution=1.0)
+        )
+        node.logger = _FakeLogger()
+        node.get_logger = lambda: node.logger
+        _bind(
+            node,
+            "_clearance_at_cell",
+            "_is_static_free_cell",
+            "_is_dynamic_layer_cell",
+            "_dynamic_start_escape_required",
+            "_find_dynamic_start_escape_path",
+            "_apply_dynamic_start_escape_grid",
+        )
+
+        escape_path = node._find_dynamic_start_escape_path((3, 3), (3, 6))
+
+        assert escape_path is not None
+        assert escape_path[0] == (3, 3)
+        assert node._is_dynamic_layer_cell(escape_path[-1]) is False
+        assert node._apply_dynamic_start_escape_grid((3, 3), (3, 6)) is True
+        for cell in escape_path:
+            assert node.inflated_grid[cell] == 0
+
+        unrelated_dynamic = next(
+            cell for cell in [(3, 4), (2, 3)]
+            if cell not in escape_path
+        )
+        assert node.inflated_grid[unrelated_dynamic] == 1
 
 
 class TestAstarSnap:
