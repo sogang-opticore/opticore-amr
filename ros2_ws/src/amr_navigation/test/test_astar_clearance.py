@@ -7,6 +7,7 @@ import numpy as np
 from amr_navigation.astar_node import (
     AstarPlanner,
     clearance_preference_cost,
+    overlay_dynamic_occupancy,
     safety_hysteresis_should_retain_previous,
     status_allows_path_hysteresis,
 )
@@ -120,6 +121,31 @@ class TestAstarNeighbors:
         neighbors = node._get_neighbors((1, 1))
 
         assert (2, 2) not in neighbors
+
+
+class TestAstarDynamicLayerOverlay:
+    def test_dynamic_layer_marks_cells_blocked_without_mutating_static_grid(self):
+        static = np.zeros((3, 4), dtype=np.uint8)
+        dynamic = [
+            0, 0, 0, 0,
+            0, 0, 100, 0,
+            0, 0, 0, 0,
+        ]
+
+        combined, active = overlay_dynamic_occupancy(
+            static, dynamic, occupied_threshold=65)
+
+        assert active == 1
+        assert combined[1, 2] == 1
+        assert static[1, 2] == 0
+
+    def test_path_still_free_rejects_dynamic_overlay_cell(self):
+        node = types.SimpleNamespace()
+        node.inflated_grid = np.zeros((3, 5), dtype=np.uint8)
+        node.inflated_grid[1, 2] = 1
+        _bind(node, "_is_free_cell", "_segment_is_free", "_path_is_still_free")
+
+        assert node._path_is_still_free([(1, 0), (1, 2), (1, 4)]) is False
 
 
 class TestAstarSnap:

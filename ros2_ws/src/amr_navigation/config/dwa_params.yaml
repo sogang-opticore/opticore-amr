@@ -307,6 +307,21 @@ dwa_planner:
     dynamic_approach_reverse_clearance: 0.80
     dynamic_approach_reverse_speed: 0.16
     dynamic_approach_turn_speed: 0.45
+    dynamic_layer_enabled: true
+    dynamic_layer_prefer_global_replan: true
+    dynamic_layer_topic: "/dynamic_obstacle_layer"
+    dynamic_layer_publish_period: 0.50
+    dynamic_layer_ttl_sec: 300.0
+    dynamic_layer_min_hold_sec: 5.0
+    dynamic_layer_clear_confirm_sec: 2.0
+    dynamic_layer_radius_margin: 0.55
+    dynamic_layer_min_radius: 0.45
+    dynamic_layer_max_radius: 1.25
+    dynamic_layer_observation_range: 6.0
+    dynamic_layer_clear_range: 7.0
+    dynamic_layer_prediction_horizon: 2.0
+    dynamic_layer_prediction_max_distance: 1.50
+    dynamic_layer_occupied_value: 100
 
     # ----- 진단 로그 throttle (s) -----
     # 0 = 비활성. control_rate=20Hz 기준 1.0s = 1초당 1회.

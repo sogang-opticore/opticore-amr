@@ -55,6 +55,7 @@
 |---|---|---|---|---|---|
 | `/goal_pose` | `geometry_msgs/PoseStamped` | RViz2 / BT / 사용자 | **A\***, DWA | Reliable, depth 1 | frame_id = `map`. DWA는 새 goal edge 확인용으로만 구독하며 반복 goal은 dedup |
 | `/map` | `nav_msgs/OccupancyGrid` | slam_toolbox | **A\***, DWA | Reliable, depth 1, **TRANSIENT_LOCAL** | frame_id = `map`, latched. DWA는 동적 장애물 판정에서 static wall LiDAR 점을 제외하는 데 사용 |
+| `/dynamic_obstacle_layer` | `nav_msgs/OccupancyGrid` | DWA | **A\*** | Reliable, depth 1, **TRANSIENT_LOCAL** | LiDAR로 관찰한 동적 장애물을 임시 점유 영역으로 표시하는 overlay. A\*는 `/map` inflation 위에 합성해 우회 경로를 만든다 |
 | `/dwa/status` | `std_msgs/String` | DWA | **A\*** | Reliable, depth 10 | 경로 재계획 이벤트 입력 (`EMERGENCY`/`PATH_LOST`/`RECOVERY_DONE` 등) |
 | `/global_path` | `nav_msgs/Path` | A\* | **DWA** | Reliable, depth 1, **TRANSIENT_LOCAL** | frame_id = `map`, latched |
 | `/odometry/filtered` | `nav_msgs/Odometry` | EKF (robot_localization) | DWA (1순위) | Reliable | frame_id = `odom_filtered` |
@@ -71,6 +72,7 @@
 | `/dwa/trajectories` | `visualization_msgs/MarkerArray` | DWA | 5 Hz | Reliable | 후보 trajectory 시각화 (Foxglove) |
 | `/dwa/best_trajectory` | `visualization_msgs/Marker` | DWA | 5 Hz | Reliable | 선택된 trajectory 강조 |
 | `/dwa/status` | `std_msgs/String` | DWA | 1 Hz + edge 이벤트 | Reliable | 상태 문자열 — 상세는 §3.3 (`NORMAL`/`ALIGN`/`REJOIN`/`AVOIDING_DYNAMIC`/`DYNAMIC_BLOCKED`/`RECOVERY`/`EMERGENCY`/`PATH_LOST`/`REACHED` 등) |
+| `/dynamic_obstacle_layer` | `nav_msgs/OccupancyGrid` | DWA | 0.5 s 기본, 변경/해제 시 | Reliable, depth 1, TRANSIENT_LOCAL | A\*가 static map에 overlay하는 임시 no-go layer |
 
 > ★ **`/cmd_vel`은 DWA만 발행한다.** A\*은 경로만 만들고 운동 명령은 만들지 않는다. 이중 발행자가 생기면 Twist가 충돌하므로 절대 금지.
 
@@ -160,7 +162,7 @@ angular:
 | `STOPPED` | odom 수신 완료, 그러나 `/global_path` 없음 또는 빈 path (계획 실패) |
 | `NORMAL` | path 수신 완료, Pure Pursuit 정상 추종 루프 실행 중 (코드가 발행하는 실제 값; 구 문서 `PLANNING`) |
 | `REJOIN` | path 이탈 상태. 가장 가까운 점 대신 미래 path 후보를 골라 작은 조향각으로 재합류 중 |
-| `DYNAMIC_BLOCKED` | LiDAR 동적 장애물이 global path corridor를 막고 있으며 side-lane/close-sidestep 후보가 모두 안전하지 않음 |
+| `DYNAMIC_BLOCKED` | LiDAR 동적 장애물이 global path corridor를 막고 있으며, 기본값에서는 dynamic layer 기반 A\* 우회 재계획을 기다림 |
 | `APPROACHING_DYNAMIC` | 추적된 동적 장애물의 CPA/closing speed가 위험해 정지, 짧은 후퇴, 또는 제자리 회피 회전을 우선 |
 | `CROSSING_DYNAMIC` | 동적 장애물이 움직이며 path를 가로지르는 중으로 판단되어 우회보다 감속 대기를 우선 |
 | `RECEDING_DYNAMIC` | 동적 장애물이 로봇/경로에서 멀어지는 중으로 판단되어 path가 clear될 때까지 감속 대기 |
@@ -280,6 +282,13 @@ angular:
 | `dynamic_approach_reverse_enabled` | true | 접근 동적 장애물에서 후방 LiDAR 여유가 충분하면 짧은 후퇴 허용 |
 | `dynamic_approach_reverse_clearance` | 0.80 m | 접근 장애물 후퇴에 필요한 후방 clearance |
 | `dynamic_approach_reverse_speed` | 0.16 m/s | 접근 장애물 후퇴 속도. 일반 recovery 후진이 아니라 접근 위험 전용 짧은 escape |
+| `dynamic_layer_enabled` | true | 동적 장애물을 `/dynamic_obstacle_layer` 임시 점유 grid로 발행 |
+| `dynamic_layer_prefer_global_replan` | true | 동적 layer block이 있을 때 DWA 즉석 우회/접근 escape보다 A\* 우회 재계획을 우선 |
+| `dynamic_layer_ttl_sec` | 300.0 s | 한 번 관찰한 동적 장애물 영역을 임시 no-go로 유지할 최대 시간 |
+| `dynamic_layer_min_hold_sec` | 5.0 s | 사라진 것처럼 보여도 최소 이 시간 동안은 block 유지 |
+| `dynamic_layer_clear_confirm_sec` | 2.0 s | block 위치가 다시 관찰 가능하고 비어 있음을 확인해야 해제하는 시간 |
+| `dynamic_layer_radius_margin` | 0.55 m | 관찰 반경에 로봇 반경/안전 여유를 더해 점유 영역을 확장 |
+| `dynamic_layer_prediction_horizon` | 2.0 s | 움직이는 track의 속도 방향으로 추가 점유 capsule을 예측할 시간 |
 | `align_release_angle` | 0.70 rad | ALIGN 중 안전하면 15도까지 기다리지 않고 NORMAL로 조기 복귀 |
 | `rejoin_align_release_angle` | 0.95 rad | REJOIN 중 안전하면 더 이른 각도에서 path 추종으로 복귀 |
 | `align_drive_angle` | 1.57 rad | ALIGN 중 전방 여유가 있으면 저속 turn-in-motion 허용 각도 |
@@ -339,8 +348,11 @@ angular:
 | `replan_period` | 1.0 s | 0이면 goal 입력 시에만 1회, > 0이면 주기적 재계획 |
 | `dwa_status_topic` | `"/dwa/status"` | A\*가 이벤트 재계획 판단에 쓰는 DWA 상태 토픽 |
 | `status_replan_cooldown` | 2.0 s | 상태 이벤트 재계획 최소 간격 |
-| `status_replan_states` | `["EMERGENCY", "PATH_LOST", "RECOVERY_DONE", "STOPPED_NEAR_WALL"]` | 수신 즉시 현재 pose 기준 A\* 재계획 |
+| `status_replan_states` | `["EMERGENCY", "PATH_LOST", "RECOVERY_DONE", "STOPPED_NEAR_WALL", "DYNAMIC_BLOCKED", "APPROACHING_DYNAMIC", ...]` | 수신 즉시 현재 pose 기준 A\* 재계획. 동적 상태는 `/dynamic_obstacle_layer` overlay를 반영한 우회 경로 생성을 유도 |
 | `status_replan_after_states` | `["FORWARD_ONLY", "RECOVERY"]` | fallback: 이 상태 뒤 reset 상태가 오면 1회 재계획 |
+| `dynamic_layer_enabled` | true | DWA가 발행한 `/dynamic_obstacle_layer`를 static inflated grid 위에 합성 |
+| `dynamic_layer_occupied_threshold` | 65 | dynamic layer cell을 점유로 볼 최소 OccupancyGrid 값 |
+| `dynamic_layer_timeout_sec` | 3.0 s | 이 시간보다 오래된 dynamic layer는 stale로 보고 overlay 무시 |
 | `path_switch_hysteresis` | 0.35 m | 새 주기 재계획 후보가 이만큼 짧지 않으면 기존 path 유지 |
 | `path_switch_max_start_offset` | 0.80 m | 현재 pose가 기존 path에서 이 이상 멀면 hysteresis 해제 |
 | `path_hysteresis_stable_states` | `["NORMAL", "ALIGN", "AVOIDING_DYNAMIC", "DYNAMIC_BLOCKED", "APPROACHING_DYNAMIC", "CROSSING_DYNAMIC", "RECEDING_DYNAMIC", "STOPPED_DYNAMIC"]` | 이 DWA 상태에서만 기존 path 유지 hysteresis 적용. REJOIN/복구/벽 정지 중에는 새 후보 수용성 우선 |
@@ -364,7 +376,7 @@ angular:
 | goal 도달 불가 (장애물로 막힘) | 빈 path 발행 | 정지 |
 | DWA가 `EMERGENCY`/`PATH_LOST`/`RECOVERY_DONE` 발행 | 현재 pose 기준 1회 재계획. 실패해도 기존 성공 path가 있으면 빈 path 미발행 | 새 path 수신 시 추종 재개 |
 | DWA가 `NORMAL`/`ALIGN`으로 정상 추종 중 | 기본값에서는 재계획 없음. 기존 latched path 유지 | path 초입 재정렬 반복 방지 |
-| DWA가 `AVOIDING_DYNAMIC`/동적 motion 상태를 발행 | static map 기반 global path는 유지하되 hysteresis로 branch 흔들림을 줄임 | LiDAR corridor 차단 후 cluster/track 속도를 추정한다. 정지 장애물은 우회, crossing/receding은 감속 대기, approaching은 짧은 후퇴 또는 측방 escape를 우선한다 |
+| DWA가 `DYNAMIC_BLOCKED`/동적 motion 상태를 발행 | `/dynamic_obstacle_layer`를 static inflated grid 위에 overlay한 뒤 현재 pose 기준 재계획한다. layer block이 있으면 해당 영역을 임시 no-go로 보고 우회 경로를 찾는다 | 기본값에서는 즉석 side bypass보다 전역 우회 재계획을 우선한다. 새 path가 오기 전까지는 감속/정지 상태를 유지한다 |
 | 주기 재계획 실패 + 기존 성공 path 있음 | 빈 path 미발행, 기존 path 유지 | 기존 path 계속 추종 |
 | `/global_path` empty 수신(새 goal 직후) | — | 즉시 정지, `status="STOPPED"` |
 | `/global_path` empty 수신(새 goal 없음 + 기존 path 있음) | — | stale/중복 publisher 가능성으로 보고 기존 path 유지 |
@@ -473,7 +485,7 @@ ros2 topic pub --once /global_path nav_msgs/msg/Path \
 
 ## 10. 미해결 / 미확정 사항 (Week 2 진입 후 확정)
 
-- [ ] A\* 재계획 트리거 정책: 동적 장애물 발견 시 자동 재계획? 일정 주기 강제?
+- [x] A\* 재계획 트리거 정책: 동적 장애물 상태 수신 시 `/dynamic_obstacle_layer` overlay 기반 자동 재계획
 - [ ] `/global_path` 너무 길 때 (> 500 points) DWA의 lookahead 정책
 - [ ] A\* 실패(경로 못 찾음) 시 발행 형식: 빈 Path? 별도 status 토픽?
 - [ ] `alpha_max` 실측값 (시뮬레이션 step response 측정 후 갱신)
@@ -496,5 +508,6 @@ ros2 topic pub --once /global_path nav_msgs/msg/Path \
 
 | 일자 | 변경 | 작성자 | 리뷰 |
 |---|---|---|---|
+| 2026-05-31 | DWA 동적 장애물 layer(`/dynamic_obstacle_layer`)와 A\* overlay 합성 계약 추가. 동적 장애물은 기본적으로 임시 no-go 영역으로 보고 A\* 전역 우회 재계획을 우선한다 | Codex | RunPod 주행 검증 필요 |
 | 2026-05-10 | 초안 작성 — Nav2 기반 → 직접 구현으로 정정, 토픽 계약 추가, `v_max=2.0` 명세 반영 | SW(지상원) | — |
 | 2026-05-15 | **N-0 작업 (디스코드 `#navigation`) 반영** — A\* Python 확정, stamp 정책 §3.4 신설, QoS 프로파일 명시, 잠정 결정 표시 강화, `/goal_pose` 스펙 §3.0 추가, 통합 검증 명령 §8 추가 | SW(지상원) | HU(양현욱) 리뷰 OK |

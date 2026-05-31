@@ -212,6 +212,20 @@ def status_allows_path_hysteresis(
     return status is None or status in stable_statuses
 
 
+def overlay_dynamic_occupancy(
+    static_inflated_grid: np.ndarray,
+    dynamic_values,
+    occupied_threshold: int,
+) -> tuple[np.ndarray, int]:
+    """Return static inflated grid with dynamic occupied cells painted in."""
+    dynamic = np.asarray(dynamic_values, dtype=np.int16).reshape(
+        static_inflated_grid.shape)
+    mask = dynamic >= max(1, min(100, int(occupied_threshold)))
+    combined = static_inflated_grid.copy()
+    combined[mask] = 1
+    return combined, int(np.count_nonzero(mask))
+
+
 class AstarPlanner(Node):
 
     def __init__(self):
@@ -241,7 +255,9 @@ class AstarPlanner(Node):
         self.declare_parameter('status_replan_cooldown', 2.0)
         self.declare_parameter(
             'status_replan_states',
-            ['EMERGENCY', 'PATH_LOST', 'RECOVERY_DONE', 'STOPPED_NEAR_WALL'],
+            ['EMERGENCY', 'PATH_LOST', 'RECOVERY_DONE', 'STOPPED_NEAR_WALL',
+             'DYNAMIC_BLOCKED', 'APPROACHING_DYNAMIC', 'CROSSING_DYNAMIC',
+             'RECEDING_DYNAMIC', 'STOPPED_DYNAMIC', 'AVOIDING_DYNAMIC'],
         )
         self.declare_parameter('status_replan_after_states', ['FORWARD_ONLY', 'RECOVERY'])
         self.declare_parameter(
@@ -276,6 +292,10 @@ class AstarPlanner(Node):
         self.declare_parameter('new_goal_force_publish_sec', 5.0)  # s
         self.declare_parameter('goal_direct_distance', 2.0)  # m
         self.declare_parameter('goal_direct_min_clearance', 0.90)  # m
+        self.declare_parameter('dynamic_layer_enabled', True)
+        self.declare_parameter('dynamic_layer_topic', '/dynamic_obstacle_layer')
+        self.declare_parameter('dynamic_layer_occupied_threshold', 65)
+        self.declare_parameter('dynamic_layer_timeout_sec', 3.0)
 
         self.heuristic_type   = self.get_parameter('heuristic').value
         self.allow_diagonal   = self.get_parameter('allow_diagonal').value
@@ -321,11 +341,21 @@ class AstarPlanner(Node):
         self.goal_direct_distance = self.get_parameter('goal_direct_distance').value
         self.goal_direct_min_clearance = self.get_parameter(
             'goal_direct_min_clearance').value
+        self.dynamic_layer_enabled = self.get_parameter(
+            'dynamic_layer_enabled').value
+        self.dynamic_layer_topic = self.get_parameter('dynamic_layer_topic').value
+        self.dynamic_layer_occupied_threshold = self.get_parameter(
+            'dynamic_layer_occupied_threshold').value
+        self.dynamic_layer_timeout_sec = self.get_parameter(
+            'dynamic_layer_timeout_sec').value
 
         # ── 내부 상태 ──────────────────────────────────────────────
         self.map_data: OccupancyGrid | None = None
+        self.static_inflated_grid: np.ndarray | None = None
         self.inflated_grid: np.ndarray | None = None
         self.clearance_grid: np.ndarray | None = None
+        self.dynamic_layer: OccupancyGrid | None = None
+        self.dynamic_layer_active_cells = 0
         self.goal: PoseStamped | None = None
         self._last_goal_xy: tuple[float, float] | None = None  # P1 dedup (2026-05-31)
         self._last_goal_yaw: float | None = None               # P1 dedup yaw (리뷰 반영)
@@ -352,6 +382,10 @@ class AstarPlanner(Node):
         # ── 구독 ───────────────────────────────────────────────────
         self.map_sub = self.create_subscription(
             OccupancyGrid, '/map', self._map_callback, map_qos,
+        )
+        self.dynamic_layer_sub = self.create_subscription(
+            OccupancyGrid, self.dynamic_layer_topic,
+            self._dynamic_layer_callback, map_qos,
         )
         self.goal_sub = self.create_subscription(
             PoseStamped, '/goal_pose', self._goal_callback, 10,
@@ -433,6 +467,7 @@ class AstarPlanner(Node):
         # 그렇지 않으면 새 path 가 self._reached 를 False 로 리셋하고 다시 추종 시작.
         # 단, 주기 재계획 실패가 기존 성공 path 를 빈 path 로 덮어쓰면
         # DWA status 가 STOPPED/NORMAL 로 출렁이므로 성공 캐시가 있을 때는 보존한다.
+        self._rebuild_planning_grid()
         start_world = self._get_robot_position()
         if start_world is None:
             if self._has_valid_path_for_goal:
@@ -470,11 +505,67 @@ class AstarPlanner(Node):
         맵이 바뀔 때마다 재빌드됨 (slam_toolbox가 계속 업데이트).
         """
         self.map_data = msg
-        self.inflated_grid = self._build_inflated_grid(msg)
+        self.static_inflated_grid = self._build_inflated_grid(msg)
+        self._rebuild_planning_grid()
         self.get_logger().info(
             f'맵 수신: {msg.info.width}×{msg.info.height}, '
             f'해상도={msg.info.resolution:.3f} m/cell'
         )
+
+    def _dynamic_layer_callback(self, msg: OccupancyGrid):
+        """DWA dynamic obstacle layer overlay."""
+        if not self.dynamic_layer_enabled:
+            return
+        self.dynamic_layer = msg
+        self._rebuild_planning_grid()
+        if self.dynamic_layer_active_cells > 0:
+            self.get_logger().warn(
+                'dynamic obstacle layer overlay active: '
+                f'{self.dynamic_layer_active_cells} cells',
+                throttle_duration_sec=2.0)
+
+    def _dynamic_layer_is_usable(self, msg: OccupancyGrid) -> bool:
+        if self.map_data is None:
+            return False
+        if msg.info.width != self.map_data.info.width:
+            return False
+        if msg.info.height != self.map_data.info.height:
+            return False
+        if abs(msg.info.resolution - self.map_data.info.resolution) > 1e-6:
+            return False
+        timeout = float(self.dynamic_layer_timeout_sec)
+        if timeout <= 0.0:
+            return True
+        stamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        if stamp <= 0.0:
+            return True
+        return self._sec_now() <= stamp + timeout
+
+    def _rebuild_planning_grid(self) -> None:
+        if self.static_inflated_grid is None:
+            self.inflated_grid = None
+            self.dynamic_layer_active_cells = 0
+            return
+
+        self.inflated_grid = self.static_inflated_grid.copy()
+        self.dynamic_layer_active_cells = 0
+        if (not self.dynamic_layer_enabled or self.dynamic_layer is None or
+                not self._dynamic_layer_is_usable(self.dynamic_layer)):
+            return
+
+        try:
+            self.inflated_grid, self.dynamic_layer_active_cells = (
+                overlay_dynamic_occupancy(
+                    self.static_inflated_grid,
+                    self.dynamic_layer.data,
+                    self.dynamic_layer_occupied_threshold,
+                )
+            )
+        except ValueError:
+            self.dynamic_layer_active_cells = 0
+            self.get_logger().warn(
+                'dynamic obstacle layer size mismatch; overlay ignored',
+                throttle_duration_sec=2.0)
 
     def _goal_callback(self, msg: PoseStamped):
         """
@@ -542,6 +633,7 @@ class AstarPlanner(Node):
         clear_on_failure=False 이면 기존 성공 경로가 있을 때 빈 Path를 발행하지 않는다.
         주기 재계획의 일시적 실패가 DWA의 정상 추종을 STOPPED로 흔드는 것을 막기 위함이다.
         """
+        self._rebuild_planning_grid()
         # 현재 로봇 위치 TF lookup (base_footprint → map)
         start_world = self._get_robot_position()
         if start_world is None:

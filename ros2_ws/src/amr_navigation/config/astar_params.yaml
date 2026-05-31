@@ -63,7 +63,7 @@ astar_planner:
     # 벽에 붙은 기존 path를 recovery 전부터 교체할 기회를 준다.
     dwa_status_topic: "/dwa/status"
     status_replan_cooldown: 2.0
-    status_replan_states: ["EMERGENCY", "PATH_LOST", "RECOVERY_DONE", "STOPPED_NEAR_WALL"]
+    status_replan_states: ["EMERGENCY", "PATH_LOST", "RECOVERY_DONE", "STOPPED_NEAR_WALL", "DYNAMIC_BLOCKED", "APPROACHING_DYNAMIC", "CROSSING_DYNAMIC", "RECEDING_DYNAMIC", "STOPPED_DYNAMIC", "AVOIDING_DYNAMIC"]
     status_replan_after_states: ["FORWARD_ONLY", "RECOVERY"]
     status_replan_reset_states: ["NORMAL", "ALIGN", "STOPPED", "REACHED", "GOAL_REACHED"]
 
@@ -107,6 +107,10 @@ astar_planner:
     # goal까지 직선 final approach path를 발행해 목표 주변 배회를 줄인다.
     goal_direct_distance: 2.0
     goal_direct_min_clearance: 0.90
+    dynamic_layer_enabled: true
+    dynamic_layer_topic: "/dynamic_obstacle_layer"
+    dynamic_layer_occupied_threshold: 65
+    dynamic_layer_timeout_sec: 3.0
 
     # 시뮬레이션 시간 사용 (Ignition Gazebo 필수)
     use_sim_time: true

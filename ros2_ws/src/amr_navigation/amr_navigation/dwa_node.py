@@ -178,6 +178,21 @@ class DynamicMotionEstimate:
 
 
 @dataclass
+class DynamicObstacleMapBlock:
+    """Map-frame temporary no-go area made from dynamic obstacle tracks."""
+    block_id: int
+    x: float
+    y: float
+    radius: float
+    vx: float
+    vy: float
+    first_seen: float
+    last_seen: float
+    expire_at: float
+    clear_since: Optional[float] = None
+
+
+@dataclass
 class DynamicAvoidTarget:
     """Temporary local bypass target used while the static global path is blocked."""
     point: Tuple[float, float]
@@ -1665,6 +1680,21 @@ class DwaPlannerNode(Node):
         self.declare_parameter("dynamic_approach_reverse_clearance", 0.80)
         self.declare_parameter("dynamic_approach_reverse_speed", 0.16)
         self.declare_parameter("dynamic_approach_turn_speed", 0.45)
+        self.declare_parameter("dynamic_layer_enabled", True)
+        self.declare_parameter("dynamic_layer_prefer_global_replan", True)
+        self.declare_parameter("dynamic_layer_topic", "/dynamic_obstacle_layer")
+        self.declare_parameter("dynamic_layer_publish_period", 0.50)
+        self.declare_parameter("dynamic_layer_ttl_sec", 300.0)
+        self.declare_parameter("dynamic_layer_min_hold_sec", 5.0)
+        self.declare_parameter("dynamic_layer_clear_confirm_sec", 2.0)
+        self.declare_parameter("dynamic_layer_radius_margin", 0.55)
+        self.declare_parameter("dynamic_layer_min_radius", 0.45)
+        self.declare_parameter("dynamic_layer_max_radius", 1.25)
+        self.declare_parameter("dynamic_layer_observation_range", 6.0)
+        self.declare_parameter("dynamic_layer_clear_range", 7.0)
+        self.declare_parameter("dynamic_layer_prediction_horizon", 2.0)
+        self.declare_parameter("dynamic_layer_prediction_max_distance", 1.50)
+        self.declare_parameter("dynamic_layer_occupied_value", 100)
         self.declare_parameter("rejoin_predicted_exit_offset", 0.42)
         self.declare_parameter("rejoin_align_angle_thresh", 1.75)
         self.declare_parameter("short_lookahead_rejoin_min_distance", 0.35)
@@ -1768,6 +1798,10 @@ class DwaPlannerNode(Node):
         self._dynamic_avoid_until = 0.0
         self._dynamic_tracks: dict[int, DynamicObstacleTrack] = {}
         self._next_dynamic_track_id = 1
+        self._dynamic_layer_blocks: dict[int, DynamicObstacleMapBlock] = {}
+        self._next_dynamic_layer_block_id = 1
+        self._last_dynamic_layer_publish_time = -float("inf")
+        self._last_dynamic_layer_active = False
 
         # ALIGN 전용
         self._in_align_mode = False      # 하위 호환 (path 콜백에서 리셋)
@@ -1830,6 +1864,8 @@ class DwaPlannerNode(Node):
         self._traj_pub = self.create_publisher(MarkerArray, "/dwa/trajectories", 10)
         self._best_pub = self.create_publisher(Marker, "/dwa/best_trajectory", 10)
         self._status_pub = self.create_publisher(String, "/dwa/status", 10)
+        self._dynamic_layer_pub = self.create_publisher(
+            OccupancyGrid, self.p_dynamic_layer_topic, map_qos)
 
         # ── 타이머 ───────────────────────────────────────────────────
         period = 1.0 / max(self.p_control_rate, 1.0)
@@ -1954,6 +1990,30 @@ class DwaPlannerNode(Node):
             "dynamic_approach_reverse_speed").value
         self.p_dynamic_approach_turn_speed = gp(
             "dynamic_approach_turn_speed").value
+        self.p_dynamic_layer_enabled = gp("dynamic_layer_enabled").value
+        self.p_dynamic_layer_prefer_global_replan = gp(
+            "dynamic_layer_prefer_global_replan").value
+        self.p_dynamic_layer_topic = gp("dynamic_layer_topic").value
+        self.p_dynamic_layer_publish_period = gp(
+            "dynamic_layer_publish_period").value
+        self.p_dynamic_layer_ttl_sec = gp("dynamic_layer_ttl_sec").value
+        self.p_dynamic_layer_min_hold_sec = gp(
+            "dynamic_layer_min_hold_sec").value
+        self.p_dynamic_layer_clear_confirm_sec = gp(
+            "dynamic_layer_clear_confirm_sec").value
+        self.p_dynamic_layer_radius_margin = gp(
+            "dynamic_layer_radius_margin").value
+        self.p_dynamic_layer_min_radius = gp("dynamic_layer_min_radius").value
+        self.p_dynamic_layer_max_radius = gp("dynamic_layer_max_radius").value
+        self.p_dynamic_layer_observation_range = gp(
+            "dynamic_layer_observation_range").value
+        self.p_dynamic_layer_clear_range = gp("dynamic_layer_clear_range").value
+        self.p_dynamic_layer_prediction_horizon = gp(
+            "dynamic_layer_prediction_horizon").value
+        self.p_dynamic_layer_prediction_max_distance = gp(
+            "dynamic_layer_prediction_max_distance").value
+        self.p_dynamic_layer_occupied_value = gp(
+            "dynamic_layer_occupied_value").value
         self.p_rejoin_predicted_exit_offset = gp(
             "rejoin_predicted_exit_offset").value
         self.p_rejoin_align_angle_thresh = gp("rejoin_align_angle_thresh").value
@@ -2334,6 +2394,19 @@ class DwaPlannerNode(Node):
         return (tx + cos_t * x - sin_t * y,
                 ty + sin_t * x + cos_t * y)
 
+    @staticmethod
+    def _inverse_transform_xy(
+        xy: Tuple[float, float],
+        transform_xy_yaw: Tuple[float, float, float],
+    ) -> Tuple[float, float]:
+        tx, ty, yaw = transform_xy_yaw
+        dx = xy[0] - tx
+        dy = xy[1] - ty
+        cos_t = math.cos(-yaw)
+        sin_t = math.sin(-yaw)
+        return (cos_t * dx - sin_t * dy,
+                sin_t * dx + cos_t * dy)
+
     def _filter_static_obstacles_for_dynamic(
         self,
         obstacles_local: List[Tuple[float, float]],
@@ -2506,6 +2579,255 @@ class DwaPlannerNode(Node):
             estimate.side = best_side
         return estimate
 
+    def _dynamic_layer_radius(self, observed_radius: float) -> float:
+        radius = (
+            max(0.0, observed_radius)
+            + max(0.0, self.p_robot_radius)
+            + max(0.0, self.p_dynamic_layer_radius_margin)
+        )
+        return max(
+            self.p_dynamic_layer_min_radius,
+            min(self.p_dynamic_layer_max_radius, radius),
+        )
+
+    def _upsert_dynamic_layer_block(
+        self,
+        map_xy: Tuple[float, float],
+        radius: float,
+        velocity_map: Tuple[float, float],
+        now: float,
+    ) -> None:
+        best_id: Optional[int] = None
+        best_dist = float("inf")
+        for block_id, block in self._dynamic_layer_blocks.items():
+            dist = math.hypot(map_xy[0] - block.x, map_xy[1] - block.y)
+            gate = max(block.radius, radius) + 0.60
+            if dist < best_dist and dist <= gate:
+                best_dist = dist
+                best_id = block_id
+
+        expire_at = now + max(1.0, self.p_dynamic_layer_ttl_sec)
+        if best_id is None:
+            block_id = self._next_dynamic_layer_block_id
+            self._next_dynamic_layer_block_id += 1
+            self._dynamic_layer_blocks[block_id] = DynamicObstacleMapBlock(
+                block_id=block_id,
+                x=map_xy[0],
+                y=map_xy[1],
+                radius=radius,
+                vx=velocity_map[0],
+                vy=velocity_map[1],
+                first_seen=now,
+                last_seen=now,
+                expire_at=expire_at,
+            )
+            return
+
+        block = self._dynamic_layer_blocks[best_id]
+        alpha = 0.60
+        block.x = (1.0 - alpha) * block.x + alpha * map_xy[0]
+        block.y = (1.0 - alpha) * block.y + alpha * map_xy[1]
+        block.radius = max(block.radius, radius)
+        block.vx = (1.0 - alpha) * block.vx + alpha * velocity_map[0]
+        block.vy = (1.0 - alpha) * block.vy + alpha * velocity_map[1]
+        block.last_seen = now
+        block.expire_at = expire_at
+        block.clear_since = None
+
+    def _dynamic_layer_block_visible(
+        self,
+        block: DynamicObstacleMapBlock,
+        map_to_local_transform: Tuple[float, float, float],
+    ) -> bool:
+        if self._state is None:
+            return False
+        odom_xy = self._inverse_transform_xy((block.x, block.y), map_to_local_transform)
+        local_xy = world_to_local(odom_xy, self._state)
+        if math.hypot(local_xy[0], local_xy[1]) > self.p_dynamic_layer_clear_range:
+            return False
+        if local_xy[0] < -0.75:
+            return False
+        return True
+
+    def _update_dynamic_obstacle_layer(
+        self,
+        tracks: List[DynamicObstacleTrack],
+    ) -> int:
+        if (not self.p_dynamic_layer_enabled or self._static_map is None or
+                self._state is None):
+            return len(self._dynamic_layer_blocks)
+
+        transform = self._lookup_local_to_map_transform()
+        if transform is None:
+            return len(self._dynamic_layer_blocks)
+
+        now = self._sec_now()
+        observed_map_xy: List[Tuple[float, float]] = []
+        horizon = max(0.0, self.p_dynamic_layer_prediction_horizon)
+        max_prediction = max(0.0, self.p_dynamic_layer_prediction_max_distance)
+
+        for track in tracks:
+            local_xy = world_to_local((track.x, track.y), self._state)
+            if local_xy[0] < -0.50:
+                continue
+            if math.hypot(local_xy[0], local_xy[1]) > self.p_dynamic_layer_observation_range:
+                continue
+
+            center_map = self._transform_xy((track.x, track.y), transform)
+            observed_map_xy.append(center_map)
+            speed = math.hypot(track.vx, track.vy)
+            if speed > 1e-6 and horizon > 0.0 and max_prediction > 0.0:
+                travel = min(speed * horizon, max_prediction)
+                scale = travel / speed
+                end_map = self._transform_xy(
+                    (track.x + track.vx * scale,
+                     track.y + track.vy * scale),
+                    transform,
+                )
+                velocity_map = (
+                    (end_map[0] - center_map[0]) / max(horizon, 1e-3),
+                    (end_map[1] - center_map[1]) / max(horizon, 1e-3),
+                )
+            else:
+                velocity_map = (0.0, 0.0)
+
+            self._upsert_dynamic_layer_block(
+                center_map,
+                self._dynamic_layer_radius(track.radius),
+                velocity_map,
+                now,
+            )
+
+        stale: List[int] = []
+        min_hold = max(0.0, self.p_dynamic_layer_min_hold_sec)
+        clear_confirm = max(0.0, self.p_dynamic_layer_clear_confirm_sec)
+        for block_id, block in self._dynamic_layer_blocks.items():
+            if now >= block.expire_at:
+                stale.append(block_id)
+                continue
+
+            nearest_observed = min(
+                (math.hypot(block.x - x, block.y - y) for x, y in observed_map_xy),
+                default=float("inf"),
+            )
+            if nearest_observed <= block.radius + 0.35:
+                block.clear_since = None
+                continue
+
+            if now - block.first_seen < min_hold:
+                continue
+            if not self._dynamic_layer_block_visible(block, transform):
+                continue
+
+            if block.clear_since is None:
+                block.clear_since = now
+            elif now - block.clear_since >= clear_confirm:
+                stale.append(block_id)
+
+        for block_id in stale:
+            self._dynamic_layer_blocks.pop(block_id, None)
+
+        self._publish_dynamic_obstacle_layer()
+        return len(self._dynamic_layer_blocks)
+
+    def _paint_dynamic_layer_disc(
+        self,
+        data: List[int],
+        center: Tuple[float, float],
+        radius: float,
+        value: int,
+    ) -> None:
+        if self._static_map is None:
+            return
+        cell = occupancy_grid_world_to_cell(self._static_map, center)
+        if cell is None:
+            return
+        info = self._static_map.info
+        resolution = float(info.resolution)
+        if resolution <= 0.0:
+            return
+        width = int(info.width)
+        height = int(info.height)
+        col, row = cell
+        radius_cells = max(1, int(math.ceil(radius / resolution)))
+        for rr in range(max(0, row - radius_cells),
+                        min(height, row + radius_cells + 1)):
+            dy = (rr - row) * resolution
+            for cc in range(max(0, col - radius_cells),
+                            min(width, col + radius_cells + 1)):
+                dx = (cc - col) * resolution
+                if math.hypot(dx, dy) > radius + 0.5 * resolution:
+                    continue
+                data[rr * width + cc] = value
+
+    def _paint_dynamic_layer_segment(
+        self,
+        data: List[int],
+        start: Tuple[float, float],
+        end: Tuple[float, float],
+        radius: float,
+        value: int,
+    ) -> None:
+        if self._static_map is None:
+            return
+        resolution = max(0.01, float(self._static_map.info.resolution))
+        distance = math.hypot(end[0] - start[0], end[1] - start[1])
+        steps = max(1, int(math.ceil(distance / max(resolution, radius * 0.5))))
+        for i in range(steps + 1):
+            t = i / steps
+            point = (
+                start[0] + (end[0] - start[0]) * t,
+                start[1] + (end[1] - start[1]) * t,
+            )
+            self._paint_dynamic_layer_disc(data, point, radius, value)
+
+    def _publish_dynamic_obstacle_layer(self, force: bool = False) -> None:
+        if not self.p_dynamic_layer_enabled or self._static_map is None:
+            return
+
+        now = self._sec_now()
+        active = bool(self._dynamic_layer_blocks)
+        if not active and not self._last_dynamic_layer_active and not force:
+            return
+        publish_period = max(0.05, self.p_dynamic_layer_publish_period)
+        if (not force and active == self._last_dynamic_layer_active and
+                now - self._last_dynamic_layer_publish_time < publish_period):
+            return
+
+        msg = OccupancyGrid()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = self.GLOBAL_FRAME
+        msg.info = self._static_map.info
+        width = int(msg.info.width)
+        height = int(msg.info.height)
+        value = max(1, min(100, int(self.p_dynamic_layer_occupied_value)))
+        data = [0] * (width * height)
+        horizon = max(0.0, self.p_dynamic_layer_prediction_horizon)
+        max_prediction = max(0.0, self.p_dynamic_layer_prediction_max_distance)
+
+        for block in self._dynamic_layer_blocks.values():
+            speed = math.hypot(block.vx, block.vy)
+            travel = min(speed * horizon, max_prediction)
+            if travel > 0.05 and speed > 1e-6:
+                scale = travel / speed
+                end = (block.x + block.vx * scale, block.y + block.vy * scale)
+                self._paint_dynamic_layer_segment(
+                    data, (block.x, block.y), end, block.radius, value)
+            else:
+                self._paint_dynamic_layer_disc(
+                    data, (block.x, block.y), block.radius, value)
+
+        msg.data = data
+        self._dynamic_layer_pub.publish(msg)
+        self._last_dynamic_layer_publish_time = now
+        self._last_dynamic_layer_active = active
+        if active:
+            self.get_logger().warn(
+                "dynamic obstacle layer published "
+                f"(blocks={len(self._dynamic_layer_blocks)}, "
+                f"ttl={self.p_dynamic_layer_ttl_sec:.0f}s)",
+                throttle_duration_sec=2.0)
+
     def _compute_context(self) -> Optional[dict]:
         """경로 추종에 필요한 공통 값을 계산해 dict 로 반환.
 
@@ -2562,6 +2884,8 @@ class DwaPlannerNode(Node):
         dynamic_clusters: List[DynamicObstacleCluster] = []
         dynamic_tracks: List[DynamicObstacleTrack] = []
         dynamic_motion = DynamicMotionEstimate("UNKNOWN")
+        dynamic_layer_blocks = len(self._dynamic_layer_blocks)
+        dynamic_layer_prefer_global_replan = False
         rejoin_target: Optional[RejoinTarget] = None
         if rejoin_requested:
             rejoin_target = choose_rejoin_target(
@@ -2656,6 +2980,11 @@ class DwaPlannerNode(Node):
                 self.p_dynamic_track_max_radius,
             )
             dynamic_tracks = self._update_dynamic_tracks(dynamic_clusters)
+            dynamic_layer_blocks = self._update_dynamic_obstacle_layer(dynamic_tracks)
+            dynamic_layer_prefer_global_replan = (
+                bool(self.p_dynamic_layer_prefer_global_replan)
+                and dynamic_layer_blocks > 0
+            )
             dynamic_motion = self._select_dynamic_motion_estimate(
                 path_xy, self._state, projection, dynamic_tracks)
             dynamic_blockage = detect_path_corridor_blockage(
@@ -2678,7 +3007,8 @@ class DwaPlannerNode(Node):
                     0.0,
                     0.0,
                 )
-            if dynamic_blocked and dynamic_motion.state in ("STOPPED", "APPROACHING"):
+            if (dynamic_blocked and not dynamic_layer_prefer_global_replan and
+                    dynamic_motion.state in ("STOPPED", "APPROACHING")):
                 # 동적 장애물이 계속 막고 있는 동안에는 직전 우회 side를
                 # 유지한다. 한두 tick 후보가 사라졌다고 side를 잊으면
                 # DYNAMIC_BLOCKED 대기 상태에 쉽게 갇힌다.
@@ -2748,6 +3078,8 @@ class DwaPlannerNode(Node):
             "dynamic_static_filtered": dynamic_static_filtered,
             "dynamic_cluster_count": len(dynamic_clusters),
             "dynamic_track_count": len(dynamic_tracks),
+            "dynamic_layer_block_count": dynamic_layer_blocks,
+            "dynamic_layer_prefer_global_replan": dynamic_layer_prefer_global_replan,
             "dynamic_motion_state": dynamic_motion.state,
             "dynamic_motion_track_id": dynamic_motion.track_id,
             "dynamic_motion_distance": dynamic_motion.distance,
@@ -2879,8 +3211,10 @@ class DwaPlannerNode(Node):
         dw_brake_max = self.p_w_brake_alpha_max * period
 
         if dynamic_blocked and not is_dynamic_avoiding:
-            if dynamic_motion_state == "APPROACHING" and \
-                    self._execute_dynamic_approach_escape(ctx):
+            prefer_layer_replan = ctx.get("dynamic_layer_prefer_global_replan", False)
+            if (dynamic_motion_state == "APPROACHING" and
+                    not prefer_layer_replan and
+                    self._execute_dynamic_approach_escape(ctx)):
                 return
             status_value = self._dynamic_wait_nav_state(dynamic_motion_state).value
             self._relax_path_acceptance()
@@ -2889,7 +3223,7 @@ class DwaPlannerNode(Node):
             self._log_state_throttled()
             self.get_logger().warn(
                 "dynamic obstacle blocks global path corridor; waiting for "
-                "clearance or safer local bypass "
+                "dynamic layer replan or clearance "
                 f"(hits={ctx.get('dynamic_block_count', 0)}, "
                 f"d={ctx.get('dynamic_block_distance', float('inf')):.2f}m, "
                 f"bias={ctx.get('dynamic_block_side_bias', 0.0):+.2f}, "
@@ -2903,6 +3237,7 @@ class DwaPlannerNode(Node):
                 f"dyn_pts={ctx.get('dynamic_obstacle_count', 0)}, "
                 f"clusters={ctx.get('dynamic_cluster_count', 0)}, "
                 f"tracks={ctx.get('dynamic_track_count', 0)}, "
+                f"layer_blocks={ctx.get('dynamic_layer_block_count', 0)}, "
                 f"static_filtered={ctx.get('dynamic_static_filtered', 0)})",
                 throttle_duration_sec=1.0)
             return
@@ -3179,6 +3514,7 @@ class DwaPlannerNode(Node):
                 f" dyn_pts={ctx.get('dynamic_obstacle_count', 0)}"
                 f" dyn_clusters={ctx.get('dynamic_cluster_count', 0)}"
                 f" dyn_tracks={ctx.get('dynamic_track_count', 0)}"
+                f" dyn_layer={ctx.get('dynamic_layer_block_count', 0)}"
                 f" dyn_static={ctx.get('dynamic_static_filtered', 0)}"
             )
         self._candidate_log_counter += 1
