@@ -32,8 +32,8 @@ amcl:
     # 2026-05-25 (SW · 페어, DWA spiral 진단 3 차) 재확인:
     #   slam_toolbox 가 매핑 시작 시점 로봇 위치를 map frame (0, 0) 으로 잡음.
     #   매번 같은 world (3.0, 15.0) 에 스폰하면 → map frame 으로 (0, 0) 이 정답.
-    #   warehouse_map.yaml 의 origin: [-3.09, -15.3, 0] 은 매핑 결과 좌하단으로
-    #   3.09m / 15.3m 만큼 확장된 결과 (= map 픽셀 (0,0) 의 map frame 좌표).
+    #   warehouse_map.yaml 의 origin: [-3.05, -15.2, 0] 은 매핑 결과 좌하단으로
+    #   3.05m / 15.2m 만큼 확장된 결과 (= map 픽셀 (0,0) 의 map frame 좌표).
     #   world frame ≠ map frame — 두 frame 의 translation 차이는 매핑 시작 시
     #   로봇 위치(world (3,15))를 map frame 원점으로 잡았기 때문에 발생.
     #
