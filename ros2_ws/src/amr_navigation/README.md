@@ -363,6 +363,8 @@ angular:
 | `dynamic_layer_occupied_threshold` | 65 | dynamic layer cell을 점유로 볼 최소 OccupancyGrid 값 |
 | `dynamic_layer_timeout_sec` | 3.0 s | 이 시간보다 오래된 dynamic layer는 stale로 보고 overlay 무시 |
 | `dynamic_layer_start_escape_*` | enabled=true, search=3.0m, corridor=0.45m, min_clear=0.60m | start cell이 정적 맵에서는 free지만 dynamic layer 때문에 막힌 경우, 정적 장애물은 보존한 채 dynamic layer 안에서 가장 안전한 바깥 셀까지 임시 escape corridor를 열어 A\*가 탈출 경로를 만들게 함 |
+| `dynamic_path_side_lock_*` | lock=4.0s, lookahead=3.0m, deadband=0.20m | 동적 layer 회피 중 좌/우 우회 후보가 1Hz로 번갈아 선택되는 현상을 줄이기 위해 초기 path 가지를 잠깐 고정한다 |
+| `dynamic_path_side_switch_min_*` | improvement=1.0m, clearance_gain=0.35m | 반대쪽 가지가 이만큼 짧거나 안전해졌을 때만 기존 가지 lock을 풀고 전환한다 |
 | `path_switch_hysteresis` | 0.35 m | 새 주기 재계획 후보가 이만큼 짧지 않으면 기존 path 유지 |
 | `path_switch_max_start_offset` | 0.80 m | 현재 pose가 기존 path에서 이 이상 멀면 hysteresis 해제 |
 | `path_hysteresis_stable_states` | `["NORMAL", "ALIGN", "AVOIDING_DYNAMIC", "DYNAMIC_BLOCKED", "INSIDE_DYNAMIC_ZONE", "APPROACHING_DYNAMIC", "CROSSING_DYNAMIC", "RECEDING_DYNAMIC", "STOPPED_DYNAMIC"]` | 이 DWA 상태에서만 기존 path 유지 hysteresis 적용. REJOIN/복구/벽 정지 중에는 새 후보 수용성 우선 |

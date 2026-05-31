@@ -10,6 +10,8 @@ from amr_navigation.astar_node import (
     cell_path_length,
     cells_on_segment,
     clearance_switch_should_replace_previous,
+    dynamic_side_lock_should_retain_previous,
+    path_lateral_side,
     remaining_path_metrics,
     should_apply_path_hysteresis,
     should_retain_previous_path,
@@ -281,3 +283,52 @@ class TestAstarPathHysteresis:
 
         assert cells == [(0, 0), (0, 1), (0, 2), (0, 3)]
         assert abs(cell_path_length(cells, 0.05) - 0.15) < 1e-9
+
+
+class TestDynamicPathSideLock:
+    def test_path_lateral_side_classifies_opposite_branches(self):
+        start = (0, 0)
+        goal = (0, 100)
+        left_path = [(0, 0), (10, 20), (10, 60), (0, 100)]
+        right_path = [(0, 0), (-10, 20), (-10, 60), (0, 100)]
+
+        left_side, left_lateral = path_lateral_side(
+            left_path, start, goal, 0.05, 3.0, 0.20)
+        right_side, right_lateral = path_lateral_side(
+            right_path, start, goal, 0.05, 3.0, 0.20)
+
+        assert left_side == -right_side
+        assert abs(left_lateral) >= 0.20
+        assert abs(right_lateral) >= 0.20
+
+    def test_dynamic_side_lock_keeps_small_opposite_branch_switch(self):
+        assert dynamic_side_lock_should_retain_previous(
+            previous_side=1,
+            candidate_side=-1,
+            lock_active=True,
+            length_improvement=0.25,
+            clearance_gain=0.10,
+            min_length_improvement=1.0,
+            min_clearance_gain=0.35,
+        ) is True
+
+    def test_dynamic_side_lock_allows_meaningfully_better_branch(self):
+        assert dynamic_side_lock_should_retain_previous(
+            previous_side=1,
+            candidate_side=-1,
+            lock_active=True,
+            length_improvement=1.25,
+            clearance_gain=0.10,
+            min_length_improvement=1.0,
+            min_clearance_gain=0.35,
+        ) is False
+
+        assert dynamic_side_lock_should_retain_previous(
+            previous_side=1,
+            candidate_side=-1,
+            lock_active=True,
+            length_improvement=0.20,
+            clearance_gain=0.40,
+            min_length_improvement=1.0,
+            min_clearance_gain=0.35,
+        ) is False

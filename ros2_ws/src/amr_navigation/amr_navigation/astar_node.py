@@ -60,6 +60,77 @@ def remaining_path_metrics(
     return remaining, offset
 
 
+def path_lateral_side(
+    cells: list[tuple] | None,
+    start_cell: tuple,
+    goal_cell: tuple,
+    resolution: float,
+    lookahead_distance: float,
+    deadband: float,
+) -> tuple[int, float]:
+    """Return the early path branch side around the start-goal line.
+
+    The sign is only used for consistency. A positive and negative sign mean
+    two different branches around the same blocked corridor; zero means the
+    path is too close to the center line to classify confidently.
+    """
+    if not cells or resolution <= 0.0:
+        return 0, 0.0
+
+    nearest_idx = min(
+        range(len(cells)),
+        key=lambda i: (
+            cells[i][0] - start_cell[0]) ** 2 + (cells[i][1] - start_cell[1]) ** 2
+    )
+    target = cells[nearest_idx]
+    distance = 0.0
+    lookahead = max(0.0, float(lookahead_distance))
+    for a, b in zip(cells[nearest_idx:], cells[nearest_idx + 1:]):
+        distance += math.hypot(b[0] - a[0], b[1] - a[1]) * resolution
+        target = b
+        if distance >= lookahead:
+            break
+
+    goal_x = goal_cell[1] - start_cell[1]
+    goal_y = goal_cell[0] - start_cell[0]
+    path_x = target[1] - start_cell[1]
+    path_y = target[0] - start_cell[0]
+    goal_norm = math.hypot(goal_x, goal_y)
+    if goal_norm < 1.0e-6:
+        return 0, 0.0
+
+    lateral = (goal_x * path_y - goal_y * path_x) / goal_norm * resolution
+    if abs(lateral) < max(0.0, float(deadband)):
+        return 0, lateral
+    return (1 if lateral > 0.0 else -1), lateral
+
+
+def dynamic_side_lock_should_retain_previous(
+    previous_side: int,
+    candidate_side: int,
+    lock_active: bool,
+    length_improvement: float,
+    clearance_gain: float,
+    min_length_improvement: float,
+    min_clearance_gain: float,
+) -> bool:
+    """Keep the current dynamic-obstacle branch unless the switch is meaningful."""
+    if not lock_active:
+        return False
+    if previous_side == 0 or candidate_side == 0:
+        return False
+    if previous_side == candidate_side:
+        return False
+    if not math.isfinite(length_improvement):
+        length_improvement = 0.0
+    if not math.isfinite(clearance_gain):
+        clearance_gain = 0.0
+    return (
+        length_improvement < max(0.0, float(min_length_improvement))
+        and clearance_gain < max(0.0, float(min_clearance_gain))
+    )
+
+
 def should_retain_previous_path(
     previous_cells: list[tuple] | None,
     candidate_cells: list[tuple],
@@ -321,6 +392,11 @@ class AstarPlanner(Node):
         self.declare_parameter('dynamic_layer_start_escape_search_radius', 3.0)
         self.declare_parameter('dynamic_layer_start_escape_corridor_radius', 0.45)
         self.declare_parameter('dynamic_layer_start_escape_min_clearance', 0.60)
+        self.declare_parameter('dynamic_path_side_lock_sec', 4.0)
+        self.declare_parameter('dynamic_path_side_lock_lookahead', 3.0)
+        self.declare_parameter('dynamic_path_side_lock_deadband', 0.20)
+        self.declare_parameter('dynamic_path_side_switch_min_improvement', 1.0)
+        self.declare_parameter('dynamic_path_side_switch_min_clearance_gain', 0.35)
 
         self.heuristic_type   = self.get_parameter('heuristic').value
         self.allow_diagonal   = self.get_parameter('allow_diagonal').value
@@ -385,6 +461,16 @@ class AstarPlanner(Node):
             'dynamic_layer_start_escape_corridor_radius').value
         self.dynamic_layer_start_escape_min_clearance = self.get_parameter(
             'dynamic_layer_start_escape_min_clearance').value
+        self.dynamic_path_side_lock_sec = self.get_parameter(
+            'dynamic_path_side_lock_sec').value
+        self.dynamic_path_side_lock_lookahead = self.get_parameter(
+            'dynamic_path_side_lock_lookahead').value
+        self.dynamic_path_side_lock_deadband = self.get_parameter(
+            'dynamic_path_side_lock_deadband').value
+        self.dynamic_path_side_switch_min_improvement = self.get_parameter(
+            'dynamic_path_side_switch_min_improvement').value
+        self.dynamic_path_side_switch_min_clearance_gain = self.get_parameter(
+            'dynamic_path_side_switch_min_clearance_gain').value
 
         # ── 내부 상태 ──────────────────────────────────────────────
         self.map_data: OccupancyGrid | None = None
@@ -403,6 +489,8 @@ class AstarPlanner(Node):
         self._last_dynamic_status_replan_time = -float('inf')
         self._last_dwa_status: str | None = None
         self._last_path_cells: list[tuple] | None = None
+        self._dynamic_path_side = 0
+        self._dynamic_path_side_lock_until = -float('inf')
         self._force_publish_until = -float('inf')
 
         # ── TF ────────────────────────────────────────────────────
@@ -663,6 +751,8 @@ class AstarPlanner(Node):
         self._has_valid_path_for_goal = False
         self._status_replan_armed = True
         self._last_path_cells = None
+        self._dynamic_path_side = 0
+        self._dynamic_path_side_lock_until = -float('inf')
         self._force_publish_until = (
             self._sec_now() + max(0.0, float(self.new_goal_force_publish_sec)))
         self.get_logger().info(
@@ -763,6 +853,92 @@ class AstarPlanner(Node):
 
         path_min_clearance = self._path_min_clearance(cell_path)
         now = self._sec_now()
+        resolution = self.map_data.info.resolution
+        dynamic_path_context = (
+            self.dynamic_layer_active_cells > 0
+            or dynamic_start_escape_applied
+            or self._last_dwa_status in self.dynamic_status_replan_states
+        )
+        candidate_side = 0
+        candidate_lateral = 0.0
+        if dynamic_path_context:
+            candidate_side, candidate_lateral = path_lateral_side(
+                cell_path,
+                start_cell,
+                goal_cell,
+                resolution,
+                self.dynamic_path_side_lock_lookahead,
+                self.dynamic_path_side_lock_deadband,
+            )
+            previous_cells_for_lock = None
+            prev_remaining = float('inf')
+            prev_offset = float('inf')
+            if self._last_path_cells:
+                nearest_idx = min(
+                    range(len(self._last_path_cells)),
+                    key=lambda i: (
+                        self._last_path_cells[i][0] - start_cell[0]) ** 2
+                        + (self._last_path_cells[i][1] - start_cell[1]) ** 2
+                )
+                previous_cells_for_lock = self._last_path_cells[nearest_idx:]
+                prev_remaining, prev_offset = remaining_path_metrics(
+                    self._last_path_cells, start_cell, resolution)
+            previous_path_free = (
+                previous_cells_for_lock is not None
+                and prev_offset <= self.path_switch_max_start_offset
+                and self._path_is_still_free(previous_cells_for_lock)
+            )
+            if previous_path_free:
+                previous_side, previous_lateral = path_lateral_side(
+                    previous_cells_for_lock,
+                    start_cell,
+                    goal_cell,
+                    resolution,
+                    self.dynamic_path_side_lock_lookahead,
+                    self.dynamic_path_side_lock_deadband,
+                )
+                if previous_side == 0:
+                    previous_side = self._dynamic_path_side
+                cand_remaining, _ = remaining_path_metrics(
+                    cell_path, start_cell, resolution)
+                length_improvement = prev_remaining - cand_remaining
+                prev_min_clearance = self._path_min_clearance_ahead(
+                    previous_cells_for_lock,
+                    start_cell,
+                    self.path_switch_clearance_skip_distance,
+                )
+                cand_min_clearance = self._path_min_clearance_ahead(
+                    cell_path,
+                    start_cell,
+                    self.path_switch_clearance_skip_distance,
+                )
+                clearance_gain = cand_min_clearance - prev_min_clearance
+                lock_active = now < self._dynamic_path_side_lock_until
+                if dynamic_side_lock_should_retain_previous(
+                        previous_side,
+                        candidate_side,
+                        lock_active,
+                        length_improvement,
+                        clearance_gain,
+                        self.dynamic_path_side_switch_min_improvement,
+                        self.dynamic_path_side_switch_min_clearance_gain):
+                    self._has_valid_path_for_goal = True
+                    self._dynamic_path_side = previous_side
+                    self._dynamic_path_side_lock_until = max(
+                        self._dynamic_path_side_lock_until,
+                        now + max(0.0, float(self.dynamic_path_side_lock_sec)),
+                    )
+                    self.get_logger().warn(
+                        'dynamic path side lock keeps previous branch: '
+                        f'prev_side={previous_side} cand_side={candidate_side} '
+                        f'prev_lat={previous_lateral:.2f}m '
+                        f'cand_lat={candidate_lateral:.2f}m '
+                        f'improve={length_improvement:.2f}m '
+                        f'clear_gain={clearance_gain:.2f}m '
+                        f'lock_left={self._dynamic_path_side_lock_until - now:.1f}s',
+                        throttle_duration_sec=1.0)
+                    return True
+
         if (should_apply_path_hysteresis(
                 allow_path_hysteresis,
                 using_direct_path,
@@ -831,10 +1007,23 @@ class AstarPlanner(Node):
         self.path_pub.publish(path_msg)
         self._has_valid_path_for_goal = True
         self._last_path_cells = list(cell_path)
+        dynamic_log = ''
+        if dynamic_path_context:
+            if candidate_side != 0:
+                self._dynamic_path_side = candidate_side
+                self._dynamic_path_side_lock_until = (
+                    now + max(0.0, float(self.dynamic_path_side_lock_sec)))
+            dynamic_log = (
+                f' dyn_side={candidate_side} dyn_lat={candidate_lateral:.2f}m '
+                f'dyn_lock={max(0.0, self._dynamic_path_side_lock_until - now):.1f}s')
+        else:
+            self._dynamic_path_side = 0
+            self._dynamic_path_side_lock_until = -float('inf')
         self.get_logger().info(
             f'경로 발행: {len(path_msg.poses)} 웨이포인트, '
             f'min_clear={path_min_clearance:.2f}m'
-            f'{" dyn_escape=1" if dynamic_start_escape_applied else ""}')
+            f'{" dyn_escape=1" if dynamic_start_escape_applied else ""}'
+            f'{dynamic_log}')
         return True
 
     def _handle_plan_failure(self, reason: str, *, clear_on_failure: bool) -> None:
@@ -852,6 +1041,8 @@ class AstarPlanner(Node):
 
         self._has_valid_path_for_goal = False
         self._last_path_cells = None
+        self._dynamic_path_side = 0
+        self._dynamic_path_side_lock_until = -float('inf')
         self.get_logger().warn(f'{reason} — 빈 path 발행')
         self._publish_empty_path()
 
