@@ -76,10 +76,12 @@ class TestAstarPathHysteresisStatus:
         assert status_allows_path_hysteresis("RECOVERY", stable) is False
         assert status_allows_path_hysteresis("REJOIN", stable) is False
 
-    def test_safety_retention_allows_rejoin_but_not_recovery(self):
-        safety = {"NORMAL", "ALIGN", "REJOIN"}
+    def test_safety_retention_is_limited_to_stable_tracking(self):
+        safety = {"NORMAL", "ALIGN"}
 
-        assert status_allows_path_safety_retention("REJOIN", safety) is True
+        assert status_allows_path_safety_retention("NORMAL", safety) is True
+        assert status_allows_path_safety_retention("ALIGN", safety) is True
+        assert status_allows_path_safety_retention("REJOIN", safety) is False
         assert status_allows_path_safety_retention("RECOVERY", safety) is False
         assert status_allows_path_safety_retention("EMERGENCY", safety) is False
 
@@ -91,18 +93,18 @@ class TestAstarSafetyHysteresis:
             candidate_min_clearance=0.70,
             candidate_length_improvement=0.80,
             bad_clearance=0.90,
-            min_clearance_loss=0.15,
-            max_length_sacrifice=1.60,
+            min_clearance_loss=0.20,
+            max_length_sacrifice=1.20,
         ) is True
 
     def test_allows_short_candidate_when_length_gain_is_large(self):
         assert safety_hysteresis_should_retain_previous(
             previous_min_clearance=1.05,
             candidate_min_clearance=0.70,
-            candidate_length_improvement=1.80,
+            candidate_length_improvement=1.50,
             bad_clearance=0.90,
-            min_clearance_loss=0.15,
-            max_length_sacrifice=1.60,
+            min_clearance_loss=0.20,
+            max_length_sacrifice=1.20,
         ) is False
 
     def test_allows_candidate_when_clearance_loss_is_small(self):
@@ -111,8 +113,8 @@ class TestAstarSafetyHysteresis:
             candidate_min_clearance=0.82,
             candidate_length_improvement=0.50,
             bad_clearance=0.90,
-            min_clearance_loss=0.15,
-            max_length_sacrifice=1.60,
+            min_clearance_loss=0.20,
+            max_length_sacrifice=1.20,
         ) is False
 
 
