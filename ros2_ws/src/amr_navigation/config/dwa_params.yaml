@@ -309,12 +309,15 @@ dwa_planner:
     dynamic_approach_turn_speed: 0.45
     dynamic_layer_enabled: true
     dynamic_layer_prefer_global_replan: true
-    dynamic_layer_local_fallback_ticks: 16
+    dynamic_layer_local_fallback_ticks: 8
+    dynamic_layer_path_corridor_width: 1.20
+    dynamic_layer_path_lookahead: 5.0
+    dynamic_layer_max_blocks: 3
     dynamic_layer_topic: "/dynamic_obstacle_layer"
     dynamic_layer_publish_period: 1.00
     dynamic_layer_ttl_sec: 300.0
-    dynamic_layer_min_hold_sec: 5.0
-    dynamic_layer_clear_confirm_sec: 2.0
+    dynamic_layer_min_hold_sec: 2.0
+    dynamic_layer_clear_confirm_sec: 1.0
     dynamic_layer_position_alpha: 0.35
     dynamic_layer_velocity_alpha: 0.25
     dynamic_layer_radius_margin: 0.85
@@ -326,9 +329,9 @@ dwa_planner:
     dynamic_layer_prediction_max_distance: 2.70
     dynamic_layer_prediction_speed_max: 1.50
     dynamic_layer_min_track_age: 2
-    dynamic_layer_trail_ttl_sec: 300.0
+    dynamic_layer_trail_ttl_sec: 60.0
     dynamic_layer_trail_min_distance: 0.25
-    dynamic_layer_trail_max_points: 80
+    dynamic_layer_trail_max_points: 24
     dynamic_layer_escape_distance: 1.20
     dynamic_layer_escape_t_cpa: 1.00
     # TODO(미확정): no-go 내부 판정 여유. 실제 로그에서 dyn_in_margin 분포를 보고 0.05~0.20m 범위 튜닝.
