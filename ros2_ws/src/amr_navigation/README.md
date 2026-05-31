@@ -284,9 +284,13 @@ angular:
 | `heuristic` | `"octile"` | `manhattan` / `euclidean` / `octile` (heuristics.py 등록됨) |
 | `allow_diagonal` | `true` | 8-connected |
 | `inflation_radius` | 0.50 m | 로봇 반경 0.20 m + DWA 정지 여유 0.30 m |
-| `preferred_clearance` | 1.00 m | 이 거리 안쪽 free 셀에 비용을 부여해 벽 경계 path를 피함. **TODO 미확정, RunPod 튜닝 필요** |
-| `clearance_cost_weight` | 6.0 | clearance 비용 가중치. 0이면 shortest path 우선 |
+| `preferred_clearance` | 1.20 m | 이 거리 안쪽 free 셀에 비용을 부여해 벽 경계 path를 피함. **TODO 미확정, RunPod 튜닝 필요** |
+| `clearance_cost_weight` | 8.0 | clearance 비용 가중치. 0이면 shortest path 우선 |
+| `wall_avoid_clearance` | 0.85 m | inflation 경계 바로 바깥 후보를 강하게 밀어내는 barrier 기준 clearance |
+| `wall_avoid_cost_weight` | 1.5 | wall-avoid barrier 비용 가중치 |
+| `wall_avoid_min_margin` | 0.05 m | barrier 분모 최소 margin. inflation 경계에 붙은 cell 비용 폭주 방지용 clamp |
 | `smoothing` | `"catmull_rom"` | `none` / `catmull_rom` / `bezier` |
+| `smoothing_min_clearance` | 0.80 m | Catmull-Rom 스무딩 segment가 유지해야 하는 최소 clearance. 미달 시 raw A* path 유지 |
 | `replan_period` | 1.0 s | 0이면 goal 입력 시에만 1회, > 0이면 주기적 재계획 |
 | `dwa_status_topic` | `"/dwa/status"` | A\*가 이벤트 재계획 판단에 쓰는 DWA 상태 토픽 |
 | `status_replan_cooldown` | 2.0 s | 상태 이벤트 재계획 최소 간격 |
@@ -296,7 +300,7 @@ angular:
 | `path_switch_max_start_offset` | 0.80 m | 현재 pose가 기존 path에서 이 이상 멀면 hysteresis 해제 |
 | `new_goal_force_publish_sec` | 5.0 s | 새 goal 직후 이 시간 동안 hysteresis를 건너뛰어 `/global_path` 재수신 기회 확보 |
 | `goal_direct_distance` | 2.0 m | 목표 근처에서 안전한 직선 final approach path 허용 거리 |
-| `goal_direct_min_clearance` | 0.55 m | 직선 final approach segment의 최소 raw obstacle clearance |
+| `goal_direct_min_clearance` | 0.80 m | 직선 final approach segment의 최소 raw obstacle clearance |
 
 ---
 

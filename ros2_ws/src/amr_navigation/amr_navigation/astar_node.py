@@ -116,6 +116,37 @@ def cells_on_segment(a: tuple, b: tuple) -> list[tuple]:
     return cells
 
 
+def clearance_preference_cost(
+    clearance: float,
+    *,
+    preferred_clearance: float,
+    clearance_cost_weight: float,
+    inflation_radius: float,
+    wall_avoid_clearance: float,
+    wall_avoid_cost_weight: float,
+    wall_avoid_min_margin: float,
+) -> float:
+    """벽 근처 free cell을 shortest-path tie에서 밀어내는 clearance 비용."""
+    if not math.isfinite(clearance):
+        return 0.0
+
+    cost = 0.0
+    if clearance_cost_weight > 0.0 and preferred_clearance > 0.0:
+        if clearance < preferred_clearance:
+            ratio = (preferred_clearance - clearance) / preferred_clearance
+            cost += clearance_cost_weight * ratio * ratio
+
+    if wall_avoid_cost_weight > 0.0 and wall_avoid_clearance > inflation_radius:
+        if clearance < wall_avoid_clearance:
+            min_margin = max(wall_avoid_min_margin, 1.0e-6)
+            free_margin = max(clearance - inflation_radius, min_margin)
+            desired_margin = max(wall_avoid_clearance - inflation_radius, min_margin)
+            barrier = max(0.0, desired_margin / free_margin - 1.0)
+            cost += wall_avoid_cost_weight * barrier * barrier
+
+    return cost
+
+
 def should_apply_path_hysteresis(
     allow_path_hysteresis: bool,
     using_direct_path: bool,
@@ -138,9 +169,13 @@ class AstarPlanner(Node):
         self.declare_parameter('heuristic', 'octile')
         self.declare_parameter('allow_diagonal', True)
         self.declare_parameter('inflation_radius', 0.50)  # robot_radius(0.20) + clearance_stop(0.30)
-        self.declare_parameter('preferred_clearance', 1.00)  # robot_radius + DWA slowdown 여유
-        self.declare_parameter('clearance_cost_weight', 6.0)
+        self.declare_parameter('preferred_clearance', 1.20)  # robot_radius + DWA slowdown 여유
+        self.declare_parameter('clearance_cost_weight', 8.0)
+        self.declare_parameter('wall_avoid_clearance', 0.85)
+        self.declare_parameter('wall_avoid_cost_weight', 1.5)
+        self.declare_parameter('wall_avoid_min_margin', 0.05)
         self.declare_parameter('smoothing', 'catmull_rom')
+        self.declare_parameter('smoothing_min_clearance', 0.80)
         # 2026-05-24 보강(SW, HU 보강-1):
         #   goal 셀이 inflation/점유로 막혔을 때 nearest free cell로 자동 보정.
         #   BFS 반경 [cell] = goal_snap_radius / resolution.
@@ -177,14 +212,18 @@ class AstarPlanner(Node):
         self.declare_parameter('path_switch_max_start_offset', 0.80)  # m
         self.declare_parameter('new_goal_force_publish_sec', 5.0)  # s
         self.declare_parameter('goal_direct_distance', 2.0)  # m
-        self.declare_parameter('goal_direct_min_clearance', 0.55)  # m
+        self.declare_parameter('goal_direct_min_clearance', 0.80)  # m
 
         self.heuristic_type   = self.get_parameter('heuristic').value
         self.allow_diagonal   = self.get_parameter('allow_diagonal').value
         self.inflation_radius = self.get_parameter('inflation_radius').value
         self.preferred_clearance = self.get_parameter('preferred_clearance').value
         self.clearance_cost_weight = self.get_parameter('clearance_cost_weight').value
+        self.wall_avoid_clearance = self.get_parameter('wall_avoid_clearance').value
+        self.wall_avoid_cost_weight = self.get_parameter('wall_avoid_cost_weight').value
+        self.wall_avoid_min_margin = self.get_parameter('wall_avoid_min_margin').value
         self.smoothing        = self.get_parameter('smoothing').value
+        self.smoothing_min_clearance = self.get_parameter('smoothing_min_clearance').value
         self.goal_snap_radius = self.get_parameter('goal_snap_radius').value
         self.replan_period    = self.get_parameter('replan_period').value
         self.dwa_status_topic = self.get_parameter('dwa_status_topic').value
@@ -505,11 +544,14 @@ class AstarPlanner(Node):
                     throttle_duration_sec=2.0)
                 return True
 
+        path_min_clearance = self._path_min_clearance(cell_path)
         path_msg = self._cells_to_path(cell_path)
         self.path_pub.publish(path_msg)
         self._has_valid_path_for_goal = True
         self._last_path_cells = list(cell_path)
-        self.get_logger().info(f'경로 발행: {len(path_msg.poses)} 웨이포인트')
+        self.get_logger().info(
+            f'경로 발행: {len(path_msg.poses)} 웨이포인트, '
+            f'min_clear={path_min_clearance:.2f}m')
         return True
 
     def _handle_plan_failure(self, reason: str, *, clear_on_failure: bool) -> None:
@@ -630,13 +672,16 @@ class AstarPlanner(Node):
 
     def _clearance_cost(self, cell: tuple) -> float:
         """벽 가까운 free 셀에 부드러운 비용을 부여해 중앙 경로를 선호한다."""
-        if self.clearance_cost_weight <= 0.0 or self.preferred_clearance <= 0.0:
-            return 0.0
         clearance = self._clearance_at_cell(cell)
-        if not math.isfinite(clearance) or clearance >= self.preferred_clearance:
-            return 0.0
-        ratio = (self.preferred_clearance - clearance) / self.preferred_clearance
-        return self.clearance_cost_weight * ratio * ratio
+        return clearance_preference_cost(
+            clearance,
+            preferred_clearance=getattr(self, 'preferred_clearance', 0.0),
+            clearance_cost_weight=getattr(self, 'clearance_cost_weight', 0.0),
+            inflation_radius=getattr(self, 'inflation_radius', 0.0),
+            wall_avoid_clearance=getattr(self, 'wall_avoid_clearance', 0.0),
+            wall_avoid_cost_weight=getattr(self, 'wall_avoid_cost_weight', 0.0),
+            wall_avoid_min_margin=getattr(self, 'wall_avoid_min_margin', 0.05),
+        )
 
     def _snap_to_nearest_free(self, cell: tuple) -> tuple | None:
         """막힌 셀에 대해 BFS로 인근 자유공간 셀 찾기 (HU 보강-1, 2026-05-24).
@@ -748,6 +793,19 @@ class AstarPlanner(Node):
             prev = cell
         return True
 
+    def _segment_min_clearance(self, a: tuple, b: tuple) -> float:
+        """두 셀 사이 직선 구간의 최소 raw obstacle clearance[m]."""
+        return min(self._clearance_at_cell(c) for c in cells_on_segment(a, b))
+
+    def _segment_is_safe_for_smoothing(self, a: tuple, b: tuple) -> bool:
+        """스무딩 segment가 free이고 최소 clearance 기준도 만족하는지 확인."""
+        if not self._segment_is_free(a, b):
+            return False
+        min_clearance = getattr(self, 'smoothing_min_clearance', 0.0)
+        if min_clearance <= 0.0:
+            return True
+        return self._segment_min_clearance(a, b) >= min_clearance
+
     # ══════════════════════════════════════════════════════════════
     # 경로 스무딩
     # ══════════════════════════════════════════════════════════════
@@ -837,7 +895,7 @@ class AstarPlanner(Node):
         validated = []
         for si, cell in enumerate(smoothed):
             if self._is_free_cell(cell) and (
-                    not validated or self._segment_is_free(validated[-1], cell)):
+                    not validated or self._segment_is_safe_for_smoothing(validated[-1], cell)):
                 validated.append(cell)
             else:
                 # blocked → 해당 구간의 raw A* 점으로 대체
@@ -845,11 +903,20 @@ class AstarPlanner(Node):
                 raw_seg   = max(0, (si - 1) // samples) if si > 0 else 0
                 raw_start = min(raw_seg, len(cells) - 1)
                 raw_end   = min(raw_seg + 1, len(cells) - 1)
+                fallback_ok = False
                 for raw_cell in cells[raw_start:raw_end + 1]:
-                    if ((not validated or validated[-1] != raw_cell) and
-                            self._is_free_cell(raw_cell) and
+                    if validated and validated[-1] == raw_cell:
+                        fallback_ok = True
+                        continue
+                    if (self._is_free_cell(raw_cell) and
                             (not validated or self._segment_is_free(validated[-1], raw_cell))):
                         validated.append(raw_cell)
+                        fallback_ok = True
+                    else:
+                        fallback_ok = False
+                        break
+                if not fallback_ok:
+                    return cells
 
         return validated if len(validated) > 1 else cells
 

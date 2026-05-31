@@ -4,7 +4,7 @@ import types
 
 import numpy as np
 
-from amr_navigation.astar_node import AstarPlanner
+from amr_navigation.astar_node import AstarPlanner, clearance_preference_cost
 
 
 def _bind(node, *names):
@@ -22,6 +22,38 @@ class TestAstarClearanceCost:
 
         assert node._clearance_cost((0, 0)) > 0.0
         assert node._clearance_cost((0, 1)) == 0.0
+
+    def test_barrier_cost_strongly_discourages_inflation_edge_cells(self):
+        edge_cost = clearance_preference_cost(
+            0.55,
+            preferred_clearance=1.20,
+            clearance_cost_weight=8.0,
+            inflation_radius=0.50,
+            wall_avoid_clearance=0.85,
+            wall_avoid_cost_weight=1.5,
+            wall_avoid_min_margin=0.05,
+        )
+        safer_cost = clearance_preference_cost(
+            0.70,
+            preferred_clearance=1.20,
+            clearance_cost_weight=8.0,
+            inflation_radius=0.50,
+            wall_avoid_clearance=0.85,
+            wall_avoid_cost_weight=1.5,
+            wall_avoid_min_margin=0.05,
+        )
+        open_cost = clearance_preference_cost(
+            1.20,
+            preferred_clearance=1.20,
+            clearance_cost_weight=8.0,
+            inflation_radius=0.50,
+            wall_avoid_clearance=0.85,
+            wall_avoid_cost_weight=1.5,
+            wall_avoid_min_margin=0.05,
+        )
+
+        assert edge_cost > safer_cost * 10.0
+        assert open_cost == 0.0
 
 
 class TestAstarNeighbors:
@@ -67,6 +99,23 @@ class TestAstarSmoothingSafety:
 
         assert node._segment_is_free((1, 1), (2, 2)) is False
 
+    def test_smoothing_segment_rejects_low_clearance_shortcut(self):
+        node = types.SimpleNamespace()
+        node.inflated_grid = np.zeros((3, 3), dtype=np.uint8)
+        node.clearance_grid = np.ones((3, 3), dtype=np.float32)
+        node.clearance_grid[1, 1] = 0.70
+        node.smoothing_min_clearance = 0.80
+        _bind(
+            node,
+            "_is_free_cell",
+            "_clearance_at_cell",
+            "_segment_is_free",
+            "_segment_min_clearance",
+            "_segment_is_safe_for_smoothing",
+        )
+
+        assert node._segment_is_safe_for_smoothing((1, 0), (1, 2)) is False
+
 
 class TestAstarGoalDirectPath:
     def test_direct_goal_path_is_used_when_near_and_clear(self):
@@ -100,6 +149,31 @@ class TestAstarGoalDirectPath:
         node.inflated_grid = np.zeros((5, 5), dtype=np.uint8)
         node.clearance_grid = np.ones((5, 5), dtype=np.float32)
         node.clearance_grid[2, 2] = 0.50
+        _bind(
+            node,
+            "_is_free_cell",
+            "_segment_is_free",
+            "_clearance_at_cell",
+            "_path_min_clearance",
+            "_try_goal_direct_path",
+        )
+
+        direct = node._try_goal_direct_path(
+            start_cell=(2, 0),
+            goal_cell=(2, 4),
+            start_world=(0.0, 0.0),
+            goal_world=(0.2, 0.0),
+        )
+
+        assert direct is None
+
+    def test_direct_goal_path_rejects_wall_hugging_final_approach(self):
+        node = types.SimpleNamespace()
+        node.goal_direct_distance = 2.0
+        node.goal_direct_min_clearance = 0.80
+        node.inflated_grid = np.zeros((5, 5), dtype=np.uint8)
+        node.clearance_grid = np.ones((5, 5), dtype=np.float32)
+        node.clearance_grid[2, 2] = 0.75
         _bind(
             node,
             "_is_free_cell",
