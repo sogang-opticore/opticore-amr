@@ -1,0 +1,277 @@
+# DWA Local Planner 파라미터 (2026-05-25 14차 — Pure Pursuit 전환)
+#
+# CLAUDE.md 6.1: 모든 튜닝 값은 YAML로. 코드 안 하드코딩 금지.
+# 변경 시 README.md §4 표와 동기화.
+#
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║ 14차 (2026-05-25): Pure Pursuit + Adaptive Velocity 로 완전 전환  ║
+# ╚══════════════════════════════════════════════════════════════════╝
+# 1~13차 patch chain (DWA score-tuning, align mode PD, hysteresis,
+# overshoot stop, cooldown) 가 모두 같은 증상을 다른 각도에서 패치하다
+# 진동·과회전·wall stuck 만들었다 (CLAUDE.md §0.1 원칙 8 발동 2회째).
+#
+# 산업 표준 컨트롤러 단일 구조로 통일 (Coulter 1992, 이후 모든 AMR 표준):
+#   κ = 2y / L²                    Pure Pursuit 곡률
+#   v = min(v_max, v_curve,        횡가속 한계
+#           v_clearance,           장애물 비례 감속
+#           v_goal,                √(2·a·d) 제동거리
+#           v_heading)             cos(α) heading factor
+#   w = κ · v                      ω 자동 계산 (y=0 → w=0 자동)
+#
+# 결정적 효과:
+#   - lateral error 0 인 순간 w=0 (= "정렬되면 회전 멈춤" 알고리즘 내재)
+#   - 직선 풀가속 / 코너·장애물·도착 자동 감속 (= "최대한 빠르게 도달")
+#   - DWA collision check + stuck counter (= "wall stuck 방지")
+#
+# 재설계 핵심 (10차 이전 그대로 유지):
+#   DWA 의 cycle 안 TF lookup 0번. EKF /odometry/filtered pose+twist 직접 사용.
+#   global_path 받을 때 한 번만 map → odom_filtered 변환·캐싱.
+
+dwa_planner:
+  ros__parameters:
+    use_sim_time: true
+
+    # ----- 로봇 동역학 한계 (Notion 명세 §4.1) -----
+    # TODO(디스코드 N-2): v_max 1.5 임시값. 명세 = 2.0. 팀 합의 후 갱신.
+    v_max: 1.5          # m/s, ⚠ 임시값 (명세 §4.1: 2.0)
+    v_min: -1.0         # m/s, 후진 운영 정책
+    w_max: 1.5          # rad/s, 명세 §4.1
+    a_max: 1.0          # m/s², 명세 §4.1
+    # 감속은 가속보다 빠르게 허용해 goal overshoot와 벽 앞 관성 전진을 줄인다.
+    # TODO(미확정): RunPod에서 2.0~3.5m/s² 범위 튜닝.
+    v_brake_a_max: 5.0
+    alpha_max: 1.5      # rad/s², ⚠ 명세 미명시 — 시뮬 측정 후 갱신
+    # 횡가속 한계 (Pure Pursuit v_curve 캐핑). 명세 미명시.
+    # 기본 = a_max (보수적). 회전 구간 v 가 작아 보이면 1.5~2.0 으로 시험.
+    # v_curve = √(a_lat_max / |κ|). 예: κ=2 (R=0.5m), a_lat=1 → v_curve=0.7m/s.
+    a_lat_max: 1.0      # m/s², ⚠ 명세 미명시
+
+    # ----- 샘플링 / 시뮬레이션 -----
+    # 14차 (Pure Pursuit) 부터 sample_v_n / sample_w_n / weight_* 들은 unused.
+    # 코드는 곡률 공식으로 단일 (v, w) 명령 계산. DWA grid search 안 함.
+    # 호환 위해 yaml 키는 유지 (test_dwa.py 가 declare_parameter 참조).
+    sample_v_n: 11
+    sample_w_n: 21
+    # 14차 (Pure Pursuit): predict_horizon 은 "최종 collision check 적분 시간".
+    # cmd 결정 후 (v_cmd, w_cmd) 로 이 시간만큼 적분 trajectory 만들어
+    # hard collision 검사 (DWA-style safety net).
+    # 0.5s × 1.5m/s = 0.75m 앞까지 충돌 예측 → 가속도 한계 안에서 정지 가능.
+    predict_horizon: 0.5
+    dt: 0.1                 # s, 적분 step. 0.5/0.1 = 5 step.
+    control_rate: 20.0      # Hz
+
+    # ----- 평가함수 가중치 (14차 부터 unused, 호환 위해 유지) -----
+    # Pure Pursuit + Adaptive Velocity 가 모든 결정을 단일 공식으로 처리.
+    # DWA score 합산 안 함. yaml 키는 declare_parameter 호환 위해 잔존.
+    weight_heading: 0.3
+    weight_path_tangent: 2.0
+    weight_clearance: 1.2
+    weight_velocity: 0.3
+    path_tangent_lookahead: 10
+
+    # ----- 추종 / 평가 보조 -----
+    # T14 (2026-05-31): path를 벗어나려는 현상 보정.
+    # 긴 lookahead는 코너에서 Pure Pursuit가 path를 지름길처럼 잘라 가게 만든다.
+    # 이제 선분 투영점 기준 lookahead + 횡오차/heading 보정으로 path 중심선을 더 강하게 추종한다.
+    # TODO(미확정): RunPod에서 0.55~0.75m / 0.45~0.65s 범위 튜닝.
+    lookahead_dist: 0.65     # m, 최소 lookahead (작을수록 path 밀착, 너무 작으면 흔들림)
+    lookahead_time: 0.55     # s, adaptive k. v_max=1.5 → L=0.825m
+    path_heading_gain: 0.6   # rad/s per rad, path 접선 방향 추종 보정
+    path_cross_track_gain: 0.8  # rad/s per m, path 횡오차 복귀 보정
+    path_error_slowdown_offset: 0.25  # m, 이 이상 벌어지면 속도 감속 시작
+    path_error_min_speed_scale: 0.42  # path 복귀 중 최소 속도 스케일
+    path_error_predict_time: 0.55     # s, heading/speed 기반 미래 횡오차 예측 horizon
+    # T15 (2026-05-31): path 이탈 시 가장 가까운 점으로 급회전하지 않고,
+    # 앞으로 이어지는 path 후보 중 "현재 조향각 + 합류 heading mismatch + 거리" 비용이
+    # 가장 작은 미래 점으로 부드럽게 재합류한다.
+    # TODO(미확정): RunPod 주행 로그에서 rj distance/arrival_error 를 보고 튜닝.
+    rejoin_entry_offset: 0.30    # m, 이 이상 path 에서 벗어나면 REJOIN 후보 선택
+    rejoin_exit_offset: 0.22     # m, REJOIN 유지 hysteresis 해제 거리
+    rejoin_exit_heading: 0.52    # rad, heading 오차가 이보다 크면 REJOIN 유지
+    rejoin_min_lookahead: 0.80   # m, 너무 가까운 복귀점 배제
+    rejoin_max_lookahead: 3.50   # m, 미래 path 후보 탐색 상한
+    rejoin_step: 0.20            # m, 후보 arc-length 간격
+    rejoin_heading_weight: 1.2   # 합류 지점 path heading mismatch 비용
+    rejoin_distance_weight: 0.12 # 동적 적정 합류거리와의 차이 비용
+    rejoin_curvature_weight: 0.18 # 큰 곡률의 급합류 후보 억제 비용
+    rejoin_clearance_min: 0.80    # m, LiDAR 기준 로봇-합류점 직선 최소 여유
+    rejoin_clearance_weight: 2.8  # 합류선이 벽/장애물에 가까울 때 후보 점수 페널티
+    rejoin_cross_track_gain_scale: 0.42 # REJOIN 중 nearest CTE 보정 완화
+    rejoin_predicted_exit_offset: 0.42 # m, REJOIN 유지용 예측 offset hysteresis
+    rejoin_align_angle_thresh: 1.75     # rad, REJOIN 중 ALIGN 진입 완화(약 100도)
+    # Path가 로봇 근처에서 접히면 arc-length lookahead는 0.65m여도 실제 local L은 0.1m 수준이 된다.
+    # 이때 NORMAL PP로 처리하면 큰 곡률 + ALIGN 반복이 생기므로 미래 path 후보로 즉시 합류한다.
+    short_lookahead_rejoin_min_distance: 0.35 # m, 실제 local lookahead가 이보다 짧으면 접힘으로 간주
+    short_lookahead_rejoin_ratio: 0.55        # local L < effective_lookahead * ratio 조건
+    short_lookahead_goal_margin: 1.0          # m, goal 근처 final approach에서는 적용하지 않음
+
+    max_clearance: 1.0       # m, [unused] 호환 위해 유지
+    goal_tolerance: 0.20     # m, 도착 판정
+    # goal_tolerance 경계에서 감속 상한이 0에 가까워지면 0.20m에 붙은 채 REACHED가 안 날 수 있다.
+    # 멈춘 상태에서는 3cm 여유 band까지 도착으로 latch한다.
+    # TODO(미확정): RunPod에서 0.02~0.05m, 0.02~0.05m/s 범위 튜닝.
+    goal_reached_epsilon: 0.03
+    goal_reached_stopped_speed: 0.03
+    # Goal 근처에서는 sqrt 제동만으로는 20Hz 제어/재계획 지연 때문에 지나친 뒤
+    # 다시 도는 경우가 있어, 마지막 1.2m는 선형 속도 상한을 한 번 더 건다.
+    # TODO(미확정): RunPod 왕복 주행으로 distance 1.0~1.5m, speed 0.6~0.9m/s 범위 튜닝.
+    goal_approach_distance: 1.20
+    goal_approach_speed: 0.80
+    goal_align_stop_distance: 1.50
+
+    # ----- Clearance 기반 속도 제한 (2026-05-28 보강) -----
+    # 기존에는 전방 ±60° 부채꼴 안 최단점을 fwd_clear 로 써서, 통로 옆 벽도
+    # 정면 장애물처럼 보고 속도를 크게 죽였다.
+    # 이제 DWA/Pure Pursuit 가 실제로 따라갈 arc 를 짧게 적분한 뒤 그 arc
+    # 주변 clearance 로만 감속한다.
+    clearance_stop_distance: 0.30      # m, 이 여유보다 작으면 v_clear=0
+    clearance_slowdown_distance: 0.80  # m, 이 여유부터 선형 감속 시작
+    # 큰 조향/회전 명령 중 전방 LiDAR 여유가 짧으면 v <= sqrt(2*a*d_free)로 감속한다.
+    # TODO(미확정): 0.35~0.60rad 범위에서 RunPod 벽 밀착 로그로 튜닝.
+    turn_clearance_brake_angle: 0.45
+    # 전방은 열렸지만 측면/초기 arc clearance 때문에 v_clear가 0에 붙는 경우,
+    # 충돌권 밖이면 벽 옆을 빠져나오기 위한 최소 creep 속도.
+    # TODO(미확정): RunPod 주행 로그로 0.08~0.15m/s 범위 튜닝.
+    near_wall_creep_speed: 0.12
+    near_wall_creep_min_clearance: 0.60
+    rejoin_creep_min_clearance: 0.70
+    # 전방은 열렸는데 측면/arc clearance만 낮아 벽 옆에서 0.1m/s대로 기어가는 구간을 줄인다.
+    near_wall_escape_clearance: 0.45
+    near_wall_escape_speed: 0.28
+    near_wall_escape_turn: 0.22
+    near_wall_escape_max_curvature: 0.80
+
+    # ----- In-place rotation (큰 heading 오차 전용) -----
+    # 15차 (2026-05-25, 시나리오 (0,5) 진단 후): PD + hysteresis 보강.
+    #
+    # 14차 P-only 의 oscillation:
+    #   α ≈ ±90° 근처에서 lookahead 부호 wraparound → P 출력 휙휙 →
+    #   가속도 한계로 정지 못함 → overshoot → oscillation.
+    #
+    # 15차 해결:
+    #   1) PD 의 D 항 (kd·w) 가 회전 관성 잡음 → critical damping.
+    #   2) Hysteresis (63° in, 15° out): 모드 자체 진동 차단.
+    #
+    # |α| > thresh (63°) 면 PP κ=2y/L² 의 unstable 영역 → 정지 + PD 회전.
+    # 진입 후 |α| < exit (15°) 까지 ROTATE 유지 → PP 인계.
+    align_angle_thresh: 1.10   # rad ≈ 63°, ROTATE 진입
+    align_angle_exit: 0.262    # rad ≈ 15°, ROTATE 종료 (15차 재사용)
+    align_kp: 1.5              # PD 의 P gain
+    align_kd: 0.5              # PD 의 D gain (15차 재사용, 관성 잡기)
+    align_v_blend_max: 0.55    # m/s, 회전 정렬 중 안전하면 조금 전진
+    align_drive_angle: 1.57    # rad, 안전하면 이 각도까지 turn-in-motion 허용
+    align_release_angle: 0.70  # rad, NORMAL은 이 각도부터 PP 추종으로 조기 복귀
+    rejoin_align_release_angle: 0.95 # rad, REJOIN은 더 빨리 PP 추종으로 복귀
+    align_release_clearance: 0.60 # m, 조기 복귀/전진 정렬 최소 여유거리
+    align_cooldown: 1.0        # [unused, 14차 이후]
+        # v/w 커플링 해제 (YS 패치, 2026-05-29):
+    # clearance 로 v=0 이 되어도 heading 오차가 남으면 이 값 이상 회전 보장.
+    # 너무 크면 좁은 통로에서 옆 벽을 긁을 수 있음.
+    # 0.0 으로 설정하면 기존 동작 (w=κ·v 그대로).
+    w_min_rotate: 0.3       # rad/s
+    # 목표 각속도가 작아졌는데 실제 w가 큰 경우 더 빠르게 감쇠한다.
+    # TODO(미확정): RunPod에서 4.0~7.0 rad/s² 범위 튜닝.
+    w_brake_alpha_max: 6.0  # rad/s², 각속도 braking 전용 상한
+
+    # ----- 도착 인식 안정화 P4 (2026-05-31, feature/dwa-ys) -----
+    # 증상: AMCL drift 로 한 tick α 폭증 시 ALIGN 즉시 진입해 v→0.08 반복.
+    #
+    # (P3 v_target LPF 는 2026-05-31 제거 — v_target 상향(재가속)을 smooth 하느라
+    #  직선·감속 후 재가속이 굼떠 주행이 "빠릿"하지 않다는 사용자 피드백.
+    #  CLAUDE.md §7.2.0 #4 "이전보다 후퇴하면 revert" 원칙으로 되돌림.
+    #  v_cmd 는 가속도 제한(dv_max=a_max/rate)으로 여전히 부드럽게 변함.)
+    #
+    # P4 ALIGN 진입 시간 hysteresis: |α|>thresh 가 N틱 연속일 때만 ALIGN 진입.
+    #   기존 각도 hysteresis(63° in/15° out)에 시간 조건을 더해, 일시적 α 노이즈
+    #   한 tick 으로는 ALIGN 진입 안 함. 3틱 ≈ 150ms(20Hz). 비유: 경보가 한 번
+    #   삑 했다고 바로 멈추지 말고 몇 번 연속될 때만 반응.
+    #   TODO(미확정): 안전 vs 부드러움 trade-off. 초안 3틱.
+    align_trigger_ticks: 3     # tick (control_rate 20Hz 기준 3틱 ≈ 150ms)
+
+    # ----- 후진 / Path offset 안전장치 (2026-05-25 추가, CLAUDE.md §0.1 원칙 8) -----
+    # 먼 거리 (20m+) 시나리오에서 발견된 두 문제 해결:
+    #   (a) heading_score 가 후진 trajectory 도 만점 평가 → 모든 전진이 충돌일 때
+    #       후진이 1등 선택. allow_backward=false 로 후진 sample 자체 차단.
+    #       EMERGENCY 가 정직하게 표시되어 A* 재계획 유도.
+    #   (b) path 옆길로 한 번 빠지면 lateral error 누적 → max_path_offset 으로 정지.
+    #       표준 path follower (Pure Pursuit) 의 cross-track error 안전장치.
+    #
+    # v_min=-1.0 운영 정책은 yaml 그대로 유지. allow_backward=true 로 바꾸면
+    # 후진 sample 가능. 정밀 도킹 등 특수 시나리오 전까지 false 권장.
+    allow_backward: false
+    max_path_offset: 1.0   # m, 새 /global_path 가 현재 pose 와 너무 멀면 stale 로 무시
+    recovery_path_accept_offset: 1.8   # m, stuck/recovery 직후 새 path 수신 허용 거리
+    recovery_path_accept_duration: 5.0 # s, recovery 직후 완화 수신 창
+    path_lost_offset: 1.8  # m, 추종 중 path 와 이 이상 떨어지면 정지 + PATH_LOST status
+
+    # ----- Stuck Recovery (제자리 회전 SPIN 전용, 2026-05-31 후진 제거) -----
+    # Pure Pursuit 의 w=κ·v 공식은 v=0 이면 w=0 → 벽 inflation 안에서 trap.
+    # (0,5) 시나리오에서 robot 이 (-1.01, 1.35) 에 25초+ 멈춤 → 16차 SPIN 추가.
+    #
+    # 작동: v ≈ 0 + fwd_clear < safety 가 stuck_recovery_sec 이상 지속되면
+    #       제자리 회전(SPIN, spin_duration)으로 전방을 연다 → 열리면 짧게 전진
+    #       (FORWARD_ONLY) 후 A* 재계획 → 자동 재시도.
+    #       회전 공간조차 없거나 회전해도 안 열리면 EMERGENCY 정지(A* 재계획 대기).
+    #
+    # 2026-05-31: 후진(BACKUP) recovery 제거 — 후진 거동이 번거롭다는 사용자
+    #       피드백으로 "회전만으로 복귀"로 단순화. backup_velocity/backup_duration/
+    #       backup_turn_gain/backup_turn_max 파라미터 삭제. (CLAUDE.md §7.2.0)
+    #
+    # 비유: 막다른 곳에 코박으면 후진하지 말고 제자리에서 돌아 다른 길을 보고
+    #       살짝 나아간 뒤 내비 재탐색. 그래도 막히면 멈춰 재탐색을 기다린다.
+    stuck_recovery_sec: 1.5    # s, stuck 판정 시간
+    spin_duration: 2.0         # s, spin recovery 지속 시간
+    # SPIN 후 강제 전진은 "위치 살짝 바꾸기" 용도다. 길게 밀고 가면 path 재합류 후에도
+    # 회전 관성/고정 전진 때문에 다시 path를 크게 벗어나므로 짧고 중단 가능하게 둔다.
+    # TODO(미확정): RunPod에서 dist 0.25~0.45m, settle_w 0.15~0.25rad/s 범위 튜닝.
+    forward_only_dist: 0.35
+    forward_only_timeout: 1.2
+    forward_only_speed_scale: 0.35
+    forward_only_settle_w: 0.20
+    forward_only_min_dist: 0.10
+    forward_only_rejoin_offset: 0.25
+    spin_forward_clearance_margin: 0.15
+    # recovery(SPIN/EMERGENCY) 후 stuck 재판정 안 하는 시간. 무한 recovery loop 차단.
+    # A* 1Hz 재계획 + PP 새 path 시도 시간 확보.
+    recovery_cooldown: 3.0     # s, recovery 후 cooldown
+    # ----- 안전 -----
+    robot_radius: 0.20             # m, URDF chassis_width 0.40 / 2
+    hard_collision_distance: 0.05  # m, 거부 게이트 — 진짜 충돌 직전
+    safety_distance: 0.30          # m, 명세 §7 — clearance_score 정규화 기준
+    odom_timeout: 0.5              # s, EKF timeout 시 /odom fallback
+    scan_range_max: 25.0           # m, LaserScan 유효 max range (명세 §4.1)
+
+    # ----- LiDAR mount offset (2026-05-25 추가) -----
+    # URDF: lidar_link 가 base_link 의 (+0.25, 0) 에 yaw=0 으로 mount.
+    # 미반영 시 장애물이 실제보다 0.25m 가깝게 인식 → trajectory reject 보수적 → stuck.
+    lidar_offset_x: 0.25
+    lidar_offset_y: 0.0
+
+    # ----- 토픽명 (README 계약과 일치) -----
+    odom_topic: "/odometry/filtered"
+    odom_fallback_topic: "/odom"
+    global_path_topic: "/global_path"
+    goal_pose_topic: "/goal_pose"
+    # DWA는 /goal_pose를 계획에 쓰지 않고 "새 goal edge" 확인용으로만 구독한다.
+    # 최종 yaw는 DWA가 직접 추종하지 않으므로 위치 기준으로 반복 goal pub(--rate)
+    # 노이즈를 무시한다. yaw-only 변경은 A* dedup에서만 새 goal 후보로 다룬다.
+    # TODO(미확정): goal_dedup_dist는 A* 값과 함께 시뮬 측정 후 확정.
+    goal_dedup_dist: 0.10
+    # 현재 DWA empty-path guard에서는 사용하지 않는 호환/향후 정밀도킹용 예약값.
+    goal_dedup_yaw: 0.10
+    # REACHED 상태에서 endpoint가 현재 위치와 이 거리보다 멀면 새 goal path로 보고 재무장.
+    # goal_pose 콜백과 global_path 콜백 순서가 어긋나도 다음 목표에서 멈춰 있지 않게 한다.
+    reached_new_path_rearm_dist: 0.75
+    scan_topic: "/lidar"
+    cmd_vel_topic: "/cmd_vel"
+
+    # ----- 진단 로그 throttle (s) -----
+    # 0 = 비활성. control_rate=20Hz 기준 1.0s = 1초당 1회.
+    state_log_period: 1.0       # _state.x/y/yaw/v/w 로그
+    candidate_log_period: 1.0   # best 후보 (v, w, score, local_goal) 로그
+
+    # ----- path 변환 TF lookup timeout (s) -----
+    # 매 cycle 이 아닌 global_path 받을 때 한 번만 사용.
+    # AMCL publish 가 가끔 0.5~1.0s 지연돼도 OK 하도록 1.0s 권장.
+    # 이 시간 안에 새 TF 가 오면 사용, 아니면 이전 path 캐싱본 유지.
+    path_tf_timeout: 1.0
