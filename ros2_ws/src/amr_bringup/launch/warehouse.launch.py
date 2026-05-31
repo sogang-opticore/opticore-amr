@@ -4,6 +4,9 @@ Bridge stabilized via TimerAction (Gazebo 초기화 대기 후 실행)
 """
 import os
 
+os.environ['IGN_GAZEBO_RESOURCE_PATH'] = \
+    '/workspace/ros2_ws/src/amr_bringup/models'
+
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
@@ -42,7 +45,7 @@ def generate_launch_description():
 
     # ── 3. Spawn robot (Gazebo 초기화 3초 대기 후) ──
     spawn_robot = TimerAction(
-        period=8.0,
+        period=3.0,
         actions=[
             Node(
                 package='ros_gz_sim',
@@ -60,7 +63,7 @@ def generate_launch_description():
 
     # ── 4. ros_gz_bridge (Gazebo + 로봇 스폰 안정화 5초 대기 후) ──
     bridge = TimerAction(
-        period=12.0,
+        period=5.0,
         actions=[
             Node(
                 package='ros_gz_bridge',
@@ -85,7 +88,7 @@ def generate_launch_description():
                     '/imu_raw@sensor_msgs/msg/Imu[ignition.msgs.IMU',
                     # Camera (Ign→ROS)
                     '/camera@sensor_msgs/msg/Image[ignition.msgs.Image',
-                    '/camera/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
+                    '/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
                     '/ground_truth@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
                 ],
             ),
@@ -127,18 +130,18 @@ def generate_launch_description():
     )
 
     # ── 6. Dynamic obstacle mover (EKF 안정화 후) 
-    # dynamic_obstacle_mover = TimerAction(
-    #     period=8.0,
-    #     actions=[
-    #         Node(
-    #             package='amr_bringup',
-    #             executable='dynamic_obstacle_mover.py',
-    #             name='dynamic_obstacle_mover',
-    #             output='screen',
-    #             parameters=[{'use_sim_time': use_sim_time}],
-    #         ),
-    #     ],
-    # )
+    dynamic_obstacle_mover = TimerAction(
+         period=8.0,
+         actions=[
+             Node(
+                 package='amr_bringup',
+                 executable='dynamic_obstacle_mover.py',
+                 name='dynamic_obstacle_mover',
+                 output='screen',
+                 parameters=[{'use_sim_time': use_sim_time}],
+             ),
+         ],
+     )
 
     lidar_tf = Node(
         package='tf2_ros',
@@ -159,6 +162,6 @@ def generate_launch_description():
         odom_cov_node,
         ekf_node,        # +7s
         imu_injector,
-        #dynamic_obstacle_mover,  # +8s
+        dynamic_obstacle_mover,  # +8s
         lidar_tf,
     ])
