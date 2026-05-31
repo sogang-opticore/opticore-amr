@@ -148,6 +148,7 @@ class DynamicAvoidTarget:
     arrival_error: float
     curvature: float
     clearance: float
+    rejoin_clearance: float
     side: int
     offset: float
     blocked_distance: float
@@ -913,10 +914,14 @@ def choose_dynamic_avoid_target(
     elif previous_side == 0 and blockage.side_bias < 0.0:
         side_candidates = [1, -1]
 
+    min_candidate_distance = min(
+        max_lookahead,
+        max(0.20, blockage.distance + 0.25),
+    )
     count = int((max_lookahead - min_lookahead) / step) + 1
     for i in range(count + 1):
         distance = min(max_lookahead, min_lookahead + i * step)
-        if distance < max(0.20, blockage.distance + 0.25):
+        if distance + 1e-6 < min_candidate_distance:
             continue
         sample = sample_path_from_projection(path_xy, projection, distance)
         if sample is None:
@@ -945,7 +950,11 @@ def choose_dynamic_avoid_target(
                 rejoin_clear = segment_clearance_margin(
                     (lx, ly), (rejoin_lx, rejoin_ly), obstacles_local,
                     robot_radius)
-                clearance = min(direct_clear, rejoin_clear)
+                # 동적 회피는 옆 차선으로 먼저 빠지고, 장애물이 clear된 뒤
+                # 정상 path tracking으로 재합류하는 rolling two-step이다.
+                # 여기서 재합류선을 hard gate로 두면 path 위 장애물 때문에
+                # 출발 가능한 side target까지 모두 폐기될 수 있다.
+                clearance = direct_clear
                 alpha = math.atan2(ly, lx)
                 approach_yaw = math.atan2(
                     target_point[1] - robot.y,
@@ -958,6 +967,10 @@ def choose_dynamic_avoid_target(
                 if min_clearance > 0.0 and clearance < min_clearance:
                     ratio = (min_clearance - max(0.0, clearance)) / min_clearance
                     clearance_penalty = 5.0 * ratio * ratio
+                rejoin_clearance_penalty = 0.0
+                if min_clearance > 0.0 and rejoin_clear < min_clearance:
+                    ratio = (min_clearance - max(0.0, rejoin_clear)) / min_clearance
+                    rejoin_clearance_penalty = 0.85 * ratio * ratio
                 switch_penalty = (
                     side_switch_penalty
                     if previous_side and side != previous_side else 0.0
@@ -970,6 +983,7 @@ def choose_dynamic_avoid_target(
                     + 0.20 * distance_error
                     + 0.08 * offset
                     + clearance_penalty
+                    + rejoin_clearance_penalty
                     + switch_penalty
                     + side_bias_penalty
                 )
@@ -981,6 +995,7 @@ def choose_dynamic_avoid_target(
                     arrival_error=arrival_error,
                     curvature=curvature,
                     clearance=clearance,
+                    rejoin_clearance=rejoin_clear,
                     side=side,
                     offset=offset,
                     blocked_distance=blockage.distance,
@@ -2197,6 +2212,10 @@ class DwaPlannerNode(Node):
             "dynamic_avoid_clearance": (
                 dynamic_avoid_target.clearance if dynamic_avoid_target else float("inf")
             ),
+            "dynamic_avoid_rejoin_clearance": (
+                dynamic_avoid_target.rejoin_clearance
+                if dynamic_avoid_target else float("inf")
+            ),
             "dynamic_avoid_score": (
                 dynamic_avoid_target.score if dynamic_avoid_target else 0.0
             ),
@@ -2506,6 +2525,7 @@ class DwaPlannerNode(Node):
                 f" dyn_side={ctx.get('dynamic_avoid_side', 0):+d}"
                 f" dyn_off={ctx.get('dynamic_avoid_offset', 0.0):.2f}"
                 f" dyn_clr={ctx.get('dynamic_avoid_clearance', float('inf')):.2f}"
+                f" dyn_rjc={ctx.get('dynamic_avoid_rejoin_clearance', float('inf')):.2f}"
                 f" dyn_raw={ctx.get('dynamic_raw_obstacle_count', 0)}"
                 f" dyn_pts={ctx.get('dynamic_obstacle_count', 0)}"
                 f" dyn_static={ctx.get('dynamic_static_filtered', 0)}"

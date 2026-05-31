@@ -457,6 +457,72 @@ class TestPathProjectionLookahead:
         assert target.point[1] < 0.0
         assert target.clearance >= 0.10
 
+    def test_dynamic_avoid_target_accepts_safe_side_lane_before_rejoin_is_clear(self):
+        path = [(0.0, 0.0), (5.0, 0.0)]
+        robot = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
+        proj = project_to_path(path, (robot.x, robot.y), 0)
+        blockage = DynamicPathBlockage(
+            blocked=True,
+            distance=1.20,
+            count=10,
+            side_bias=0.0,
+            min_margin=0.4,
+        )
+
+        target = choose_dynamic_avoid_target(
+            path_xy=path,
+            robot=robot,
+            projection=proj,
+            blockage=blockage,
+            obstacles_local=[(1.20, 0.00), (1.35, 0.05), (1.45, -0.05)],
+            robot_radius=0.20,
+            lateral_offsets=[1.15],
+            min_clearance=0.45,
+            min_lookahead=0.8,
+            max_lookahead=3.0,
+            rejoin_distance=1.4,
+            step=0.25,
+            previous_side=0,
+            side_switch_penalty=0.5,
+        )
+
+        assert target is not None
+        assert target.clearance >= 0.45
+        assert target.rejoin_clearance < 0.45
+        assert abs(target.point[1]) > 1.0
+
+    def test_dynamic_avoid_target_allows_blockage_at_check_horizon(self):
+        path = [(0.0, 0.0), (6.0, 0.0)]
+        robot = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
+        proj = project_to_path(path, (robot.x, robot.y), 0)
+        blockage = DynamicPathBlockage(
+            blocked=True,
+            distance=3.20,
+            count=4,
+            side_bias=0.0,
+            min_margin=0.2,
+        )
+
+        target = choose_dynamic_avoid_target(
+            path_xy=path,
+            robot=robot,
+            projection=proj,
+            blockage=blockage,
+            obstacles_local=[(3.20, 0.00)],
+            robot_radius=0.20,
+            lateral_offsets=[1.15],
+            min_clearance=0.45,
+            min_lookahead=0.8,
+            max_lookahead=3.40,
+            rejoin_distance=1.4,
+            step=0.25,
+            previous_side=0,
+            side_switch_penalty=0.5,
+        )
+
+        assert target is not None
+        assert target.distance == 3.40
+
     def test_rejoin_target_penalizes_blocked_merge_line(self):
         path = [(0.0, 0.0), (0.8, 0.0), (0.8, 2.0)]
         robot = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
