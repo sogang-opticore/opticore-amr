@@ -128,11 +128,39 @@ class RejoinTarget:
     score: float
 
 
+@dataclass
+class DynamicPathBlockage:
+    """LiDAR obstacle cluster that blocks the near-term global path corridor."""
+    blocked: bool
+    distance: float
+    count: int
+    side_bias: float
+    min_margin: float
+
+
+@dataclass
+class DynamicAvoidTarget:
+    """Temporary local bypass target used while the static global path is blocked."""
+    point: Tuple[float, float]
+    yaw: float
+    distance: float
+    alpha: float
+    arrival_error: float
+    curvature: float
+    clearance: float
+    side: int
+    offset: float
+    blocked_distance: float
+    score: float
+
+
 class NavState(Enum):
     """명시적 내비게이션 상태 — fleet BT 연결 준비."""
     NORMAL       = "NORMAL"        # Pure Pursuit 정상 추종
     REJOIN       = "REJOIN"        # path 이탈 후 미래 path 지점으로 부드럽게 재합류
     ALIGN        = "ALIGN"         # in-place 회전 (heading 오차 큼)
+    DYNAMIC_BLOCKED = "DYNAMIC_BLOCKED"  # 동적 장애물이 path corridor를 막음
+    AVOIDING_DYNAMIC = "AVOIDING_DYNAMIC"  # side-offset local bypass 중
     SPIN         = "SPIN"          # spin recovery (stuck → 제자리 회전 탈출)
     FORWARD_ONLY = "FORWARD_ONLY"  # spin 완료 후 현재 heading으로 짧게 전진
     EMERGENCY    = "EMERGENCY"     # 충돌 임박 / 회전해도 전방 막힘
@@ -744,6 +772,235 @@ def segment_clearance_margin(
     return max(0.0, best - max(0.0, robot_radius))
 
 
+def point_segment_projection(
+    point: Tuple[float, float],
+    seg_start: Tuple[float, float],
+    seg_end: Tuple[float, float],
+) -> Tuple[float, float, Tuple[float, float]]:
+    px, py = point
+    ax, ay = seg_start
+    bx, by = seg_end
+    sx = bx - ax
+    sy = by - ay
+    seg_len_sq = sx * sx + sy * sy
+    if seg_len_sq <= 1e-12:
+        return math.hypot(px - ax, py - ay), 0.0, seg_start
+    t = ((px - ax) * sx + (py - ay) * sy) / seg_len_sq
+    t = max(0.0, min(1.0, t))
+    cx = ax + t * sx
+    cy = ay + t * sy
+    return math.hypot(px - cx, py - cy), t, (cx, cy)
+
+
+def detect_path_corridor_blockage(
+    path_xy: List[Tuple[float, float]],
+    robot: RobotState,
+    projection: PathProjection,
+    obstacles_local: List[Tuple[float, float]],
+    corridor_width: float,
+    check_distance: float,
+    min_points: int,
+    step: float,
+) -> DynamicPathBlockage:
+    """Detect whether LiDAR points occupy the near-term corridor around global path."""
+    if not path_xy or not obstacles_local or check_distance <= 0.0:
+        return DynamicPathBlockage(False, float("inf"), 0, 0.0, 0.0)
+
+    corridor_width = max(0.05, corridor_width)
+    min_points = max(1, min_points)
+    step = max(0.05, step)
+
+    samples: List[Tuple[float, Tuple[float, float]]] = []
+    count = int(check_distance / step) + 1
+    for i in range(count + 1):
+        distance = min(check_distance, i * step)
+        sample = sample_path_from_projection(path_xy, projection, distance)
+        if sample is None:
+            continue
+        local_point = world_to_local(sample.point, robot)
+        if not samples or math.hypot(
+                local_point[0] - samples[-1][1][0],
+                local_point[1] - samples[-1][1][1]) > 1e-3:
+            samples.append((distance, local_point))
+
+    if len(samples) < 2:
+        return DynamicPathBlockage(False, float("inf"), 0, 0.0, 0.0)
+
+    hit_count = 0
+    min_along = float("inf")
+    min_margin = 0.0
+    side_bias = 0.0
+    seen: set[int] = set()
+
+    for obs_idx, (ox, oy) in enumerate(obstacles_local):
+        if ox < -0.20:
+            continue
+        if math.hypot(ox, oy) > check_distance + corridor_width + 0.5:
+            continue
+
+        best_dist = float("inf")
+        best_along = float("inf")
+        best_side = 0.0
+        for (d0, p0), (d1, p1) in zip(samples, samples[1:]):
+            dist, t, _ = point_segment_projection((ox, oy), p0, p1)
+            if dist >= best_dist:
+                continue
+            sx = p1[0] - p0[0]
+            sy = p1[1] - p0[1]
+            side = sx * (oy - p0[1]) - sy * (ox - p0[0])
+            best_dist = dist
+            best_along = d0 + t * max(0.0, d1 - d0)
+            best_side = 1.0 if side > 0.0 else -1.0 if side < 0.0 else 0.0
+
+        if best_dist <= corridor_width and obs_idx not in seen:
+            seen.add(obs_idx)
+            hit_count += 1
+            min_along = min(min_along, best_along)
+            min_margin = max(min_margin, corridor_width - best_dist)
+            side_bias += best_side / max(0.3, math.hypot(ox, oy))
+
+    if hit_count == 0:
+        return DynamicPathBlockage(False, float("inf"), 0, 0.0, 0.0)
+
+    side_bias /= max(1, hit_count)
+    return DynamicPathBlockage(
+        blocked=hit_count >= min_points,
+        distance=min_along,
+        count=hit_count,
+        side_bias=side_bias,
+        min_margin=min_margin,
+    )
+
+
+def choose_dynamic_avoid_target(
+    path_xy: List[Tuple[float, float]],
+    robot: RobotState,
+    projection: PathProjection,
+    blockage: DynamicPathBlockage,
+    obstacles_local: List[Tuple[float, float]],
+    robot_radius: float,
+    lateral_offsets: List[float],
+    min_clearance: float,
+    min_lookahead: float,
+    max_lookahead: float,
+    rejoin_distance: float,
+    step: float,
+    previous_side: int = 0,
+    side_switch_penalty: float = 0.0,
+) -> Optional[DynamicAvoidTarget]:
+    """Choose a side-offset bypass target and a later rejoin point on the path."""
+    if not path_xy or not blockage.blocked:
+        return None
+
+    offsets = sorted({max(0.10, float(offset)) for offset in lateral_offsets})
+    if not offsets:
+        return None
+
+    min_clearance = max(0.0, min_clearance)
+    min_lookahead = max(0.10, min_lookahead)
+    max_lookahead = max(min_lookahead, max_lookahead)
+    step = max(0.05, step)
+    desired_distance = min(
+        max_lookahead,
+        max(min_lookahead, blockage.distance + max(0.0, rejoin_distance)),
+    )
+
+    best: Optional[DynamicAvoidTarget] = None
+    fallback: Optional[DynamicAvoidTarget] = None
+    side_candidates = [previous_side, -previous_side] if previous_side else [1, -1]
+    if previous_side == 0 and blockage.side_bias > 0.0:
+        side_candidates = [-1, 1]
+    elif previous_side == 0 and blockage.side_bias < 0.0:
+        side_candidates = [1, -1]
+
+    count = int((max_lookahead - min_lookahead) / step) + 1
+    for i in range(count + 1):
+        distance = min(max_lookahead, min_lookahead + i * step)
+        if distance < max(0.20, blockage.distance + 0.25):
+            continue
+        sample = sample_path_from_projection(path_xy, projection, distance)
+        if sample is None:
+            continue
+
+        normal_x = -math.sin(sample.yaw)
+        normal_y = math.cos(sample.yaw)
+        rejoin_lx, rejoin_ly = world_to_local(sample.point, robot)
+        for side in side_candidates:
+            if side == 0:
+                continue
+            for offset in offsets:
+                target_point = (
+                    sample.point[0] + side * offset * normal_x,
+                    sample.point[1] + side * offset * normal_y,
+                )
+                lx, ly = world_to_local(target_point, robot)
+                if lx <= 0.05:
+                    continue
+                L = math.hypot(lx, ly)
+                if L < 0.10:
+                    continue
+
+                direct_clear = segment_clearance_margin(
+                    (0.0, 0.0), (lx, ly), obstacles_local, robot_radius)
+                rejoin_clear = segment_clearance_margin(
+                    (lx, ly), (rejoin_lx, rejoin_ly), obstacles_local,
+                    robot_radius)
+                clearance = min(direct_clear, rejoin_clear)
+                alpha = math.atan2(ly, lx)
+                approach_yaw = math.atan2(
+                    target_point[1] - robot.y,
+                    target_point[0] - robot.x,
+                )
+                arrival_error = normalize_angle(sample.yaw - approach_yaw)
+                curvature = abs(2.0 * ly / (L * L)) if L >= 1e-3 else float("inf")
+                distance_error = abs(distance - desired_distance)
+                clearance_penalty = 0.0
+                if min_clearance > 0.0 and clearance < min_clearance:
+                    ratio = (min_clearance - max(0.0, clearance)) / min_clearance
+                    clearance_penalty = 5.0 * ratio * ratio
+                switch_penalty = (
+                    side_switch_penalty
+                    if previous_side and side != previous_side else 0.0
+                )
+                side_bias_penalty = 0.35 * max(0.0, side * blockage.side_bias)
+                score = (
+                    0.85 * abs(alpha)
+                    + 0.85 * abs(arrival_error)
+                    + 0.25 * curvature
+                    + 0.20 * distance_error
+                    + 0.08 * offset
+                    + clearance_penalty
+                    + switch_penalty
+                    + side_bias_penalty
+                )
+                target = DynamicAvoidTarget(
+                    point=target_point,
+                    yaw=sample.yaw,
+                    distance=distance,
+                    alpha=alpha,
+                    arrival_error=arrival_error,
+                    curvature=curvature,
+                    clearance=clearance,
+                    side=side,
+                    offset=offset,
+                    blocked_distance=blockage.distance,
+                    score=score,
+                )
+
+                if fallback is None or target.score < fallback.score:
+                    fallback = target
+                if clearance < min_clearance:
+                    continue
+                if best is None or target.score < best.score:
+                    best = target
+
+    if best is not None:
+        return best
+    if fallback is not None and fallback.clearance >= max(0.10, min_clearance * 0.5):
+        return fallback
+    return None
+
+
 def choose_rejoin_target(
     path_xy: List[Tuple[float, float]],
     robot: RobotState,
@@ -940,6 +1197,23 @@ class DwaPlannerNode(Node):
         self.declare_parameter("rejoin_clearance_min", 0.80)
         self.declare_parameter("rejoin_clearance_weight", 2.8)
         self.declare_parameter("rejoin_cross_track_gain_scale", 0.42)
+        self.declare_parameter("dynamic_avoid_enabled", True)
+        self.declare_parameter("dynamic_path_check_distance", 3.2)
+        self.declare_parameter("dynamic_path_corridor_width", 0.50)
+        self.declare_parameter("dynamic_path_corridor_step", 0.25)
+        self.declare_parameter("dynamic_path_min_block_points", 2)
+        self.declare_parameter("dynamic_block_enter_ticks", 2)
+        self.declare_parameter("dynamic_block_exit_ticks", 5)
+        self.declare_parameter("dynamic_avoid_min_clearance", 0.45)
+        self.declare_parameter("dynamic_avoid_lateral_offsets",
+                               [0.55, 0.75, 0.95, 1.15])
+        self.declare_parameter("dynamic_avoid_min_lookahead", 0.90)
+        self.declare_parameter("dynamic_avoid_max_lookahead", 3.40)
+        self.declare_parameter("dynamic_avoid_rejoin_distance", 1.55)
+        self.declare_parameter("dynamic_avoid_step", 0.25)
+        self.declare_parameter("dynamic_avoid_side_switch_penalty", 0.65)
+        self.declare_parameter("dynamic_avoid_side_hold_sec", 1.5)
+        self.declare_parameter("dynamic_avoid_cross_track_gain_scale", 0.15)
         self.declare_parameter("rejoin_predicted_exit_offset", 0.42)
         self.declare_parameter("rejoin_align_angle_thresh", 1.75)
         self.declare_parameter("short_lookahead_rejoin_min_distance", 0.35)
@@ -1035,6 +1309,10 @@ class DwaPlannerNode(Node):
         # NORMAL/ALIGN 공통
         self._path_progress_idx = 0
         self._last_kappa: float = 0.0
+        self._dynamic_block_ticks = 0
+        self._dynamic_clear_ticks = 0
+        self._dynamic_avoid_side = 0
+        self._dynamic_avoid_until = 0.0
 
         # ALIGN 전용
         self._in_align_mode = False      # 하위 호환 (path 콜백에서 리셋)
@@ -1143,6 +1421,39 @@ class DwaPlannerNode(Node):
         self.p_rejoin_clearance_min     = gp("rejoin_clearance_min").value
         self.p_rejoin_clearance_weight  = gp("rejoin_clearance_weight").value
         self.p_rejoin_cross_track_gain_scale = gp("rejoin_cross_track_gain_scale").value
+        self.p_dynamic_avoid_enabled    = gp("dynamic_avoid_enabled").value
+        self.p_dynamic_path_check_distance = gp(
+            "dynamic_path_check_distance").value
+        self.p_dynamic_path_corridor_width = gp(
+            "dynamic_path_corridor_width").value
+        self.p_dynamic_path_corridor_step = gp(
+            "dynamic_path_corridor_step").value
+        self.p_dynamic_path_min_block_points = gp(
+            "dynamic_path_min_block_points").value
+        self.p_dynamic_block_enter_ticks = gp("dynamic_block_enter_ticks").value
+        self.p_dynamic_block_exit_ticks = gp("dynamic_block_exit_ticks").value
+        self.p_dynamic_avoid_min_clearance = gp(
+            "dynamic_avoid_min_clearance").value
+        dynamic_offsets = gp("dynamic_avoid_lateral_offsets").value
+        if isinstance(dynamic_offsets, (list, tuple)):
+            self.p_dynamic_avoid_lateral_offsets = [
+                float(offset) for offset in dynamic_offsets
+            ]
+        else:
+            self.p_dynamic_avoid_lateral_offsets = [float(dynamic_offsets)]
+        self.p_dynamic_avoid_min_lookahead = gp(
+            "dynamic_avoid_min_lookahead").value
+        self.p_dynamic_avoid_max_lookahead = gp(
+            "dynamic_avoid_max_lookahead").value
+        self.p_dynamic_avoid_rejoin_distance = gp(
+            "dynamic_avoid_rejoin_distance").value
+        self.p_dynamic_avoid_step     = gp("dynamic_avoid_step").value
+        self.p_dynamic_avoid_side_switch_penalty = gp(
+            "dynamic_avoid_side_switch_penalty").value
+        self.p_dynamic_avoid_side_hold_sec = gp(
+            "dynamic_avoid_side_hold_sec").value
+        self.p_dynamic_avoid_cross_track_gain_scale = gp(
+            "dynamic_avoid_cross_track_gain_scale").value
         self.p_rejoin_predicted_exit_offset = gp(
             "rejoin_predicted_exit_offset").value
         self.p_rejoin_align_angle_thresh = gp("rejoin_align_angle_thresh").value
@@ -1465,6 +1776,24 @@ class DwaPlannerNode(Node):
     # ───────────────────────────────────────────────────────────────
     # 공통 선행 계산 — NORMAL/ALIGN/EMERGENCY 가 모두 필요한 값
     # ───────────────────────────────────────────────────────────────
+    def _update_dynamic_block_state(self, blocked: bool) -> bool:
+        if blocked:
+            self._dynamic_block_ticks += 1
+            self._dynamic_clear_ticks = 0
+        else:
+            self._dynamic_clear_ticks += 1
+            if self._dynamic_clear_ticks >= max(1, self.p_dynamic_block_exit_ticks):
+                self._dynamic_block_ticks = 0
+                if self._sec_now() >= self._dynamic_avoid_until:
+                    self._dynamic_avoid_side = 0
+
+        if self._dynamic_block_ticks >= max(1, self.p_dynamic_block_enter_ticks):
+            return True
+        if (self._nav_state == NavState.AVOIDING_DYNAMIC and
+                self._dynamic_clear_ticks < max(1, self.p_dynamic_block_exit_ticks)):
+            return True
+        return False
+
     def _compute_context(self) -> Optional[dict]:
         """경로 추종에 필요한 공통 값을 계산해 dict 로 반환.
 
@@ -1512,6 +1841,10 @@ class DwaPlannerNode(Node):
             predicted_exit_offset=self.p_rejoin_predicted_exit_offset,
         )
         obstacles_local = self._extract_obstacles_from_scan()
+        dynamic_blockage = DynamicPathBlockage(
+            False, float("inf"), 0, 0.0, 0.0)
+        dynamic_blocked = False
+        dynamic_avoid_target: Optional[DynamicAvoidTarget] = None
         rejoin_target: Optional[RejoinTarget] = None
         if rejoin_requested:
             rejoin_target = choose_rejoin_target(
@@ -1592,6 +1925,61 @@ class DwaPlannerNode(Node):
                 target_path_yaw = rejoin_target.yaw
                 lx, ly = world_to_local(lookahead, self._state)
                 L = math.hypot(lx, ly)
+
+        if (self.p_dynamic_avoid_enabled and
+                dist_to_goal > max(self.p_goal_approach_distance,
+                                   self.p_goal_tolerance + 0.5)):
+            dynamic_blockage = detect_path_corridor_blockage(
+                path_xy=path_xy,
+                robot=self._state,
+                projection=projection,
+                obstacles_local=obstacles_local,
+                corridor_width=self.p_dynamic_path_corridor_width,
+                check_distance=self.p_dynamic_path_check_distance,
+                min_points=int(self.p_dynamic_path_min_block_points),
+                step=self.p_dynamic_path_corridor_step,
+            )
+            dynamic_blocked = self._update_dynamic_block_state(
+                dynamic_blockage.blocked)
+            if dynamic_blocked and not dynamic_blockage.blocked:
+                dynamic_blockage = DynamicPathBlockage(
+                    True,
+                    min(effective_lookahead, self.p_dynamic_path_check_distance),
+                    0,
+                    0.0,
+                    0.0,
+                )
+            if dynamic_blocked:
+                previous_side = (
+                    self._dynamic_avoid_side
+                    if self._sec_now() < self._dynamic_avoid_until else 0
+                )
+                dynamic_avoid_target = choose_dynamic_avoid_target(
+                    path_xy=path_xy,
+                    robot=self._state,
+                    projection=projection,
+                    blockage=dynamic_blockage,
+                    obstacles_local=obstacles_local,
+                    robot_radius=self.p_robot_radius,
+                    lateral_offsets=self.p_dynamic_avoid_lateral_offsets,
+                    min_clearance=self.p_dynamic_avoid_min_clearance,
+                    min_lookahead=self.p_dynamic_avoid_min_lookahead,
+                    max_lookahead=self.p_dynamic_avoid_max_lookahead,
+                    rejoin_distance=self.p_dynamic_avoid_rejoin_distance,
+                    step=self.p_dynamic_avoid_step,
+                    previous_side=previous_side,
+                    side_switch_penalty=self.p_dynamic_avoid_side_switch_penalty,
+                )
+                if dynamic_avoid_target is not None:
+                    lookahead = dynamic_avoid_target.point
+                    target_path_yaw = dynamic_avoid_target.yaw
+                    effective_lookahead = dynamic_avoid_target.distance
+                    self._dynamic_avoid_side = dynamic_avoid_target.side
+                    self._dynamic_avoid_until = (
+                        self._sec_now() + self.p_dynamic_avoid_side_hold_sec
+                    )
+                    lx, ly = world_to_local(lookahead, self._state)
+                    L = math.hypot(lx, ly)
         alpha = math.atan2(ly, lx)
         path_heading_error = normalize_angle(target_path_yaw - self._state.theta)
 
@@ -1620,6 +2008,24 @@ class DwaPlannerNode(Node):
                 rejoin_target.desired_distance if rejoin_target else 0.0
             ),
             "rejoin_score": rejoin_target.score if rejoin_target else 0.0,
+            "dynamic_blocked": dynamic_blocked,
+            "dynamic_block_count": dynamic_blockage.count,
+            "dynamic_block_distance": dynamic_blockage.distance,
+            "dynamic_block_side_bias": dynamic_blockage.side_bias,
+            "dynamic_block_margin": dynamic_blockage.min_margin,
+            "is_dynamic_avoiding": dynamic_avoid_target is not None,
+            "dynamic_avoid_side": (
+                dynamic_avoid_target.side if dynamic_avoid_target else 0
+            ),
+            "dynamic_avoid_offset": (
+                dynamic_avoid_target.offset if dynamic_avoid_target else 0.0
+            ),
+            "dynamic_avoid_clearance": (
+                dynamic_avoid_target.clearance if dynamic_avoid_target else float("inf")
+            ),
+            "dynamic_avoid_score": (
+                dynamic_avoid_target.score if dynamic_avoid_target else 0.0
+            ),
             "lx": lx, "ly": ly, "L": L, "alpha": alpha,
             "obstacles_local": obstacles_local,
             "fwd_clear": fwd_clear,
@@ -1642,16 +2048,39 @@ class DwaPlannerNode(Node):
         predicted_path_offset = ctx.get("predicted_path_offset", path_offset)
         path_heading_error = ctx["path_heading_error"]
         is_rejoining = ctx.get("is_rejoining", False)
+        dynamic_blocked = ctx.get("dynamic_blocked", False)
+        is_dynamic_avoiding = ctx.get("is_dynamic_avoiding", False)
 
-        if is_rejoining:
+        if is_dynamic_avoiding:
+            self._nav_state = NavState.AVOIDING_DYNAMIC
+        elif dynamic_blocked:
+            self._nav_state = NavState.DYNAMIC_BLOCKED
+        elif is_rejoining:
             self._nav_state = NavState.REJOIN
-        elif self._nav_state == NavState.REJOIN:
+        elif self._nav_state in (
+                NavState.REJOIN,
+                NavState.AVOIDING_DYNAMIC,
+                NavState.DYNAMIC_BLOCKED):
             self._nav_state = NavState.NORMAL
 
         period = 1.0 / max(self.p_control_rate, 1.0)
         dv_max = self.p_a_max * period
         dw_max = self.p_alpha_max * period
         dw_brake_max = self.p_w_brake_alpha_max * period
+
+        if dynamic_blocked and not is_dynamic_avoiding:
+            self._relax_path_acceptance()
+            self._publish_cmd(VelocityCommand(v=0.0, w=0.0))
+            self._publish_status_value("DYNAMIC_BLOCKED")
+            self._log_state_throttled()
+            self.get_logger().warn(
+                "dynamic obstacle blocks global path corridor; waiting for "
+                "clearance or safer local bypass "
+                f"(hits={ctx.get('dynamic_block_count', 0)}, "
+                f"d={ctx.get('dynamic_block_distance', float('inf')):.2f}m, "
+                f"bias={ctx.get('dynamic_block_side_bias', 0.0):+.2f})",
+                throttle_duration_sec=1.0)
+            return
 
         # ── ALIGN 전이 판정 ──────────────────────────────────────
         # 각도 hysteresis(63° in / 15° out)에 더해, P4 시간 hysteresis:
@@ -1664,7 +2093,8 @@ class DwaPlannerNode(Node):
         else:
             align_entry_thresh = (
                 self.p_rejoin_align_angle_thresh
-                if is_rejoining else self.p_align_angle_thresh
+                if (is_rejoining or is_dynamic_avoiding)
+                else self.p_align_angle_thresh
             )
             if abs(alpha) > align_entry_thresh and L > 0.1:
                 self._align_trigger_count += 1
@@ -1775,6 +2205,8 @@ class DwaPlannerNode(Node):
         cross_track_gain = self.p_path_cross_track_gain
         if is_rejoining:
             cross_track_gain *= self.p_rejoin_cross_track_gain_scale
+        if is_dynamic_avoiding:
+            cross_track_gain *= self.p_dynamic_avoid_cross_track_gain_scale
         w_path = (
             self.p_path_heading_gain * path_heading_error
             - cross_track_gain * signed_path_offset
@@ -1798,9 +2230,10 @@ class DwaPlannerNode(Node):
             self.p_turn_clearance_brake_angle,
         )
         turn_brake_before = v_target
+        turn_clearance_ref = motion_clear if is_dynamic_avoiding else fwd_clear
         v_target = turn_clearance_speed_limit(
             v_target,
-            fwd_clear,
+            turn_clearance_ref,
             self.p_clearance_stop_distance,
             self.p_a_max,
             turn_intensity,
@@ -1839,7 +2272,8 @@ class DwaPlannerNode(Node):
         collision_imminent = (
             min_d < (self.p_hard_collision_distance + self.p_robot_radius) or
             # fwd_clear 보조: 측면 대각선 동적 장애물 등 arc 밖 위협 감지
-            fwd_clear < (self.p_hard_collision_distance + self.p_robot_radius)
+            (not is_dynamic_avoiding and
+             fwd_clear < (self.p_hard_collision_distance + self.p_robot_radius))
         )
 
         # stuck/velocity blocked 판정
@@ -1848,7 +2282,8 @@ class DwaPlannerNode(Node):
         is_velocity_blocked = (abs(v_cmd) < 0.02 and
                                ((motion_clear < self.p_clearance_stop_distance
                                  and not near_wall_creep) or
-                                fwd_clear < self.p_clearance_stop_distance))
+                                (not is_dynamic_avoiding and
+                                 fwd_clear < self.p_clearance_stop_distance)))
         in_recovery_cooldown = self._sec_now() < self._recovery_cooldown_until
 
         if collision_imminent or is_velocity_blocked:
@@ -1873,13 +2308,28 @@ class DwaPlannerNode(Node):
         # 정상 발행
         self._stuck_counter = 0
         self._publish_cmd(VelocityCommand(v=v_cmd, w=w_cmd))
-        status_value = "REJOIN" if is_rejoining else "NORMAL"
+        if is_dynamic_avoiding:
+            status_value = "AVOIDING_DYNAMIC"
+        elif is_rejoining:
+            status_value = "REJOIN"
+        else:
+            status_value = "NORMAL"
         self._publish_status_value(status_value)
         self._log_state_throttled()
         if sim_traj:
             self._publish_best_trajectory(sim_traj)
 
         # 진단 로그
+        dynamic_diag = ""
+        if dynamic_blocked or is_dynamic_avoiding:
+            dynamic_diag = (
+                f"{' dyn=1' if is_dynamic_avoiding else ''}"
+                f"{' dynblk=1' if dynamic_blocked else ''}"
+                f" dyn_d={ctx.get('dynamic_block_distance', float('inf')):.2f}"
+                f" dyn_side={ctx.get('dynamic_avoid_side', 0):+d}"
+                f" dyn_off={ctx.get('dynamic_avoid_offset', 0.0):.2f}"
+                f" dyn_clr={ctx.get('dynamic_avoid_clearance', float('inf')):.2f}"
+            )
         self._candidate_log_counter += 1
         target = int(self.p_control_rate * self.p_candidate_log_period)
         if self.p_candidate_log_period > 0.0 and \
@@ -1901,6 +2351,7 @@ class DwaPlannerNode(Node):
                 f"{' tbrake=1' if turn_brake_active else ''}"
                 f"{' wesc=1' if wall_escape_active else ''}"
                 f"{' sj=1' if ctx.get('short_lookahead_rejoin', False) else ''}"
+                f"{dynamic_diag}"
                 f"{' creep=1' if near_wall_creep else ''}")
 
     def _execute_align(self, ctx: dict) -> None:

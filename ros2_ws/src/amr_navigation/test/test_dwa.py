@@ -23,6 +23,9 @@ from amr_navigation.dwa_node import (
     pick_lookahead_point,
     pick_lookahead_from_projection,
     sample_path_from_projection,
+    DynamicPathBlockage,
+    detect_path_corridor_blockage,
+    choose_dynamic_avoid_target,
     choose_rejoin_target,
     should_use_rejoin,
     should_force_rejoin_for_short_lookahead,
@@ -335,6 +338,78 @@ class TestPathProjectionLookahead:
         )
 
         assert abs(margin - 0.15) < 1e-9
+
+    def test_detect_path_corridor_blockage_on_global_path(self):
+        path = [(0.0, 0.0), (5.0, 0.0)]
+        robot = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
+        proj = project_to_path(path, (robot.x, robot.y), 0)
+
+        blockage = detect_path_corridor_blockage(
+            path_xy=path,
+            robot=robot,
+            projection=proj,
+            obstacles_local=[(1.20, 0.10), (1.25, -0.08)],
+            corridor_width=0.50,
+            check_distance=3.0,
+            min_points=2,
+            step=0.25,
+        )
+
+        assert blockage.blocked is True
+        assert blockage.count == 2
+        assert 1.0 <= blockage.distance <= 1.4
+
+    def test_detect_path_corridor_ignores_lateral_obstacle(self):
+        path = [(0.0, 0.0), (5.0, 0.0)]
+        robot = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
+        proj = project_to_path(path, (robot.x, robot.y), 0)
+
+        blockage = detect_path_corridor_blockage(
+            path_xy=path,
+            robot=robot,
+            projection=proj,
+            obstacles_local=[(1.20, 1.20), (1.30, -1.10)],
+            corridor_width=0.50,
+            check_distance=3.0,
+            min_points=1,
+            step=0.25,
+        )
+
+        assert blockage.blocked is False
+
+    def test_dynamic_avoid_target_offsets_away_from_blocked_side(self):
+        path = [(0.0, 0.0), (5.0, 0.0)]
+        robot = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
+        proj = project_to_path(path, (robot.x, robot.y), 0)
+        blockage = DynamicPathBlockage(
+            blocked=True,
+            distance=1.0,
+            count=3,
+            side_bias=0.5,
+            min_margin=0.3,
+        )
+
+        target = choose_dynamic_avoid_target(
+            path_xy=path,
+            robot=robot,
+            projection=proj,
+            blockage=blockage,
+            obstacles_local=[(1.0, 0.15), (1.2, 0.20), (1.4, 0.10)],
+            robot_radius=0.20,
+            lateral_offsets=[0.75, 1.0],
+            min_clearance=0.10,
+            min_lookahead=0.8,
+            max_lookahead=3.0,
+            rejoin_distance=1.4,
+            step=0.25,
+            previous_side=0,
+            side_switch_penalty=0.5,
+        )
+
+        assert target is not None
+        assert target.side == -1
+        assert target.point[1] < 0.0
+        assert target.clearance >= 0.10
 
     def test_rejoin_target_penalizes_blocked_merge_line(self):
         path = [(0.0, 0.0), (0.8, 0.0), (0.8, 2.0)]

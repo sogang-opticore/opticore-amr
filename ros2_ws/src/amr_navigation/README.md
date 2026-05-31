@@ -70,7 +70,7 @@
 | `/cmd_vel` | `geometry_msgs/Twist` | **DWA 단독** ★ | 20 Hz (control_rate) | Reliable, depth 10 | Ignition DiffDrive 입력 |
 | `/dwa/trajectories` | `visualization_msgs/MarkerArray` | DWA | 5 Hz | Reliable | 후보 trajectory 시각화 (Foxglove) |
 | `/dwa/best_trajectory` | `visualization_msgs/Marker` | DWA | 5 Hz | Reliable | 선택된 trajectory 강조 |
-| `/dwa/status` | `std_msgs/String` | DWA | 1 Hz + edge 이벤트 | Reliable | 상태 문자열 — 상세는 §3.3 (`NORMAL`/`ALIGN`/`RECOVERY`/`RECOVERY_DONE`/`EMERGENCY`/`PATH_LOST`/`REACHED` 등) |
+| `/dwa/status` | `std_msgs/String` | DWA | 1 Hz + edge 이벤트 | Reliable | 상태 문자열 — 상세는 §3.3 (`NORMAL`/`ALIGN`/`REJOIN`/`AVOIDING_DYNAMIC`/`DYNAMIC_BLOCKED`/`RECOVERY`/`EMERGENCY`/`PATH_LOST`/`REACHED` 등) |
 
 > ★ **`/cmd_vel`은 DWA만 발행한다.** A\*은 경로만 만들고 운동 명령은 만들지 않는다. 이중 발행자가 생기면 Twist가 충돌하므로 절대 금지.
 
@@ -160,6 +160,8 @@ angular:
 | `STOPPED` | odom 수신 완료, 그러나 `/global_path` 없음 또는 빈 path (계획 실패) |
 | `NORMAL` | path 수신 완료, Pure Pursuit 정상 추종 루프 실행 중 (코드가 발행하는 실제 값; 구 문서 `PLANNING`) |
 | `REJOIN` | path 이탈 상태. 가장 가까운 점 대신 미래 path 후보를 골라 작은 조향각으로 재합류 중 |
+| `DYNAMIC_BLOCKED` | LiDAR 동적 장애물이 global path corridor를 막고 있으며 아직 안전한 local bypass 후보가 없음 |
+| `AVOIDING_DYNAMIC` | 정적 global path는 유지하되 LiDAR 기반 side-offset 목표점으로 동적 장애물을 우회 중 |
 | `GOAL_REACHED` | **도착 순간 1회(edge)** — goal_tolerance 진입 시 (2026-05-31 P2 추가) |
 | `REACHED` | 도착 후 정지 유지 상태 (1Hz 정상 발행) |
 | `EMERGENCY` | 모든 trajectory 후보가 충돌 또는 안전거리(0.30m) 침범 → 즉시 정지 |
@@ -250,6 +252,13 @@ angular:
 | `short_lookahead_rejoin_min_distance` | 0.35 m | path가 로봇 근처에서 접혀 실제 local lookahead가 너무 짧아지면 `REJOIN`으로 승격 |
 | `short_lookahead_rejoin_ratio` | 0.55 | 실제 local lookahead가 effective lookahead 대비 이 비율보다 짧으면 접힌 lookahead로 판단 |
 | `short_lookahead_goal_margin` | 1.0 m | goal 근처 final approach에서는 short-lookahead REJOIN을 비활성화 |
+| `dynamic_avoid_enabled` | true | LiDAR 기반 동적 장애물 local bypass 활성화 |
+| `dynamic_path_check_distance` | 3.20 m | 현재 path projection부터 앞쪽으로 동적 차단을 검사할 거리 |
+| `dynamic_path_corridor_width` | 0.50 m | global path 주변 이 폭 안의 LiDAR point cluster를 차단 후보로 판단 |
+| `dynamic_path_min_block_points` | 2 | corridor 차단으로 인정할 최소 LiDAR point 수 |
+| `dynamic_avoid_lateral_offsets` | [0.55, 0.75, 0.95, 1.15] | 좌우 side-offset 우회 목표 후보 거리 |
+| `dynamic_avoid_min_clearance` | 0.45 m | 우회 목표/재합류 segment가 요구하는 최소 LiDAR clearance |
+| `dynamic_avoid_rejoin_distance` | 1.55 m | 차단 지점 뒤쪽 global path로 재합류할 기본 거리 |
 | `align_release_angle` | 0.70 rad | ALIGN 중 안전하면 15도까지 기다리지 않고 NORMAL로 조기 복귀 |
 | `rejoin_align_release_angle` | 0.95 rad | REJOIN 중 안전하면 더 이른 각도에서 path 추종으로 복귀 |
 | `align_drive_angle` | 1.57 rad | ALIGN 중 전방 여유가 있으면 저속 turn-in-motion 허용 각도 |
@@ -313,7 +322,7 @@ angular:
 | `status_replan_after_states` | `["FORWARD_ONLY", "RECOVERY"]` | fallback: 이 상태 뒤 reset 상태가 오면 1회 재계획 |
 | `path_switch_hysteresis` | 0.35 m | 새 주기 재계획 후보가 이만큼 짧지 않으면 기존 path 유지 |
 | `path_switch_max_start_offset` | 0.80 m | 현재 pose가 기존 path에서 이 이상 멀면 hysteresis 해제 |
-| `path_hysteresis_stable_states` | `["NORMAL", "ALIGN"]` | 이 DWA 상태에서만 기존 path 유지 hysteresis 적용. 복구/벽 정지 중에는 새 후보 발행 |
+| `path_hysteresis_stable_states` | `["NORMAL", "ALIGN", "AVOIDING_DYNAMIC", "DYNAMIC_BLOCKED"]` | 이 DWA 상태에서만 기존 path 유지 hysteresis 적용. REJOIN/복구/벽 정지 중에는 새 후보 수용성 우선 |
 | `new_goal_force_publish_sec` | 5.0 s | 새 goal 직후 이 시간 동안 hysteresis를 건너뛰어 `/global_path` 재수신 기회 확보 |
 | `goal_direct_distance` | 2.0 m | 목표 근처에서 안전한 직선 final approach path 허용 거리 |
 | `goal_direct_min_clearance` | 0.90 m | 직선 final approach segment의 최소 raw obstacle clearance |
@@ -334,6 +343,7 @@ angular:
 | goal 도달 불가 (장애물로 막힘) | 빈 path 발행 | 정지 |
 | DWA가 `EMERGENCY`/`PATH_LOST`/`RECOVERY_DONE` 발행 | 현재 pose 기준 1회 재계획. 실패해도 기존 성공 path가 있으면 빈 path 미발행 | 새 path 수신 시 추종 재개 |
 | DWA가 `NORMAL`/`ALIGN`으로 정상 추종 중 | 기본값에서는 재계획 없음. 기존 latched path 유지 | path 초입 재정렬 반복 방지 |
+| DWA가 `AVOIDING_DYNAMIC`/`DYNAMIC_BLOCKED` 발행 | static map 기반 global path는 유지하되 hysteresis로 branch 흔들림을 줄임 | LiDAR corridor 차단을 보고 side-offset local bypass를 시도. 안전 후보가 없으면 `DYNAMIC_BLOCKED`로 정지 대기 |
 | 주기 재계획 실패 + 기존 성공 path 있음 | 빈 path 미발행, 기존 path 유지 | 기존 path 계속 추종 |
 | `/global_path` empty 수신(새 goal 직후) | — | 즉시 정지, `status="STOPPED"` |
 | `/global_path` empty 수신(새 goal 없음 + 기존 path 있음) | — | stale/중복 publisher 가능성으로 보고 기존 path 유지 |
