@@ -352,6 +352,7 @@ dwa_planner:
     dynamic_layer_inside_turn_speed: 0.55
     dynamic_layer_inside_align_angle: 0.75
     dynamic_layer_reentry_margin: 0.12
+    dynamic_layer_reentry_hard_margin: 0.0
     dynamic_layer_occupied_value: 100
 
     # ----- 진단 로그 throttle (s) -----

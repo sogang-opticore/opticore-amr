@@ -39,6 +39,7 @@ from amr_navigation.dwa_node import (
     occupancy_grid_has_static_obstacle_near,
     should_use_rejoin,
     should_force_rejoin_for_short_lookahead,
+    should_block_dynamic_layer_reentry,
     predict_signed_path_offset,
     should_release_align,
     clamp_forward_velocity,
@@ -1580,6 +1581,17 @@ class TestDynamicLayerRearPrediction:
         assert abs(node._dynamic_layer_radius(0.10) - 0.65) < 1e-9
         assert abs(node._dynamic_layer_radius(0.30) - 0.75) < 1e-9
         assert abs(node._dynamic_layer_radius(2.00) - 1.30) < 1e-9
+
+
+class TestDynamicLayerReentryGuard:
+    def test_positive_boundary_clearance_is_soft_not_hard_block(self):
+        assert should_block_dynamic_layer_reentry(0.02, 0.0) is False
+
+    def test_negative_clearance_is_hard_block(self):
+        assert should_block_dynamic_layer_reentry(-0.01, 0.0) is True
+
+    def test_infinite_clearance_is_not_blocked(self):
+        assert should_block_dynamic_layer_reentry(float("inf"), 0.0) is False
 
 
 class TestDynamicLayerInsideEscape:

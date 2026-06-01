@@ -606,6 +606,18 @@ def should_force_rejoin_for_short_lookahead(
     return local_lookahead_distance < threshold
 
 
+def should_block_dynamic_layer_reentry(
+    clearance: float,
+    hard_margin: float,
+) -> bool:
+    """Return True only when the target segment actually enters dynamic no-go."""
+    if math.isinf(clearance):
+        return False
+    if not math.isfinite(clearance):
+        return True
+    return clearance <= max(0.0, hard_margin)
+
+
 def predict_signed_path_offset(
     signed_offset: float,
     heading_error: float,
@@ -1938,6 +1950,7 @@ class DwaPlannerNode(Node):
         self.declare_parameter("dynamic_layer_inside_turn_speed", 0.55)
         self.declare_parameter("dynamic_layer_inside_align_angle", 0.75)
         self.declare_parameter("dynamic_layer_reentry_margin", 0.12)
+        self.declare_parameter("dynamic_layer_reentry_hard_margin", 0.0)
         self.declare_parameter("dynamic_layer_occupied_value", 100)
         self.declare_parameter("rejoin_predicted_exit_offset", 0.42)
         self.declare_parameter("rejoin_align_angle_thresh", 1.75)
@@ -2308,6 +2321,8 @@ class DwaPlannerNode(Node):
             "dynamic_layer_inside_align_angle").value
         self.p_dynamic_layer_reentry_margin = gp(
             "dynamic_layer_reentry_margin").value
+        self.p_dynamic_layer_reentry_hard_margin = gp(
+            "dynamic_layer_reentry_hard_margin").value
         self.p_dynamic_layer_occupied_value = gp(
             "dynamic_layer_occupied_value").value
         self.p_rejoin_predicted_exit_offset = gp(
@@ -3388,6 +3403,50 @@ class DwaPlannerNode(Node):
 
         return best_margin
 
+    def _choose_dynamic_layer_safe_path_sample(
+        self,
+        path_xy: List[Tuple[float, float]],
+        projection: PathProjection,
+        current_distance: float,
+        min_clearance: float,
+    ) -> Tuple[Optional[PathSample], float]:
+        """Pick a path target whose straight local segment avoids dynamic no-go."""
+        if not self._dynamic_layer_blocks or self._state is None:
+            return None, float("inf")
+
+        max_distance = max(0.20, float(current_distance))
+        min_distance = min(
+            max_distance,
+            max(0.20, self.p_goal_tolerance * 1.5),
+        )
+        step = max(0.10, min(0.25, self.p_dynamic_path_corridor_step))
+        distances: List[float] = []
+        d = min_distance
+        while d <= max_distance + 1e-6:
+            distances.append(d)
+            d += step
+        if not distances or abs(distances[-1] - max_distance) > 1e-6:
+            distances.append(max_distance)
+
+        best_sample: Optional[PathSample] = None
+        best_clearance = -float("inf")
+        for distance in distances:
+            sample = sample_path_from_projection(path_xy, projection, distance)
+            if sample is None:
+                continue
+            local_target = world_to_local(sample.point, self._state)
+            if local_target[0] < -0.05:
+                continue
+            clearance = self._dynamic_layer_segment_clearance(
+                (0.0, 0.0), local_target)
+            if clearance > best_clearance:
+                best_sample = sample
+                best_clearance = clearance
+            if clearance >= min_clearance:
+                return sample, clearance
+
+        return best_sample, best_clearance
+
     def _choose_goal_shortcut_target(
         self,
         goal_xy: Tuple[float, float],
@@ -3860,6 +3919,8 @@ class DwaPlannerNode(Node):
         dynamic_layer_prefer_global_replan = False
         dynamic_layer_target_clearance = float("inf")
         dynamic_layer_reentry_blocked = False
+        dynamic_layer_soft_reentry = False
+        dynamic_layer_lookahead_adjusted = False
         dynamic_local_fallback = False
         approaching_dynamic_risk = False
         inside_dynamic_layer = False
@@ -4072,9 +4133,40 @@ class DwaPlannerNode(Node):
         if dynamic_layer_blocks > 0 and not inside_dynamic_layer:
             dynamic_layer_target_clearance = self._dynamic_layer_segment_clearance(
                 (0.0, 0.0), (lx, ly))
+            reentry_margin = max(0.0, self.p_dynamic_layer_reentry_margin)
+            if dynamic_layer_target_clearance < reentry_margin:
+                safe_sample, safe_clearance = (
+                    self._choose_dynamic_layer_safe_path_sample(
+                        path_xy,
+                        projection,
+                        effective_lookahead,
+                        reentry_margin,
+                    )
+                )
+                if (safe_sample is not None
+                        and safe_clearance > dynamic_layer_target_clearance + 1e-3
+                        and not should_block_dynamic_layer_reentry(
+                            safe_clearance,
+                            self.p_dynamic_layer_reentry_hard_margin,
+                        )):
+                    lookahead = safe_sample.point
+                    target_path_yaw = safe_sample.yaw
+                    effective_lookahead = safe_sample.distance
+                    lx, ly = world_to_local(lookahead, self._state)
+                    L = math.hypot(lx, ly)
+                    dynamic_layer_target_clearance = safe_clearance
+                    dynamic_layer_lookahead_adjusted = True
+                    path_heading_error = normalize_angle(
+                        target_path_yaw - self._state.theta)
             dynamic_layer_reentry_blocked = (
-                dynamic_layer_target_clearance
-                <= max(0.0, self.p_dynamic_layer_reentry_margin)
+                should_block_dynamic_layer_reentry(
+                    dynamic_layer_target_clearance,
+                    self.p_dynamic_layer_reentry_hard_margin,
+                )
+            )
+            dynamic_layer_soft_reentry = (
+                not dynamic_layer_reentry_blocked
+                and dynamic_layer_target_clearance < reentry_margin
             )
             if dynamic_layer_reentry_blocked:
                 dynamic_blocked = True
@@ -4149,6 +4241,8 @@ class DwaPlannerNode(Node):
             "dynamic_layer_prefer_global_replan": dynamic_layer_prefer_global_replan,
             "dynamic_layer_target_clearance": dynamic_layer_target_clearance,
             "dynamic_layer_reentry_blocked": dynamic_layer_reentry_blocked,
+            "dynamic_layer_soft_reentry": dynamic_layer_soft_reentry,
+            "dynamic_layer_lookahead_adjusted": dynamic_layer_lookahead_adjusted,
             "dynamic_local_fallback": dynamic_local_fallback,
             "inside_dynamic_layer": inside_dynamic_layer,
             "inside_dynamic_margin": inside_dynamic_margin,
@@ -4537,6 +4631,22 @@ class DwaPlannerNode(Node):
                 if v_dynamic_clear < v_target - 1e-3:
                     dynamic_target_brake = True
                 v_target = min(v_target, v_dynamic_clear)
+        elif ctx.get("dynamic_layer_soft_reentry", False):
+            dynamic_target_clear = ctx.get(
+                "dynamic_layer_target_clearance", float("inf"))
+            reentry_margin = max(
+                1e-3, float(self.p_dynamic_layer_reentry_margin))
+            dynamic_scale = max(
+                0.20,
+                min(1.0, dynamic_target_clear / reentry_margin),
+            )
+            v_dynamic_clear = max(
+                self.p_near_wall_creep_speed,
+                self.p_v_max * 0.45 * dynamic_scale,
+            )
+            if v_dynamic_clear < v_target - 1e-3:
+                dynamic_target_brake = True
+            v_target = min(v_target, v_dynamic_clear)
 
         # (iii) goal 감속
         v_goal = math.sqrt(2.0 * self.p_a_max *
@@ -4756,6 +4866,8 @@ class DwaPlannerNode(Node):
                 f" dyn_tracks={ctx.get('dynamic_track_count', 0)}"
                 f" dyn_layer={ctx.get('dynamic_layer_block_count', 0)}"
                 f" dyn_reentry={int(ctx.get('dynamic_layer_reentry_blocked', False))}"
+                f" dyn_soft={int(ctx.get('dynamic_layer_soft_reentry', False))}"
+                f" dyn_ladj={int(ctx.get('dynamic_layer_lookahead_adjusted', False))}"
                 f" dyn_tclr={ctx.get('dynamic_layer_target_clearance', float('inf')):.2f}"
                 f" dyn_in_margin={ctx.get('inside_dynamic_margin', float('inf')):.2f}"
                 f" dyn_in_block={ctx.get('inside_dynamic_block_id', -1)}"

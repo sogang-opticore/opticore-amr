@@ -313,7 +313,8 @@ angular:
 | `dynamic_layer_inside_escape_speed` | 0.18 m/s | 로봇이 dynamic no-go 내부에 있을 때 Pure Pursuit를 막고 가장 가까운 no-go feature 반대 방향으로 빠져나가는 저속 탈출 속도 |
 | `dynamic_layer_inside_turn_speed` | 0.55 rad/s | dynamic no-go 내부에서 탈출 방향을 향해 정렬할 때 쓰는 회전 속도 상한 |
 | `dynamic_layer_inside_align_angle` | 0.75 rad | 탈출 방향이 이 각도 이내일 때만 전진 탈출을 허용하고, 그보다 크면 먼저 회전 또는 안전 후진을 선택 |
-| `dynamic_layer_reentry_margin` | 0.12 m | dynamic no-go에서 빠져나온 직후 lookahead segment가 같은 영역을 다시 관통하면 Pure Pursuit 재진입을 막고 A* 재계획을 기다리는 여유 |
+| `dynamic_layer_reentry_margin` | 0.12 m | dynamic no-go 경계 근처 lookahead를 감속/조정하는 soft margin. 실제 no-go 내부가 아니면 정지하지 않는다 |
+| `dynamic_layer_reentry_hard_margin` | 0.0 m | lookahead segment가 dynamic no-go 내부로 들어갈 때만 hard block으로 보고 A\* 재계획을 기다리는 기준 |
 > 2026-06-01: `/dynamic_obstacle_layer`는 임시 overlay이므로 `/map`처럼 latched(`TRANSIENT_LOCAL`)로 남기지 않고 `VOLATILE` QoS로 발행/구독한다. 전체 맵 크기 grid 대신 실제 occupied cell 주변의 cropped grid만 발행해 Foxglove에서 정적 `/map` 전체를 덮어 사라지거나 검게 보이는 현상을 줄인다. Foxglove 가시성을 위해 같은 내용을 `/dynamic_obstacle_layer_markers` MarkerArray로도 발행한다.
 
 | `align_release_angle` | 0.70 rad | ALIGN 중 안전하면 15도까지 기다리지 않고 NORMAL로 조기 복귀 |
@@ -549,6 +550,7 @@ ros2 topic pub --once /global_path nav_msgs/msg/Path \
 
 | 일자 | 변경 | 작성자 | 리뷰 |
 |---|---|---|---|
+| 2026-06-01 | dynamic no-go 경계 근처에서 `target_clear`가 양수인데도 `DYNAMIC_BLOCKED`로 영구 대기하던 문제를 수정했다. 경계 근처는 soft reentry로 감속/동적 layer-aware lookahead 조정하고, 실제 no-go 내부를 관통할 때만 hard block한다 | Codex | RunPod 주행 검증 필요 |
 | 2026-06-01 | dynamic no-go 반경을 0.65m 중심으로 축소하고, 정지/UNKNOWN track은 path 중심을 직접 막는 경우에만 layer 후보가 되도록 조건을 보수화했다. no-go 탈출 직후 lookahead가 같은 영역을 다시 관통하면 Pure Pursuit 재진입을 차단해 후진-재진입 반복을 줄인다 | Codex | RunPod 주행 검증 필요 |
 | 2026-06-01 | dynamic layer 최소 유지 기준을 최초 관측이 아니라 마지막 관측 기준으로 변경하고, A*의 dynamic layer stale timeout을 35초로 늘려 `/dynamic_obstacle_layer`가 순간적으로 사라지며 경로가 좌우로 흔들리는 현상을 줄였다. 접근 동적 장애물은 로봇 기준 앞/뒤 방향을 계산해 앞에서 오면 후진, 뒤에서 오면 전진 회피를 우선한다 | Codex | RunPod 주행 검증 필요 |
 | 2026-06-01 | 여러 waypoint를 한 번의 터미널 명령으로 순차 실행하는 `waypoint_sequence.py` 추가. `/dwa/status`의 `GOAL_REACHED`/`REACHED`를 보고 다음 `/goal_pose`를 발행하며, stale `REACHED` 방지를 위해 발행 직후 무시 시간과 motion 확인 조건을 둔다 | Codex | RunPod 주행 검증 필요 |
