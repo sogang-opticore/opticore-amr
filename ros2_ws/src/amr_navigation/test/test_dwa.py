@@ -1212,6 +1212,7 @@ class TestTriggerRecoverySpinEntry:
         node._stuck_counter = 5
         node._recovery_cooldown_until = 0.0
         node._sec_now = lambda: 0.0
+        node._relax_path_acceptance = lambda: None
 
         class _NullLogger:
             def warn(self, *a, **k):
