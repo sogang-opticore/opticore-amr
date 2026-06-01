@@ -41,6 +41,10 @@ from amr_navigation.dwa_node import (
     should_use_rejoin,
     should_force_rejoin_for_short_lookahead,
     should_block_dynamic_layer_reentry,
+    dynamic_layer_risk_from_margin,
+    should_block_dynamic_layer_reentry_risk,
+    should_soft_dynamic_layer_reentry_risk,
+    rejoin_heading_turn_boost,
     predict_signed_path_offset,
     should_release_align,
     clamp_forward_velocity,
@@ -1622,6 +1626,29 @@ class TestDynamicLayerReentryGuard:
     def test_infinite_clearance_is_not_blocked(self):
         assert should_block_dynamic_layer_reentry(float("inf"), -0.10) is False
 
+    def test_center_risk_is_zero_at_boundary(self):
+        assert dynamic_layer_risk_from_margin(0.0, 0.70) == 0.0
+        assert dynamic_layer_risk_from_margin(0.03, 0.70) == 0.0
+
+    def test_center_risk_scales_with_penetration_depth(self):
+        shallow = dynamic_layer_risk_from_margin(-0.03, 0.70)
+        deep = dynamic_layer_risk_from_margin(-0.35, 0.70)
+
+        assert 0.04 < shallow < 0.05
+        assert 0.49 < deep < 0.51
+
+    def test_reentry_uses_risk_bands_instead_of_edge_contact(self):
+        assert should_soft_dynamic_layer_reentry_risk(0.05, 0.16, 0.45) is False
+        assert should_soft_dynamic_layer_reentry_risk(0.20, 0.16, 0.45) is True
+        assert should_block_dynamic_layer_reentry_risk(0.20, 0.45) is False
+        assert should_block_dynamic_layer_reentry_risk(0.50, 0.45) is True
+
+    def test_rejoin_heading_boost_starts_after_exit_heading(self):
+        assert rejoin_heading_turn_boost(0.30, 0.52, 1.0, 0.45) == 0.0
+        boost = rejoin_heading_turn_boost(1.20, 0.52, 1.0, 0.45)
+        assert abs(boost - 0.45) < 1e-9
+        assert rejoin_heading_turn_boost(-0.82, 0.52, 1.0, 0.45) < 0.0
+
 
 class TestDynamicLayerInsideEscape:
     def _make_node(self, block):
@@ -1634,10 +1661,15 @@ class TestDynamicLayerInsideEscape:
         node.p_dynamic_layer_prediction_max_distance = 2.70
         node.p_dynamic_layer_prediction_speed_max = 1.50
         node.p_dynamic_layer_inside_margin = 0.06
+        node.p_dynamic_layer_trail_ttl_sec = 60.0
         node._sec_now = lambda: 0.0
         node._lookup_local_to_map_transform = lambda: (0.0, 0.0, 0.0)
         node._transform_xy = DwaPlannerNode._transform_xy
         node._inverse_transform_xy = DwaPlannerNode._inverse_transform_xy
+        node._dynamic_layer_feature_centers = (
+            DwaPlannerNode._dynamic_layer_feature_centers.__get__(node))
+        node._dynamic_layer_point_risk_map = (
+            DwaPlannerNode._dynamic_layer_point_risk_map.__get__(node))
         node._dynamic_layer_escape_vector_local = (
             DwaPlannerNode._dynamic_layer_escape_vector_local.__get__(node))
         return node

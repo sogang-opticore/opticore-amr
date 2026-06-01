@@ -618,6 +618,57 @@ def should_block_dynamic_layer_reentry(
     return clearance <= float(hard_margin)
 
 
+def dynamic_layer_risk_from_margin(
+    margin: float,
+    radius: float,
+) -> float:
+    """Return 0 at the no-go edge and 1 near the dynamic block center."""
+    if math.isinf(margin):
+        return 0.0 if margin > 0.0 else 1.0
+    if not math.isfinite(margin):
+        return 1.0
+    if margin >= 0.0:
+        return 0.0
+    return max(0.0, min(1.0, -margin / max(abs(radius), 1e-3)))
+
+
+def should_block_dynamic_layer_reentry_risk(
+    risk: float,
+    hard_risk: float,
+) -> bool:
+    """Block reentry only when the target penetrates deep into no-go center."""
+    if not math.isfinite(risk):
+        return True
+    return max(0.0, risk) >= max(0.0, float(hard_risk))
+
+
+def should_soft_dynamic_layer_reentry_risk(
+    risk: float,
+    soft_risk: float,
+    hard_risk: float,
+) -> bool:
+    if not math.isfinite(risk):
+        return False
+    risk = max(0.0, risk)
+    return max(0.0, soft_risk) <= risk < max(0.0, hard_risk)
+
+
+def rejoin_heading_turn_boost(
+    path_heading_error: float,
+    exit_heading: float,
+    boost_gain: float,
+    boost_max: float,
+) -> float:
+    """Extra angular command for large REJOIN heading mismatch."""
+    if not math.isfinite(path_heading_error):
+        return 0.0
+    excess = max(0.0, abs(path_heading_error) - max(0.0, exit_heading))
+    if excess <= 0.0:
+        return 0.0
+    boost = min(max(0.0, boost_max), max(0.0, boost_gain) * excess)
+    return math.copysign(boost, path_heading_error)
+
+
 def dynamic_escape_speed_from_closing(
     base_speed: float,
     max_speed: float,
@@ -1898,6 +1949,8 @@ class DwaPlannerNode(Node):
         self.declare_parameter("rejoin_clearance_min", 0.80)
         self.declare_parameter("rejoin_clearance_weight", 2.8)
         self.declare_parameter("rejoin_cross_track_gain_scale", 0.42)
+        self.declare_parameter("rejoin_heading_boost_gain", 1.0)
+        self.declare_parameter("rejoin_heading_boost_max", 0.45)
         self.declare_parameter("dynamic_avoid_enabled", True)
         self.declare_parameter("dynamic_path_check_distance", 3.2)
         self.declare_parameter("dynamic_path_corridor_width", 0.50)
@@ -1966,11 +2019,14 @@ class DwaPlannerNode(Node):
         self.declare_parameter("dynamic_layer_escape_distance", 1.20)
         self.declare_parameter("dynamic_layer_escape_t_cpa", 1.00)
         self.declare_parameter("dynamic_layer_inside_margin", 0.06)
+        self.declare_parameter("dynamic_layer_inside_risk_threshold", 0.32)
         self.declare_parameter("dynamic_layer_inside_escape_speed", 0.18)
         self.declare_parameter("dynamic_layer_inside_turn_speed", 0.55)
         self.declare_parameter("dynamic_layer_inside_align_angle", 0.75)
         self.declare_parameter("dynamic_layer_reentry_margin", 0.12)
         self.declare_parameter("dynamic_layer_reentry_hard_margin", -0.10)
+        self.declare_parameter("dynamic_layer_reentry_soft_risk", 0.16)
+        self.declare_parameter("dynamic_layer_reentry_hard_risk", 0.45)
         self.declare_parameter("dynamic_layer_reentry_rotate_ticks", 12)
         self.declare_parameter("dynamic_layer_reentry_turn_speed", 0.55)
         self.declare_parameter("dynamic_layer_occupied_value", 100)
@@ -2215,6 +2271,10 @@ class DwaPlannerNode(Node):
         self.p_rejoin_clearance_min     = gp("rejoin_clearance_min").value
         self.p_rejoin_clearance_weight  = gp("rejoin_clearance_weight").value
         self.p_rejoin_cross_track_gain_scale = gp("rejoin_cross_track_gain_scale").value
+        self.p_rejoin_heading_boost_gain = gp(
+            "rejoin_heading_boost_gain").value
+        self.p_rejoin_heading_boost_max = gp(
+            "rejoin_heading_boost_max").value
         self.p_dynamic_avoid_enabled    = gp("dynamic_avoid_enabled").value
         self.p_dynamic_path_check_distance = gp(
             "dynamic_path_check_distance").value
@@ -2340,6 +2400,8 @@ class DwaPlannerNode(Node):
             "dynamic_layer_escape_t_cpa").value
         self.p_dynamic_layer_inside_margin = gp(
             "dynamic_layer_inside_margin").value
+        self.p_dynamic_layer_inside_risk_threshold = gp(
+            "dynamic_layer_inside_risk_threshold").value
         self.p_dynamic_layer_inside_escape_speed = gp(
             "dynamic_layer_inside_escape_speed").value
         self.p_dynamic_layer_inside_turn_speed = gp(
@@ -2350,6 +2412,10 @@ class DwaPlannerNode(Node):
             "dynamic_layer_reentry_margin").value
         self.p_dynamic_layer_reentry_hard_margin = gp(
             "dynamic_layer_reentry_hard_margin").value
+        self.p_dynamic_layer_reentry_soft_risk = gp(
+            "dynamic_layer_reentry_soft_risk").value
+        self.p_dynamic_layer_reentry_hard_risk = gp(
+            "dynamic_layer_reentry_hard_risk").value
         self.p_dynamic_layer_reentry_rotate_ticks = gp(
             "dynamic_layer_reentry_rotate_ticks").value
         self.p_dynamic_layer_reentry_turn_speed = gp(
@@ -3206,68 +3272,144 @@ class DwaPlannerNode(Node):
             return False
         return True
 
-    def _robot_dynamic_layer_membership(self) -> Tuple[bool, float, int]:
-        """Return whether the robot is inside a dynamic no-go block/trail."""
-        if self._state is None or not self._dynamic_layer_blocks:
-            return False, float("inf"), -1
+    def _dynamic_layer_feature_centers(
+        self,
+        block: DynamicObstacleMapBlock,
+        now: float,
+    ) -> List[Tuple[Tuple[float, float], float, str]]:
+        """Return stable no-go feature centers used for local risk decisions."""
+        if now >= block.expire_at:
+            return []
 
-        transform = self._lookup_local_to_map_transform()
-        if transform is None:
-            return False, float("inf"), -1
+        inside_margin = max(0.0, self.p_dynamic_layer_inside_margin)
+        radius = max(0.0, block.radius + inside_margin)
+        centers: List[Tuple[Tuple[float, float], float, str]] = [
+            ((block.x, block.y), radius, "core")
+        ]
 
-        robot_map = self._transform_xy((self._state.x, self._state.y), transform)
-        now = self._sec_now()
+        trail_ttl = max(0.0, self.p_dynamic_layer_trail_ttl_sec)
+        for tx, ty, t_seen in block.trail:
+            if trail_ttl <= 0.0 or now - t_seen <= trail_ttl:
+                centers.append(((tx, ty), radius, "trail"))
+        if len(block.trail) >= 2:
+            for start, end in zip(block.trail, block.trail[1:]):
+                if trail_ttl > 0.0 and now - max(start[2], end[2]) > trail_ttl:
+                    continue
+                centers.append((
+                    ((start[0] + end[0]) * 0.5,
+                     (start[1] + end[1]) * 0.5),
+                    radius,
+                    "trail",
+                ))
+
+        raw_speed = math.hypot(block.vx, block.vy)
         horizon = max(0.0, self.p_dynamic_layer_prediction_horizon)
         max_prediction = max(0.0, self.p_dynamic_layer_prediction_max_distance)
         max_speed = max(0.0, self.p_dynamic_layer_prediction_speed_max)
-        inside_margin = max(0.0, self.p_dynamic_layer_inside_margin)
+        speed = min(raw_speed, max_speed) if max_speed > 0.0 else raw_speed
+        travel = min(speed * horizon, max_prediction)
+        if travel > 0.05 and raw_speed > 1e-6:
+            scale = travel / raw_speed
+            for frac in (1.0 / 3.0, 2.0 / 3.0, 1.0):
+                centers.append((
+                    (block.x + block.vx * scale * frac,
+                     block.y + block.vy * scale * frac),
+                    radius,
+                    "pred",
+                ))
+
+        return centers
+
+    def _dynamic_layer_point_risk_map(
+        self,
+        point_map: Tuple[float, float],
+    ) -> Tuple[float, float, int, str, Optional[Tuple[float, float]], float]:
+        now = self._sec_now()
+        best_risk = 0.0
         best_margin = float("inf")
         best_id = -1
+        best_feature = ""
+        best_center: Optional[Tuple[float, float]] = None
+        best_radius = 0.0
 
         for block_id, block in self._dynamic_layer_blocks.items():
-            if now >= block.expire_at:
-                continue
+            for center, radius, feature in self._dynamic_layer_feature_centers(
+                    block, now):
+                dist = math.hypot(point_map[0] - center[0],
+                                  point_map[1] - center[1])
+                margin = dist - radius
+                risk = dynamic_layer_risk_from_margin(margin, radius)
+                if (risk > best_risk + 1e-9 or
+                        (abs(risk - best_risk) <= 1e-9 and
+                         margin < best_margin)):
+                    best_risk = risk
+                    best_margin = margin
+                    best_id = block_id
+                    best_feature = feature
+                    best_center = center
+                    best_radius = radius
 
-            radius = max(0.0, block.radius + inside_margin)
-            dist = math.hypot(robot_map[0] - block.x, robot_map[1] - block.y)
-            if len(block.trail) >= 2:
-                for start, end in zip(block.trail, block.trail[1:]):
-                    dist = min(
-                        dist,
-                        point_segment_distance(
-                            robot_map,
-                            (start[0], start[1]),
-                            (end[0], end[1]),
-                        ),
-                    )
-            elif block.trail:
-                tx, ty, _ = block.trail[-1]
-                dist = min(dist, math.hypot(robot_map[0] - tx,
-                                            robot_map[1] - ty))
+        return best_risk, best_margin, best_id, best_feature, best_center, best_radius
 
-            raw_speed = math.hypot(block.vx, block.vy)
-            speed = min(raw_speed, max_speed) if max_speed > 0.0 else raw_speed
-            travel = min(speed * horizon, max_prediction)
-            if travel > 0.05 and raw_speed > 1e-6:
-                scale = travel / raw_speed
-                pred_end = (block.x + block.vx * scale,
-                            block.y + block.vy * scale)
-                dist = min(
-                    dist,
-                    point_segment_distance(robot_map, (block.x, block.y), pred_end),
-                )
+    def _dynamic_layer_segment_risk(
+        self,
+        start_local: Tuple[float, float],
+        end_local: Tuple[float, float],
+    ) -> Tuple[float, float, str]:
+        """Return max center-risk along a local segment toward the target."""
+        if not self._dynamic_layer_blocks or self._state is None:
+            return 0.0, float("inf"), ""
 
-            margin = dist - radius
-            if margin < best_margin:
-                best_margin = margin
-                best_id = block_id
+        transform = self._lookup_local_to_map_transform()
+        if transform is None:
+            return 1.0, 0.0, ""
 
-        return best_margin <= 0.0, best_margin, best_id
+        start_odom = local_to_world(start_local, self._state)
+        end_odom = local_to_world(end_local, self._state)
+        start_map = self._transform_xy(start_odom, transform)
+        end_map = self._transform_xy(end_odom, transform)
+
+        now = self._sec_now()
+        best_risk = 0.0
+        best_margin = float("inf")
+        best_feature = ""
+        for block in self._dynamic_layer_blocks.values():
+            for center, radius, feature in self._dynamic_layer_feature_centers(
+                    block, now):
+                dist = point_segment_distance(center, start_map, end_map)
+                margin = dist - radius
+                risk = dynamic_layer_risk_from_margin(margin, radius)
+                if (risk > best_risk + 1e-9 or
+                        (abs(risk - best_risk) <= 1e-9 and
+                         margin < best_margin)):
+                    best_risk = risk
+                    best_margin = margin
+                    best_feature = feature
+
+        return best_risk, best_margin, best_feature
+
+    def _robot_dynamic_layer_membership(self) -> Tuple[bool, float, int, float]:
+        """Return whether robot is deep enough inside dynamic no-go to escape."""
+        if self._state is None or not self._dynamic_layer_blocks:
+            return False, float("inf"), -1, 0.0
+
+        transform = self._lookup_local_to_map_transform()
+        if transform is None:
+            return False, float("inf"), -1, 0.0
+
+        robot_map = self._transform_xy((self._state.x, self._state.y), transform)
+        risk, margin, block_id, _, _, _ = self._dynamic_layer_point_risk_map(
+            robot_map)
+        threshold = max(
+            0.0,
+            min(1.0, float(self.p_dynamic_layer_inside_risk_threshold)),
+        )
+        return risk >= threshold, margin, block_id, risk
 
     def _dynamic_layer_escape_vector_local(
         self,
-    ) -> Optional[Tuple[float, float, float, int, str]]:
-        """Return a local vector that points out of the closest dynamic no-go."""
+    ) -> Optional[Tuple[float, float, float, int, str, float]]:
+        """Return a local vector away from the highest-risk no-go center."""
         if self._state is None or not self._dynamic_layer_blocks:
             return None
 
@@ -3276,82 +3418,24 @@ class DwaPlannerNode(Node):
             return None
 
         robot_map = self._transform_xy((self._state.x, self._state.y), transform)
-        now = self._sec_now()
-        horizon = max(0.0, self.p_dynamic_layer_prediction_horizon)
-        max_prediction = max(0.0, self.p_dynamic_layer_prediction_max_distance)
-        max_speed = max(0.0, self.p_dynamic_layer_prediction_speed_max)
-        inside_margin = max(0.0, self.p_dynamic_layer_inside_margin)
-
-        best_margin = float("inf")
-        best_block_id = -1
-        best_point_map: Optional[Tuple[float, float]] = None
-        best_feature = ""
-        best_block: Optional[DynamicObstacleMapBlock] = None
-
-        def consider(
-            block: DynamicObstacleMapBlock,
-            block_id: int,
-            closest_map: Tuple[float, float],
-            radius: float,
-            feature: str,
-        ) -> None:
-            nonlocal best_margin, best_block_id, best_point_map
-            nonlocal best_feature, best_block
-            dist = math.hypot(
-                robot_map[0] - closest_map[0],
-                robot_map[1] - closest_map[1],
-            )
-            margin = dist - radius
-            if margin < best_margin:
-                best_margin = margin
-                best_block_id = block_id
-                best_point_map = closest_map
-                best_feature = feature
-                best_block = block
-
-        for block_id, block in self._dynamic_layer_blocks.items():
-            if now >= block.expire_at:
-                continue
-
-            radius = max(0.0, block.radius + inside_margin)
-            consider(block, block_id, (block.x, block.y), radius, "core")
-
-            if len(block.trail) >= 2:
-                for start, end in zip(block.trail, block.trail[1:]):
-                    _, _, closest = point_segment_projection(
-                        robot_map,
-                        (start[0], start[1]),
-                        (end[0], end[1]),
-                    )
-                    consider(block, block_id, closest, radius, "trail")
-            elif block.trail:
-                tx, ty, _ = block.trail[-1]
-                consider(block, block_id, (tx, ty), radius, "trail")
-
-            raw_speed = math.hypot(block.vx, block.vy)
-            speed = min(raw_speed, max_speed) if max_speed > 0.0 else raw_speed
-            travel = min(speed * horizon, max_prediction)
-            if travel > 0.05 and raw_speed > 1e-6:
-                scale = travel / raw_speed
-                pred_end = (block.x + block.vx * scale,
-                            block.y + block.vy * scale)
-                _, _, closest = point_segment_projection(
-                    robot_map, (block.x, block.y), pred_end)
-                consider(block, block_id, closest, radius, "pred")
-
-        if best_point_map is None:
+        risk, margin, block_id, feature, center_map, _ = (
+            self._dynamic_layer_point_risk_map(robot_map)
+        )
+        if center_map is None:
             return None
 
-        closest_odom = self._inverse_transform_xy(best_point_map, transform)
+        closest_odom = self._inverse_transform_xy(center_map, transform)
         closest_local = world_to_local(closest_odom, self._state)
         escape_x = -closest_local[0]
         escape_y = -closest_local[1]
-        if math.hypot(escape_x, escape_y) < 1e-3 and best_block is not None:
-            raw_speed = math.hypot(best_block.vx, best_block.vy)
+
+        if math.hypot(escape_x, escape_y) < 1e-3 and block_id in self._dynamic_layer_blocks:
+            block = self._dynamic_layer_blocks[block_id]
+            raw_speed = math.hypot(block.vx, block.vy)
             if raw_speed > 1e-6:
                 away_map = (
-                    robot_map[0] - best_block.vx / raw_speed,
-                    robot_map[1] - best_block.vy / raw_speed,
+                    robot_map[0] - block.vx / raw_speed,
+                    robot_map[1] - block.vy / raw_speed,
                 )
                 away_odom = self._inverse_transform_xy(away_map, transform)
                 away_local = world_to_local(away_odom, self._state)
@@ -3361,9 +3445,10 @@ class DwaPlannerNode(Node):
         return (
             escape_x,
             escape_y,
-            best_margin,
-            best_block_id,
-            best_feature,
+            margin,
+            block_id,
+            feature,
+            risk,
         )
 
     def _dynamic_layer_segment_clearance(
@@ -3949,6 +4034,8 @@ class DwaPlannerNode(Node):
         dynamic_layer_blocks = len(self._dynamic_layer_blocks)
         dynamic_layer_prefer_global_replan = False
         dynamic_layer_target_clearance = float("inf")
+        dynamic_layer_target_risk = 0.0
+        dynamic_layer_target_feature = ""
         dynamic_layer_reentry_blocked = False
         dynamic_layer_soft_reentry = False
         dynamic_layer_lookahead_adjusted = False
@@ -3956,6 +4043,7 @@ class DwaPlannerNode(Node):
         approaching_dynamic_risk = False
         inside_dynamic_layer = False
         inside_dynamic_margin = float("inf")
+        inside_dynamic_risk = 0.0
         inside_dynamic_block_id = -1
         inside_dynamic_escape = None
         rejoin_target: Optional[RejoinTarget] = None
@@ -4082,9 +4170,12 @@ class DwaPlannerNode(Node):
                 bool(self.p_dynamic_layer_prefer_global_replan)
                 and dynamic_layer_blocks > 0
             )
-            inside_dynamic_layer, inside_dynamic_margin, inside_dynamic_block_id = (
-                self._robot_dynamic_layer_membership()
-            )
+            (
+                inside_dynamic_layer,
+                inside_dynamic_margin,
+                inside_dynamic_block_id,
+                inside_dynamic_risk,
+            ) = self._robot_dynamic_layer_membership()
             if inside_dynamic_layer:
                 inside_dynamic_escape = self._dynamic_layer_escape_vector_local()
             dynamic_motion = self._select_dynamic_motion_estimate(
@@ -4164,40 +4255,62 @@ class DwaPlannerNode(Node):
         if dynamic_layer_blocks > 0 and not inside_dynamic_layer:
             dynamic_layer_target_clearance = self._dynamic_layer_segment_clearance(
                 (0.0, 0.0), (lx, ly))
-            reentry_margin = max(0.0, self.p_dynamic_layer_reentry_margin)
-            if dynamic_layer_target_clearance < reentry_margin:
+            (
+                dynamic_layer_target_risk,
+                risk_margin,
+                dynamic_layer_target_feature,
+            ) = self._dynamic_layer_segment_risk((0.0, 0.0), (lx, ly))
+            soft_risk = max(
+                0.0,
+                min(1.0, float(self.p_dynamic_layer_reentry_soft_risk)),
+            )
+            hard_risk = max(
+                soft_risk,
+                min(1.0, float(self.p_dynamic_layer_reentry_hard_risk)),
+            )
+            if dynamic_layer_target_risk >= soft_risk:
                 safe_sample, safe_clearance = (
                     self._choose_dynamic_layer_safe_path_sample(
                         path_xy,
                         projection,
                         effective_lookahead,
-                        reentry_margin,
+                        max(0.0, self.p_dynamic_layer_reentry_margin),
                     )
                 )
+                safe_risk = float("inf")
+                if safe_sample is not None:
+                    safe_local = world_to_local(safe_sample.point, self._state)
+                    safe_risk, safe_margin, safe_feature = (
+                        self._dynamic_layer_segment_risk(
+                            (0.0, 0.0), safe_local)
+                    )
                 if (safe_sample is not None
-                        and safe_clearance > dynamic_layer_target_clearance + 1e-3
-                        and not should_block_dynamic_layer_reentry(
-                            safe_clearance,
-                            self.p_dynamic_layer_reentry_hard_margin,
-                        )):
+                        and safe_risk < dynamic_layer_target_risk - 1e-3
+                        and not should_block_dynamic_layer_reentry_risk(
+                            safe_risk, hard_risk)):
                     lookahead = safe_sample.point
                     target_path_yaw = safe_sample.yaw
                     effective_lookahead = safe_sample.distance
                     lx, ly = world_to_local(lookahead, self._state)
                     L = math.hypot(lx, ly)
                     dynamic_layer_target_clearance = safe_clearance
+                    dynamic_layer_target_risk = safe_risk
+                    dynamic_layer_target_feature = safe_feature
                     dynamic_layer_lookahead_adjusted = True
                     path_heading_error = normalize_angle(
                         target_path_yaw - self._state.theta)
             dynamic_layer_reentry_blocked = (
-                should_block_dynamic_layer_reentry(
-                    dynamic_layer_target_clearance,
-                    self.p_dynamic_layer_reentry_hard_margin,
+                should_block_dynamic_layer_reentry_risk(
+                    dynamic_layer_target_risk,
+                    hard_risk,
                 )
             )
             dynamic_layer_soft_reentry = (
-                not dynamic_layer_reentry_blocked
-                and dynamic_layer_target_clearance < reentry_margin
+                should_soft_dynamic_layer_reentry_risk(
+                    dynamic_layer_target_risk,
+                    soft_risk,
+                    hard_risk,
+                )
             )
             if dynamic_layer_reentry_blocked:
                 dynamic_blocked = True
@@ -4208,7 +4321,7 @@ class DwaPlannerNode(Node):
                         min(effective_lookahead, max(0.0, L)),
                         0,
                         0.0,
-                        dynamic_layer_target_clearance,
+                        risk_margin,
                     )
 
         return {
@@ -4271,12 +4384,15 @@ class DwaPlannerNode(Node):
             "dynamic_layer_block_count": dynamic_layer_blocks,
             "dynamic_layer_prefer_global_replan": dynamic_layer_prefer_global_replan,
             "dynamic_layer_target_clearance": dynamic_layer_target_clearance,
+            "dynamic_layer_target_risk": dynamic_layer_target_risk,
+            "dynamic_layer_target_feature": dynamic_layer_target_feature,
             "dynamic_layer_reentry_blocked": dynamic_layer_reentry_blocked,
             "dynamic_layer_soft_reentry": dynamic_layer_soft_reentry,
             "dynamic_layer_lookahead_adjusted": dynamic_layer_lookahead_adjusted,
             "dynamic_local_fallback": dynamic_local_fallback,
             "inside_dynamic_layer": inside_dynamic_layer,
             "inside_dynamic_margin": inside_dynamic_margin,
+            "inside_dynamic_risk": inside_dynamic_risk,
             "inside_dynamic_block_id": inside_dynamic_block_id,
             "inside_dynamic_escape_x": (
                 inside_dynamic_escape[0] if inside_dynamic_escape else 0.0
@@ -4292,6 +4408,9 @@ class DwaPlannerNode(Node):
             ),
             "inside_dynamic_escape_feature": (
                 inside_dynamic_escape[4] if inside_dynamic_escape else ""
+            ),
+            "inside_dynamic_escape_risk": (
+                inside_dynamic_escape[5] if inside_dynamic_escape else 0.0
             ),
             "dynamic_motion_state": dynamic_motion.state,
             "dynamic_motion_track_id": dynamic_motion.track_id,
@@ -4394,9 +4513,11 @@ class DwaPlannerNode(Node):
         escape = self._dynamic_layer_escape_vector_local()
         angle = 0.0
         feature = ""
+        risk = ctx.get("dynamic_layer_target_risk", 0.0)
         if escape is not None:
             angle = math.atan2(escape[1], escape[0])
             feature = escape[4]
+            risk = max(float(risk), float(escape[5]))
         if abs(angle) < 0.10:
             target_y = ctx.get("ly", 0.0)
             if abs(target_y) > 0.05:
@@ -4416,9 +4537,10 @@ class DwaPlannerNode(Node):
         self._publish_status_value(NavState.DYNAMIC_BLOCKED.value)
         self._log_state_throttled()
         self.get_logger().warn(
-            "dynamic no-go reentry rotating instead of holding "
+            "dynamic no-go center-risk reentry rotating "
             f"(ticks={self._dynamic_reentry_ticks}, "
             f"target_clear={ctx.get('dynamic_layer_target_clearance', float('inf')):.2f}, "
+            f"risk={risk:.2f}, "
             f"soft={int(ctx.get('dynamic_layer_soft_reentry', False))}, "
             f"hard={int(ctx.get('dynamic_layer_reentry_blocked', False))}, "
             f"target=({ctx.get('lx', 0.0):+.2f},{ctx.get('ly', 0.0):+.2f}), "
@@ -4445,6 +4567,7 @@ class DwaPlannerNode(Node):
                 "inside dynamic no-go but escape vector is unavailable; "
                 "holding for A* start-escape replan "
                 f"(inside_margin={ctx.get('inside_dynamic_margin', float('inf')):.2f}, "
+                f"risk={ctx.get('inside_dynamic_risk', 0.0):.2f}, "
                 f"block={ctx.get('inside_dynamic_block_id', -1)}, "
                 f"layer_blocks={ctx.get('dynamic_layer_block_count', 0)})",
                 throttle_duration_sec=0.5)
@@ -4503,7 +4626,9 @@ class DwaPlannerNode(Node):
             f"(mode={mode}, angle={math.degrees(angle):+.1f}deg, "
             f"v={v_cmd:+.2f}, w={w_cmd:+.2f}, "
             f"inside_margin={ctx.get('inside_dynamic_margin', float('inf')):.2f}, "
+            f"inside_risk={ctx.get('inside_dynamic_risk', 0.0):.2f}, "
             f"escape_margin={ctx.get('inside_dynamic_escape_margin', float('inf')):.2f}, "
+            f"escape_risk={ctx.get('inside_dynamic_escape_risk', 0.0):.2f}, "
             f"block={ctx.get('inside_dynamic_block_id', -1)}, "
             f"escape_block={ctx.get('inside_dynamic_escape_block_id', -1)}, "
             f"feature={ctx.get('inside_dynamic_escape_feature', '')}, "
@@ -4587,12 +4712,7 @@ class DwaPlannerNode(Node):
         else:
             self._dynamic_reentry_ticks = 0
 
-        repeated_reentry = (
-            dynamic_layer_soft_reentry
-            and self._dynamic_reentry_ticks >= max(
-                1, int(self.p_dynamic_layer_reentry_rotate_ticks))
-        )
-        if dynamic_layer_reentry_blocked or repeated_reentry:
+        if dynamic_layer_reentry_blocked:
             self._execute_dynamic_reentry_turn(ctx)
             return
 
@@ -4626,7 +4746,10 @@ class DwaPlannerNode(Node):
                 f"fallback={int(ctx.get('dynamic_local_fallback', False))}, "
                 f"inside_dyn={int(inside_dynamic_layer)}, "
                 f"inside_margin={ctx.get('inside_dynamic_margin', float('inf')):.2f}, "
+                f"inside_risk={ctx.get('inside_dynamic_risk', 0.0):.2f}, "
                 f"inside_block={ctx.get('inside_dynamic_block_id', -1)}, "
+                f"target_risk={ctx.get('dynamic_layer_target_risk', 0.0):.2f}, "
+                f"target_feat={ctx.get('dynamic_layer_target_feature', '')}, "
                 f"raw_pts={ctx.get('dynamic_raw_obstacle_count', 0)}, "
                 f"dyn_pts={ctx.get('dynamic_obstacle_count', 0)}, "
                 f"clusters={ctx.get('dynamic_cluster_count', 0)}, "
@@ -4709,17 +4832,21 @@ class DwaPlannerNode(Node):
                     dynamic_target_brake = True
                 v_target = min(v_target, v_dynamic_clear)
         elif ctx.get("dynamic_layer_soft_reentry", False):
-            dynamic_target_clear = ctx.get(
-                "dynamic_layer_target_clearance", float("inf"))
-            reentry_margin = max(
-                1e-3, float(self.p_dynamic_layer_reentry_margin))
+            dynamic_target_risk = max(
+                0.0,
+                min(1.0, ctx.get("dynamic_layer_target_risk", 0.0)),
+            )
+            hard_risk = max(
+                1e-3,
+                min(1.0, float(self.p_dynamic_layer_reentry_hard_risk)),
+            )
             dynamic_scale = max(
                 0.20,
-                min(1.0, dynamic_target_clear / reentry_margin),
+                1.0 - min(1.0, dynamic_target_risk / hard_risk),
             )
             v_dynamic_clear = max(
                 self.p_near_wall_creep_speed,
-                self.p_v_max * 0.45 * dynamic_scale,
+                self.p_v_max * 0.65 * dynamic_scale,
             )
             if v_dynamic_clear < v_target - 1e-3:
                 dynamic_target_brake = True
@@ -4794,9 +4921,18 @@ class DwaPlannerNode(Node):
             cross_track_gain *= self.p_goal_shortcut_cross_track_gain_scale
         if is_dynamic_avoiding:
             cross_track_gain *= self.p_dynamic_avoid_cross_track_gain_scale
+        rejoin_heading_boost = 0.0
+        if is_rejoining:
+            rejoin_heading_boost = rejoin_heading_turn_boost(
+                path_heading_error,
+                self.p_rejoin_exit_heading,
+                self.p_rejoin_heading_boost_gain,
+                self.p_rejoin_heading_boost_max,
+            )
         w_path = (
             self.p_path_heading_gain * path_heading_error
             - cross_track_gain * signed_path_offset
+            + rejoin_heading_boost
         )
         w_target_raw = w_pp + w_path + wall_escape_w
         if (self.p_w_min_rotate > 0.0
@@ -4919,6 +5055,9 @@ class DwaPlannerNode(Node):
                 f" gdyn={ctx.get('goal_shortcut_dynamic_clearance', float('inf')):.2f}"
                 f" gscore={ctx.get('goal_shortcut_score', 0.0):.2f}"
             )
+        rejoin_diag = ""
+        if is_rejoining and abs(rejoin_heading_boost) > 1e-3:
+            rejoin_diag = f" rjboost={rejoin_heading_boost:+.2f}"
         dynamic_diag = ""
         if dynamic_blocked or is_dynamic_avoiding or inside_dynamic_layer:
             dynamic_diag = (
@@ -4946,7 +5085,10 @@ class DwaPlannerNode(Node):
                 f" dyn_soft={int(ctx.get('dynamic_layer_soft_reentry', False))}"
                 f" dyn_ladj={int(ctx.get('dynamic_layer_lookahead_adjusted', False))}"
                 f" dyn_tclr={ctx.get('dynamic_layer_target_clearance', float('inf')):.2f}"
+                f" dyn_trisk={ctx.get('dynamic_layer_target_risk', 0.0):.2f}"
+                f" dyn_tfeat={ctx.get('dynamic_layer_target_feature', '')}"
                 f" dyn_in_margin={ctx.get('inside_dynamic_margin', float('inf')):.2f}"
+                f" dyn_in_risk={ctx.get('inside_dynamic_risk', 0.0):.2f}"
                 f" dyn_in_block={ctx.get('inside_dynamic_block_id', -1)}"
                 f" dyn_static={ctx.get('dynamic_static_filtered', 0)}"
             )
@@ -4973,6 +5115,7 @@ class DwaPlannerNode(Node):
                 f"{' wesc=1' if wall_escape_active else ''}"
                 f"{' sj=1' if ctx.get('short_lookahead_rejoin', False) else ''}"
                 f"{goal_shortcut_diag}"
+                f"{rejoin_diag}"
                 f"{dynamic_diag}"
                 f"{' creep=1' if near_wall_creep else ''}")
 

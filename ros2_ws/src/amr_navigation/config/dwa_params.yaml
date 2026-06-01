@@ -278,6 +278,8 @@ dwa_planner:
     map_topic: "/map"
     cmd_vel_topic: "/cmd_vel"
     rejoin_cross_track_gain_scale: 0.42
+    rejoin_heading_boost_gain: 1.0
+    rejoin_heading_boost_max: 0.45
 
     # Dynamic obstacle local bypass. Global A* sees only the static map; DWA
     # uses LiDAR to detect a blocked path corridor, select a side-offset local
@@ -350,11 +352,14 @@ dwa_planner:
     dynamic_layer_escape_t_cpa: 1.00
     # TODO(미확정): no-go 내부 판정 여유. 실제 로그에서 dyn_in_margin 분포를 보고 0.05~0.20m 범위 튜닝.
     dynamic_layer_inside_margin: 0.06
+    dynamic_layer_inside_risk_threshold: 0.32
     dynamic_layer_inside_escape_speed: 0.18
     dynamic_layer_inside_turn_speed: 0.55
     dynamic_layer_inside_align_angle: 0.75
     dynamic_layer_reentry_margin: 0.12
     dynamic_layer_reentry_hard_margin: -0.10
+    dynamic_layer_reentry_soft_risk: 0.16
+    dynamic_layer_reentry_hard_risk: 0.45
     dynamic_layer_reentry_rotate_ticks: 12
     dynamic_layer_reentry_turn_speed: 0.55
     dynamic_layer_occupied_value: 100
