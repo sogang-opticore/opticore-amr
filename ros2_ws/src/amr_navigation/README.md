@@ -273,7 +273,7 @@ angular:
 | `dynamic_avoid_rejoin_distance` | 1.55 m | 차단 지점 뒤쪽 global path로 재합류할 기본 거리 |
 | `dynamic_avoid_side_switch_penalty` | 2.00 | 동적 장애물 우회 중 좌우 side 전환 비용. 장애물 옆에서 `+1/-1` 목표가 번갈아 선택되는 oscillation을 억제 |
 | `dynamic_static_filter_enabled` | true | `/map`의 정적 장애물 근처 LiDAR 점은 동적 차단 후보에서 제외 |
-| `dynamic_static_filter_radius` | 0.45 m | LiDAR 점과 static occupied cell을 같은 정적 장애물로 볼 반경 |
+| `dynamic_static_filter_radius` | 0.60 m | LiDAR 점과 static occupied cell을 같은 정적 장애물로 볼 반경 |
 | `dynamic_static_filter_occupied_threshold` | 65 | 정적 장애물로 인정할 OccupancyGrid 점유값 |
 | `dynamic_static_filter_unknown_as_static` | true | unknown cell도 정적 구조물 쪽으로 보수적으로 보고 동적 후보에서 제외 |
 | `dynamic_track_cluster_distance` | 0.35 m | scan 순서상 인접한 dynamic LiDAR 점을 같은 obstacle cluster로 묶는 jump 거리 |
@@ -299,9 +299,9 @@ angular:
 | `dynamic_layer_clear_confirm_sec` | 5.0 s | block 위치가 다시 관찰 가능하고 비어 있음을 확인해야 해제하는 시간 |
 | `dynamic_layer_publish_period` | 1.0 s | `/dynamic_obstacle_layer` 발행 최소 간격. 너무 잦은 overlay 변경으로 A\* 경로가 흔들리는 것을 줄인다 |
 | `dynamic_layer_position_alpha` / `dynamic_layer_velocity_alpha` | 0.35 / 0.25 | 같은 동적 block의 중심과 예측 속도를 새 관측에 얼마나 빠르게 따라붙일지 정하는 LPF 계수 |
-| `dynamic_layer_radius_margin` | 0.85 m | 관찰 반경에 로봇 반경/안전 여유를 더해 점유 영역을 확장 |
-| `dynamic_layer_min_radius` | 0.75 m | cluster가 작게 잡혀도 최소 이 반경만큼 no-go 처리 |
-| `dynamic_layer_max_radius` | 2.00 m | 큰 cluster/merge가 과도하게 커지는 것을 막는 상한 |
+| `dynamic_layer_radius_margin` | 0.25 m | 관찰 반경에 로봇 반경/안전 여유를 더해 점유 영역을 확장. 30초 유지 정책에서 제한이 과해지지 않도록 기본 no-go 반경을 줄임 |
+| `dynamic_layer_min_radius` | 0.65 m | cluster가 작게 잡혀도 최소 이 반경만큼 no-go 처리 |
+| `dynamic_layer_max_radius` | 1.30 m | 큰 cluster/merge가 과도하게 커지는 것을 막는 상한 |
 | `dynamic_layer_prediction_horizon` | 4.0 s | 움직이는 track의 속도 방향으로 추가 점유 capsule을 예측할 시간. 뒤에서 접근하는 track도 이 예측 선분이 path/로봇 CPA를 침범하면 no-go 후보가 된다 |
 | `dynamic_layer_prediction_max_distance` | 2.7 m | 예측 capsule이 한 번에 너무 길어지지 않도록 제한 |
 | `dynamic_layer_min_track_age` | 2 | 새로 생긴 LiDAR 조각이 바로 no-go layer가 되지 않도록 요구하는 최소 track age |
@@ -313,6 +313,7 @@ angular:
 | `dynamic_layer_inside_escape_speed` | 0.18 m/s | 로봇이 dynamic no-go 내부에 있을 때 Pure Pursuit를 막고 가장 가까운 no-go feature 반대 방향으로 빠져나가는 저속 탈출 속도 |
 | `dynamic_layer_inside_turn_speed` | 0.55 rad/s | dynamic no-go 내부에서 탈출 방향을 향해 정렬할 때 쓰는 회전 속도 상한 |
 | `dynamic_layer_inside_align_angle` | 0.75 rad | 탈출 방향이 이 각도 이내일 때만 전진 탈출을 허용하고, 그보다 크면 먼저 회전 또는 안전 후진을 선택 |
+| `dynamic_layer_reentry_margin` | 0.12 m | dynamic no-go에서 빠져나온 직후 lookahead segment가 같은 영역을 다시 관통하면 Pure Pursuit 재진입을 막고 A* 재계획을 기다리는 여유 |
 > 2026-06-01: `/dynamic_obstacle_layer`는 임시 overlay이므로 `/map`처럼 latched(`TRANSIENT_LOCAL`)로 남기지 않고 `VOLATILE` QoS로 발행/구독한다. 전체 맵 크기 grid 대신 실제 occupied cell 주변의 cropped grid만 발행해 Foxglove에서 정적 `/map` 전체를 덮어 사라지거나 검게 보이는 현상을 줄인다. Foxglove 가시성을 위해 같은 내용을 `/dynamic_obstacle_layer_markers` MarkerArray로도 발행한다.
 
 | `align_release_angle` | 0.70 rad | ALIGN 중 안전하면 15도까지 기다리지 않고 NORMAL로 조기 복귀 |
@@ -548,6 +549,7 @@ ros2 topic pub --once /global_path nav_msgs/msg/Path \
 
 | 일자 | 변경 | 작성자 | 리뷰 |
 |---|---|---|---|
+| 2026-06-01 | dynamic no-go 반경을 0.65m 중심으로 축소하고, 정지/UNKNOWN track은 path 중심을 직접 막는 경우에만 layer 후보가 되도록 조건을 보수화했다. no-go 탈출 직후 lookahead가 같은 영역을 다시 관통하면 Pure Pursuit 재진입을 차단해 후진-재진입 반복을 줄인다 | Codex | RunPod 주행 검증 필요 |
 | 2026-06-01 | dynamic layer 최소 유지 기준을 최초 관측이 아니라 마지막 관측 기준으로 변경하고, A*의 dynamic layer stale timeout을 35초로 늘려 `/dynamic_obstacle_layer`가 순간적으로 사라지며 경로가 좌우로 흔들리는 현상을 줄였다. 접근 동적 장애물은 로봇 기준 앞/뒤 방향을 계산해 앞에서 오면 후진, 뒤에서 오면 전진 회피를 우선한다 | Codex | RunPod 주행 검증 필요 |
 | 2026-06-01 | 여러 waypoint를 한 번의 터미널 명령으로 순차 실행하는 `waypoint_sequence.py` 추가. `/dwa/status`의 `GOAL_REACHED`/`REACHED`를 보고 다음 `/goal_pose`를 발행하며, stale `REACHED` 방지를 위해 발행 직후 무시 시간과 motion 확인 조건을 둔다 | Codex | RunPod 주행 검증 필요 |
 | 2026-06-01 | DWA dynamic layer가 후방 접근 동적 장애물을 놓치지 않도록 전방-only 필터를 제거하고, track 속도 벡터의 swept segment가 global path/CPA를 침범하면 `/dynamic_obstacle_layer` no-go 후보로 등록하도록 보강했다 | Codex | RunPod 주행 검증 필요 |

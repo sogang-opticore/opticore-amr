@@ -1524,6 +1524,63 @@ class TestDynamicLayerRearPrediction:
 
         assert relevant is False
 
+    def test_forward_stationary_track_near_path_edge_is_not_layer_relevant(self):
+        node = self._make_node()
+        path = [(0.0, 0.0), (5.0, 0.0)]
+        projection = project_to_path(path, (0.0, 0.0), 0)
+        track = DynamicObstacleTrack(
+            track_id=12,
+            x=2.0,
+            y=0.55,
+            vx=0.0,
+            vy=0.0,
+            radius=0.20,
+            count=8,
+            age=4,
+            last_seen=1.0,
+        )
+
+        relevant, _ = node._dynamic_layer_track_relevance(
+            track, path, projection)
+
+        assert relevant is False
+
+    def test_forward_stationary_track_directly_on_path_stays_relevant(self):
+        node = self._make_node()
+        path = [(0.0, 0.0), (5.0, 0.0)]
+        projection = project_to_path(path, (0.0, 0.0), 0)
+        track = DynamicObstacleTrack(
+            track_id=13,
+            x=2.0,
+            y=0.02,
+            vx=0.0,
+            vy=0.0,
+            radius=0.20,
+            count=8,
+            age=4,
+            last_seen=1.0,
+        )
+
+        relevant, _ = node._dynamic_layer_track_relevance(
+            track, path, projection)
+
+        assert relevant is True
+
+    def test_dynamic_layer_radius_defaults_to_compact_person_sized_zone(self):
+        from amr_navigation.dwa_node import DwaPlannerNode
+
+        node = SimpleNamespace()
+        node.p_robot_radius = 0.20
+        node.p_dynamic_layer_radius_margin = 0.25
+        node.p_dynamic_layer_min_radius = 0.65
+        node.p_dynamic_layer_max_radius = 1.30
+        node._dynamic_layer_radius = (
+            DwaPlannerNode._dynamic_layer_radius.__get__(node))
+
+        assert abs(node._dynamic_layer_radius(0.10) - 0.65) < 1e-9
+        assert abs(node._dynamic_layer_radius(0.30) - 0.75) < 1e-9
+        assert abs(node._dynamic_layer_radius(2.00) - 1.30) < 1e-9
+
 
 class TestDynamicLayerInsideEscape:
     def _make_node(self, block):

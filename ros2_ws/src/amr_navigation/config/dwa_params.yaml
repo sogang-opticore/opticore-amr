@@ -299,7 +299,7 @@ dwa_planner:
     dynamic_avoid_side_hold_sec: 1.50
     dynamic_avoid_cross_track_gain_scale: 0.15
     dynamic_static_filter_enabled: true
-    dynamic_static_filter_radius: 0.45
+    dynamic_static_filter_radius: 0.60
     dynamic_static_filter_occupied_threshold: 65
     dynamic_static_filter_unknown_as_static: true
     dynamic_static_filter_tf_timeout: 0.05
@@ -332,9 +332,9 @@ dwa_planner:
     dynamic_layer_clear_confirm_sec: 5.0
     dynamic_layer_position_alpha: 0.35
     dynamic_layer_velocity_alpha: 0.25
-    dynamic_layer_radius_margin: 0.85
-    dynamic_layer_min_radius: 0.75
-    dynamic_layer_max_radius: 2.00
+    dynamic_layer_radius_margin: 0.25
+    dynamic_layer_min_radius: 0.65
+    dynamic_layer_max_radius: 1.30
     dynamic_layer_observation_range: 6.0
     dynamic_layer_clear_range: 7.0
     dynamic_layer_prediction_horizon: 4.0
@@ -351,6 +351,7 @@ dwa_planner:
     dynamic_layer_inside_escape_speed: 0.18
     dynamic_layer_inside_turn_speed: 0.55
     dynamic_layer_inside_align_angle: 0.75
+    dynamic_layer_reentry_margin: 0.12
     dynamic_layer_occupied_value: 100
 
     # ----- 진단 로그 throttle (s) -----
