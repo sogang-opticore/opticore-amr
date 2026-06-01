@@ -287,7 +287,7 @@ angular:
 | `dynamic_layer_prefer_global_replan` | true | 동적 layer block이 있을 때 DWA 즉석 우회/접근 escape보다 A\* 우회 재계획을 우선 |
 | `dynamic_layer_local_fallback_ticks` | 8 | global replan을 기다려도 계속 막히면 DWA local avoid target을 다시 허용하는 control tick 수 |
 | `dynamic_layer_path_corridor_width` | 1.20 m | 동적 track이 현재 global path 근처에 있을 때만 no-go layer 후보로 올리는 corridor 폭 |
-| `dynamic_layer_path_lookahead` | 5.0 m | no-go layer 후보 판정에 사용할 현재 path 전방 거리 |
+| `dynamic_layer_path_lookahead` | 5.0 m | no-go layer 후보 판정에 사용할 현재 path 전방 거리. 후방 접근 장애물은 현재 위치가 아니라 속도 기반 swept path가 이 구간을 침범하는지 별도 검사 |
 | `dynamic_layer_max_blocks` | 3 | false positive 누적으로 layer가 커지지 않도록 유지할 목표 dynamic block 수. 단, `dynamic_layer_min_hold_sec` 안의 block은 조기 삭제하지 않는다 |
 | `dynamic_layer_ttl_sec` | 300.0 s | 한 번 관찰한 동적 장애물 영역을 임시 no-go로 유지할 최대 시간 |
 | `dynamic_layer_min_hold_sec` | 30.0 s | 사라진 것처럼 보여도 최소 이 시간 동안은 block 유지 |
@@ -297,7 +297,7 @@ angular:
 | `dynamic_layer_radius_margin` | 0.85 m | 관찰 반경에 로봇 반경/안전 여유를 더해 점유 영역을 확장 |
 | `dynamic_layer_min_radius` | 0.75 m | cluster가 작게 잡혀도 최소 이 반경만큼 no-go 처리 |
 | `dynamic_layer_max_radius` | 2.00 m | 큰 cluster/merge가 과도하게 커지는 것을 막는 상한 |
-| `dynamic_layer_prediction_horizon` | 4.0 s | 움직이는 track의 속도 방향으로 추가 점유 capsule을 예측할 시간 |
+| `dynamic_layer_prediction_horizon` | 4.0 s | 움직이는 track의 속도 방향으로 추가 점유 capsule을 예측할 시간. 뒤에서 접근하는 track도 이 예측 선분이 path/로봇 CPA를 침범하면 no-go 후보가 된다 |
 | `dynamic_layer_prediction_max_distance` | 2.7 m | 예측 capsule이 한 번에 너무 길어지지 않도록 제한 |
 | `dynamic_layer_min_track_age` | 2 | 새로 생긴 LiDAR 조각이 바로 no-go layer가 되지 않도록 요구하는 최소 track age |
 | `dynamic_layer_trail_ttl_sec` | 60.0 s | 동적 장애물이 지나간 관측 궤적을 no-go corridor로 유지할 시간 |
@@ -532,6 +532,7 @@ ros2 topic pub --once /global_path nav_msgs/msg/Path \
 
 | 일자 | 변경 | 작성자 | 리뷰 |
 |---|---|---|---|
+| 2026-06-01 | DWA dynamic layer가 후방 접근 동적 장애물을 놓치지 않도록 전방-only 필터를 제거하고, track 속도 벡터의 swept segment가 global path/CPA를 침범하면 `/dynamic_obstacle_layer` no-go 후보로 등록하도록 보강했다 | Codex | RunPod 주행 검증 필요 |
 | 2026-05-31 | Dynamic layer temporal smoothing 추가. `/dynamic_obstacle_layer` 발행 간격을 1.0s로 완화하고 block 중심/속도 LPF를 추가했으며, A\* dynamic side preference를 cost=0.50, distance=8.0m, lock=6.0s로 보강했다 | Codex | RunPod 주행 검증 필요 |
 | 2026-05-31 | A\* dynamic branch side preference cost 추가. `dynamic_path_side_preference_cost=0.35`, `dynamic_path_side_preference_distance=6.0m`로 dynamic branch lock 중 반대쪽 우회 가지에 soft cost를 주어 1Hz 재계획 좌우 flip을 줄인다 | Codex | RunPod 주행 검증 필요 |
 | 2026-05-31 | DWA 동적 장애물 layer(`/dynamic_obstacle_layer`)와 A\* overlay 합성 계약 추가. 동적 장애물은 기본적으로 임시 no-go 영역으로 보고 A\* 전역 우회 재계획을 우선한다 | Codex | RunPod 주행 검증 필요 |

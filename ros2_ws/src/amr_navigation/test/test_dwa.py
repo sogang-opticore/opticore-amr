@@ -51,6 +51,7 @@ from amr_navigation.dwa_node import (
     should_finish_forward_only,
     project_to_path,
     point_segment_distance,
+    segment_segment_distance,
     segment_clearance_margin,
     pure_pursuit_arc_clearance_margin,
 )
@@ -1319,6 +1320,82 @@ class TestDynamicLayerTemporalSmoothing:
         assert abs(block.vx - 0.50) < 1e-9
         assert abs(block.vy) < 1e-9
         assert block.radius == 1.2
+
+
+class TestDynamicLayerRearPrediction:
+    def _make_node(self):
+        from amr_navigation.dwa_node import DwaPlannerNode
+
+        node = SimpleNamespace()
+        node._state = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
+        node.p_robot_radius = 0.20
+        node.p_dynamic_layer_observation_range = 6.0
+        node.p_dynamic_layer_path_lookahead = 5.0
+        node.p_dynamic_path_corridor_width = 0.50
+        node.p_dynamic_layer_path_corridor_width = 1.20
+        node.p_dynamic_path_corridor_step = 0.25
+        node.p_dynamic_motion_moving_speed = 0.15
+        node.p_dynamic_motion_stopped_speed = 0.08
+        node.p_dynamic_motion_approach_speed = 0.18
+        node.p_dynamic_motion_recede_speed = 0.12
+        node.p_dynamic_motion_cpa_horizon = 2.50
+        node.p_dynamic_motion_cpa_margin = 0.35
+        node.p_dynamic_motion_min_age = 2
+        node.p_dynamic_layer_prediction_horizon = 4.0
+        node.p_dynamic_layer_prediction_max_distance = 2.70
+        node.p_dynamic_layer_prediction_speed_max = 1.50
+        node._dynamic_layer_track_relevance = (
+            DwaPlannerNode._dynamic_layer_track_relevance.__get__(node))
+        return node
+
+    def test_segment_segment_distance_detects_crossing(self):
+        assert segment_segment_distance(
+            (-1.0, 0.0), (1.0, 0.0),
+            (0.0, -1.0), (0.0, 1.0),
+        ) == 0.0
+
+    def test_rear_approaching_track_becomes_layer_relevant_by_swept_path(self):
+        node = self._make_node()
+        path = [(0.0, 0.0), (5.0, 0.0)]
+        projection = project_to_path(path, (0.0, 0.0), 0)
+        track = DynamicObstacleTrack(
+            track_id=10,
+            x=-1.20,
+            y=0.0,
+            vx=0.70,
+            vy=0.0,
+            radius=0.20,
+            count=8,
+            age=4,
+            last_seen=1.0,
+        )
+
+        relevant, score = node._dynamic_layer_track_relevance(
+            track, path, projection)
+
+        assert relevant is True
+        assert score < 1.0
+
+    def test_rear_stationary_track_does_not_become_relevant(self):
+        node = self._make_node()
+        path = [(0.0, 0.0), (5.0, 0.0)]
+        projection = project_to_path(path, (0.0, 0.0), 0)
+        track = DynamicObstacleTrack(
+            track_id=11,
+            x=-1.20,
+            y=0.0,
+            vx=0.0,
+            vy=0.0,
+            radius=0.20,
+            count=8,
+            age=4,
+            last_seen=1.0,
+        )
+
+        relevant, _ = node._dynamic_layer_track_relevance(
+            track, path, projection)
+
+        assert relevant is False
 
 
 class TestGlobalPathStaleGuard:

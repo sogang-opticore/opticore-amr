@@ -821,6 +821,78 @@ def point_segment_distance(
     return math.hypot(px - cx, py - cy)
 
 
+def _orientation(
+    a: Tuple[float, float],
+    b: Tuple[float, float],
+    c: Tuple[float, float],
+) -> float:
+    return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+
+
+def _point_on_segment(
+    p: Tuple[float, float],
+    a: Tuple[float, float],
+    b: Tuple[float, float],
+) -> bool:
+    eps = 1e-9
+    return (
+        min(a[0], b[0]) - eps <= p[0] <= max(a[0], b[0]) + eps
+        and min(a[1], b[1]) - eps <= p[1] <= max(a[1], b[1]) + eps
+        and abs(_orientation(a, b, p)) <= eps
+    )
+
+
+def segments_intersect(
+    a0: Tuple[float, float],
+    a1: Tuple[float, float],
+    b0: Tuple[float, float],
+    b1: Tuple[float, float],
+) -> bool:
+    o1 = _orientation(a0, a1, b0)
+    o2 = _orientation(a0, a1, b1)
+    o3 = _orientation(b0, b1, a0)
+    o4 = _orientation(b0, b1, a1)
+    eps = 1e-9
+
+    if o1 * o2 < -eps and o3 * o4 < -eps:
+        return True
+    return (
+        _point_on_segment(b0, a0, a1)
+        or _point_on_segment(b1, a0, a1)
+        or _point_on_segment(a0, b0, b1)
+        or _point_on_segment(a1, b0, b1)
+    )
+
+
+def segment_segment_distance(
+    a0: Tuple[float, float],
+    a1: Tuple[float, float],
+    b0: Tuple[float, float],
+    b1: Tuple[float, float],
+) -> float:
+    if segments_intersect(a0, a1, b0, b1):
+        return 0.0
+    return min(
+        point_segment_distance(a0, b0, b1),
+        point_segment_distance(a1, b0, b1),
+        point_segment_distance(b0, a0, a1),
+        point_segment_distance(b1, a0, a1),
+    )
+
+
+def predict_track_endpoint(
+    track: DynamicObstacleTrack,
+    horizon: float,
+    max_prediction: float,
+) -> Tuple[float, float]:
+    speed = math.hypot(track.vx, track.vy)
+    if speed <= 1e-6 or horizon <= 0.0 or max_prediction <= 0.0:
+        return (track.x, track.y)
+    travel = min(speed * horizon, max_prediction)
+    scale = travel / speed
+    return (track.x + track.vx * scale, track.y + track.vy * scale)
+
+
 def segment_clearance_margin(
     seg_start: Tuple[float, float],
     seg_end: Tuple[float, float],
@@ -2585,11 +2657,32 @@ class DwaPlannerNode(Node):
         best_track: Optional[DynamicObstacleTrack] = None
         best_key = (float("inf"), float("inf"))
         best_side = 0
+        best_risk: Optional[DynamicMotionEstimate] = None
+        best_risk_key = (float("inf"), float("inf"), float("inf"))
         corridor_width = max(0.05, self.p_dynamic_path_corridor_width)
         for track in tracks:
             local_xy = world_to_local((track.x, track.y), robot)
-            if local_xy[0] < -0.20:
-                continue
+            estimate = classify_dynamic_motion(
+                track,
+                robot,
+                self.p_robot_radius,
+                self.p_dynamic_motion_stopped_speed,
+                self.p_dynamic_motion_moving_speed,
+                self.p_dynamic_motion_approach_speed,
+                self.p_dynamic_motion_recede_speed,
+                self.p_dynamic_motion_cpa_horizon,
+                self.p_dynamic_motion_cpa_margin,
+                int(self.p_dynamic_motion_min_age),
+            )
+            if (estimate.state == "APPROACHING"
+                    and estimate.distance <= self.p_dynamic_layer_observation_range
+                    and estimate.t_cpa <= self.p_dynamic_motion_cpa_horizon
+                    and estimate.d_cpa <= self.p_dynamic_motion_cpa_margin + 0.20):
+                risk_key = (estimate.t_cpa, estimate.d_cpa, estimate.distance)
+                if risk_key < best_risk_key:
+                    best_risk_key = risk_key
+                    best_risk = estimate
+
             if math.hypot(*local_xy) > check_distance + corridor_width + track.radius + 0.5:
                 continue
 
@@ -2614,6 +2707,12 @@ class DwaPlannerNode(Node):
                 best_key = key
                 best_track = track
                 best_side = side_value
+
+        if best_risk is not None and (
+                best_track is None
+                or best_risk.t_cpa <= self.p_dynamic_layer_escape_t_cpa
+                or best_risk.distance <= self.p_dynamic_layer_escape_distance):
+            return best_risk
 
         estimate = classify_dynamic_motion(
             best_track,
@@ -2654,8 +2753,6 @@ class DwaPlannerNode(Node):
 
         local_xy = world_to_local((track.x, track.y), self._state)
         robot_distance = math.hypot(local_xy[0], local_xy[1])
-        if local_xy[0] < -0.50:
-            return False, float("inf")
         if robot_distance > self.p_dynamic_layer_observation_range:
             return False, float("inf")
 
@@ -2681,29 +2778,82 @@ class DwaPlannerNode(Node):
 
         best_dist = float("inf")
         best_along = float("inf")
+        best_swept_dist = float("inf")
+        best_swept_along = float("inf")
+        pred_end = predict_track_endpoint(
+            track,
+            max(0.0, self.p_dynamic_layer_prediction_horizon),
+            max(0.0, self.p_dynamic_layer_prediction_max_distance),
+        )
         for (d0, p0), (d1, p1) in zip(samples, samples[1:]):
             dist, t, _ = point_segment_projection((track.x, track.y), p0, p1)
-            if dist >= best_dist:
-                continue
-            best_dist = dist
-            best_along = d0 + t * max(0.0, d1 - d0)
+            if dist < best_dist:
+                best_dist = dist
+                best_along = d0 + t * max(0.0, d1 - d0)
+            swept_dist = segment_segment_distance(
+                (track.x, track.y), pred_end, p0, p1)
+            if swept_dist < best_swept_dist:
+                best_swept_dist = swept_dist
+                best_swept_along = d0
 
         margin = best_dist - max(0.0, track.radius)
-        path_relevant = best_along <= lookahead and margin <= corridor
+        swept_margin = best_swept_dist - max(0.0, track.radius)
+        motion = classify_dynamic_motion(
+            track,
+            self._state,
+            self.p_robot_radius,
+            self.p_dynamic_motion_stopped_speed,
+            self.p_dynamic_motion_moving_speed,
+            self.p_dynamic_motion_approach_speed,
+            self.p_dynamic_motion_recede_speed,
+            self.p_dynamic_motion_cpa_horizon,
+            self.p_dynamic_motion_cpa_margin,
+            int(self.p_dynamic_motion_min_age),
+        )
+        current_is_forward_or_near = local_xy[0] >= -0.20
+        path_relevant = (
+            current_is_forward_or_near
+            and best_along <= lookahead
+            and margin <= corridor
+        )
+        swept_path_relevant = (
+            speed >= self.p_dynamic_motion_moving_speed
+            and best_swept_along <= lookahead + self.p_dynamic_layer_prediction_max_distance
+            and swept_margin <= corridor + 0.50
+        )
+        rear_approaching_path = (
+            local_xy[0] < 0.0
+            and motion.state == "APPROACHING"
+            and swept_margin <= corridor + 0.75
+            and best_swept_along <= lookahead
+        )
+        approaching_robot = (
+            motion.state == "APPROACHING"
+            and motion.distance <= self.p_dynamic_layer_observation_range
+            and motion.t_cpa <= self.p_dynamic_motion_cpa_horizon
+            and motion.d_cpa <= self.p_dynamic_motion_cpa_margin + 0.20
+        )
         moving_near_path = (
             speed >= self.p_dynamic_motion_moving_speed
-            and best_along <= lookahead + self.p_dynamic_layer_prediction_max_distance
-            and margin <= corridor + 0.50
+            and min(best_along, best_swept_along)
+            <= lookahead + self.p_dynamic_layer_prediction_max_distance
+            and min(margin, swept_margin) <= corridor + 0.50
         )
-        if not path_relevant and not moving_near_path:
+        if (not path_relevant and not swept_path_relevant
+                and not rear_approaching_path and not moving_near_path
+                and not approaching_robot):
             return False, float("inf")
 
+        along_score = max(0.0, min(best_along, best_swept_along))
+        margin_score = max(0.0, min(margin, swept_margin))
         score = (
-            best_along
-            + 0.80 * max(0.0, margin)
+            along_score
+            + 0.80 * margin_score
             + 0.15 * robot_distance
             - 0.25 * min(speed, self.p_dynamic_layer_prediction_speed_max)
         )
+        if rear_approaching_path or approaching_robot:
+            score -= 1.0
         return True, score
 
     def _append_dynamic_layer_trail(
@@ -2890,8 +3040,6 @@ class DwaPlannerNode(Node):
             if track.age < min_track_age:
                 continue
             local_xy = world_to_local((track.x, track.y), self._state)
-            if local_xy[0] < -0.50:
-                continue
             if math.hypot(local_xy[0], local_xy[1]) > self.p_dynamic_layer_observation_range:
                 continue
             relevant, score = self._dynamic_layer_track_relevance(
@@ -3294,6 +3442,7 @@ class DwaPlannerNode(Node):
         dynamic_layer_blocks = len(self._dynamic_layer_blocks)
         dynamic_layer_prefer_global_replan = False
         dynamic_local_fallback = False
+        approaching_dynamic_risk = False
         inside_dynamic_layer = False
         inside_dynamic_margin = float("inf")
         inside_dynamic_block_id = -1
@@ -3402,6 +3551,12 @@ class DwaPlannerNode(Node):
             )
             dynamic_motion = self._select_dynamic_motion_estimate(
                 path_xy, self._state, projection, dynamic_tracks)
+            approaching_dynamic_risk = (
+                dynamic_motion.state == "APPROACHING"
+                and dynamic_motion.distance <= self.p_dynamic_layer_observation_range
+                and dynamic_motion.t_cpa <= self.p_dynamic_motion_cpa_horizon
+                and dynamic_motion.d_cpa <= self.p_dynamic_motion_cpa_margin + 0.20
+            )
             dynamic_blockage = detect_path_corridor_blockage(
                 path_xy=path_xy,
                 robot=self._state,
@@ -3518,6 +3673,7 @@ class DwaPlannerNode(Node):
             "dynamic_motion_confidence": dynamic_motion.confidence,
             "dynamic_motion_side": dynamic_motion.side,
             "dynamic_motion_radius": dynamic_motion.radius,
+            "approaching_dynamic_risk": approaching_dynamic_risk,
             "is_dynamic_avoiding": dynamic_avoid_target is not None,
             "dynamic_avoid_side": (
                 dynamic_avoid_target.side if dynamic_avoid_target else 0
@@ -3616,11 +3772,14 @@ class DwaPlannerNode(Node):
         is_dynamic_avoiding = ctx.get("is_dynamic_avoiding", False)
         inside_dynamic_layer = ctx.get("inside_dynamic_layer", False)
         dynamic_motion_state = ctx.get("dynamic_motion_state", "UNKNOWN")
+        approaching_dynamic_risk = ctx.get("approaching_dynamic_risk", False)
 
         if is_dynamic_avoiding:
             self._nav_state = NavState.AVOIDING_DYNAMIC
         elif dynamic_blocked:
             self._nav_state = self._dynamic_wait_nav_state(dynamic_motion_state)
+        elif approaching_dynamic_risk:
+            self._nav_state = NavState.APPROACHING_DYNAMIC
         elif inside_dynamic_layer:
             self._nav_state = NavState.INSIDE_DYNAMIC_ZONE
         elif is_rejoining:
@@ -3641,18 +3800,20 @@ class DwaPlannerNode(Node):
         dw_max = self.p_alpha_max * period
         dw_brake_max = self.p_w_brake_alpha_max * period
 
+        close_approach_escape = (
+            approaching_dynamic_risk
+            and ctx.get("dynamic_motion_distance", float("inf"))
+            <= self.p_dynamic_layer_escape_distance
+            and ctx.get("dynamic_motion_t_cpa", float("inf"))
+            <= self.p_dynamic_layer_escape_t_cpa
+        )
+        if close_approach_escape and self._execute_dynamic_approach_escape(ctx):
+            return
+
         if dynamic_blocked and not is_dynamic_avoiding:
             prefer_layer_replan = ctx.get("dynamic_layer_prefer_global_replan", False)
-            close_approach_escape = (
-                prefer_layer_replan
-                and dynamic_motion_state == "APPROACHING"
-                and ctx.get("dynamic_motion_distance", float("inf"))
-                <= self.p_dynamic_layer_escape_distance
-                and ctx.get("dynamic_motion_t_cpa", float("inf"))
-                <= self.p_dynamic_layer_escape_t_cpa
-            )
             if (dynamic_motion_state == "APPROACHING" and
-                    (not prefer_layer_replan or close_approach_escape) and
+                    not prefer_layer_replan and
                     self._execute_dynamic_approach_escape(ctx)):
                 return
             status_value = (
