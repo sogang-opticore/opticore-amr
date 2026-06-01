@@ -449,7 +449,7 @@ class AstarPlanner(Node):
         self.declare_parameter('dynamic_layer_enabled', True)
         self.declare_parameter('dynamic_layer_topic', '/dynamic_obstacle_layer')
         self.declare_parameter('dynamic_layer_occupied_threshold', 65)
-        self.declare_parameter('dynamic_layer_timeout_sec', 1.5)
+        self.declare_parameter('dynamic_layer_timeout_sec', 35.0)
         self.declare_parameter('dynamic_status_replan_cooldown', 1.0)
         self.declare_parameter(
             'dynamic_status_replan_states',
@@ -461,7 +461,7 @@ class AstarPlanner(Node):
         self.declare_parameter('dynamic_layer_start_escape_search_radius', 3.0)
         self.declare_parameter('dynamic_layer_start_escape_corridor_radius', 0.45)
         self.declare_parameter('dynamic_layer_start_escape_min_clearance', 0.60)
-        self.declare_parameter('dynamic_path_side_lock_sec', 6.0)
+        self.declare_parameter('dynamic_path_side_lock_sec', 12.0)
         self.declare_parameter('dynamic_path_side_lock_lookahead', 3.0)
         self.declare_parameter('dynamic_path_side_lock_deadband', 0.20)
         self.declare_parameter('dynamic_path_side_switch_min_improvement', 1.0)

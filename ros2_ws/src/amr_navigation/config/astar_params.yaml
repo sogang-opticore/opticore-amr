@@ -112,7 +112,7 @@ astar_planner:
     dynamic_layer_enabled: true
     dynamic_layer_topic: "/dynamic_obstacle_layer"
     dynamic_layer_occupied_threshold: 65
-    dynamic_layer_timeout_sec: 1.5
+    dynamic_layer_timeout_sec: 35.0
     dynamic_layer_start_escape_enabled: true
     # TODO(미확정): 동적 장애물 주행 로그로 2.0~3.5m 범위를 비교한다.
     dynamic_layer_start_escape_search_radius: 3.0
@@ -123,7 +123,7 @@ astar_planner:
     # Dynamic obstacle no-go layer can create two nearly equal routes around
     # the robot. Keep the accepted left/right branch briefly, and switch only
     # when the new branch is clearly shorter or safer.
-    dynamic_path_side_lock_sec: 6.0
+    dynamic_path_side_lock_sec: 12.0
     dynamic_path_side_lock_lookahead: 3.0
     dynamic_path_side_lock_deadband: 0.20
     dynamic_path_side_switch_min_improvement: 1.0

@@ -27,9 +27,11 @@ from amr_navigation.dwa_node import (
     DynamicPathBlockage,
     DynamicObstacleMapBlock,
     DynamicObstacleTrack,
+    dynamic_layer_hold_age,
     detect_path_corridor_blockage,
     cluster_obstacle_points,
     classify_dynamic_motion,
+    choose_dynamic_approach_escape_command,
     choose_dynamic_avoid_target,
     choose_rejoin_target,
     choose_goal_shortcut_target,
@@ -1392,6 +1394,59 @@ class TestDynamicLayerTemporalSmoothing:
         assert abs(block.vx - 0.50) < 1e-9
         assert abs(block.vy) < 1e-9
         assert block.radius == 1.2
+
+    def test_min_hold_age_uses_last_seen_not_first_seen(self):
+        block = DynamicObstacleMapBlock(
+            block_id=1,
+            x=0.0,
+            y=0.0,
+            radius=1.0,
+            vx=0.0,
+            vy=0.0,
+            first_seen=0.0,
+            last_seen=28.0,
+            expire_at=300.0,
+        )
+
+        assert dynamic_layer_hold_age(block, 40.0) == 12.0
+
+
+class TestDynamicApproachEscapeCommand:
+    def test_front_approach_prefers_reverse_when_rear_is_clear(self):
+        cmd, allow_backward, mode = choose_dynamic_approach_escape_command(
+            local_x=1.0,
+            local_y=0.0,
+            side=1,
+            rear_clear=1.2,
+            front_clear=0.3,
+            reverse_enabled=True,
+            reverse_clearance=0.8,
+            escape_speed=0.16,
+            turn_speed=0.45,
+            w_max=1.5,
+        )
+
+        assert mode == "reverse_away"
+        assert cmd.v < 0.0
+        assert allow_backward is True
+
+    def test_rear_approach_moves_forward_instead_of_backing_into_obstacle(self):
+        cmd, allow_backward, mode = choose_dynamic_approach_escape_command(
+            local_x=-1.0,
+            local_y=0.0,
+            side=1,
+            rear_clear=0.3,
+            front_clear=1.2,
+            reverse_enabled=True,
+            reverse_clearance=0.8,
+            escape_speed=0.16,
+            turn_speed=0.45,
+            w_max=1.5,
+        )
+
+        assert mode == "forward_away"
+        assert cmd.v > 0.0
+        assert allow_backward is False
 
 
 class TestDynamicLayerRearPrediction:

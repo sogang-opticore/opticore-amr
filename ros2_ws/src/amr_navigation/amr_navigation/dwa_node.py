@@ -190,6 +190,8 @@ class DynamicMotionEstimate:
     confidence: float = 0.0
     side: int = 0
     radius: float = 0.0
+    local_x: float = float("inf")
+    local_y: float = 0.0
 
 
 @dataclass
@@ -224,6 +226,11 @@ class DynamicAvoidTarget:
     blocked_distance: float
     score: float
     mode: str = "side_lane"
+
+
+def dynamic_layer_hold_age(block: DynamicObstacleMapBlock, now: float) -> float:
+    """Age of a dynamic no-go block measured from its latest observation."""
+    return max(0.0, now - max(block.first_seen, block.last_seen))
 
 
 class NavState(Enum):
@@ -1013,11 +1020,13 @@ def classify_dynamic_motion(
     distance = math.hypot(dx, dy)
     speed = math.hypot(track.vx, track.vy)
     confidence = min(1.0, max(0.0, track.age / max(1, min_age + 2)))
-    side = 1 if world_to_local((track.x, track.y), robot)[1] >= 0.0 else -1
+    local_x, local_y = world_to_local((track.x, track.y), robot)
+    side = 1 if local_y >= 0.0 else -1
     if track.age < max(1, min_age):
         return DynamicMotionEstimate(
             "UNKNOWN", track.track_id, distance, speed, 0.0,
-            float("inf"), float("inf"), track.age, confidence, side, track.radius)
+            float("inf"), float("inf"), track.age, confidence, side, track.radius,
+            local_x, local_y)
 
     robot_vx = robot.v * math.cos(robot.theta)
     robot_vy = robot.v * math.sin(robot.theta)
@@ -1058,7 +1067,50 @@ def classify_dynamic_motion(
 
     return DynamicMotionEstimate(
         state, track.track_id, distance, speed, closing_speed,
-        t_cpa, d_cpa, track.age, confidence, side, track.radius)
+        t_cpa, d_cpa, track.age, confidence, side, track.radius,
+        local_x, local_y)
+
+
+def choose_dynamic_approach_escape_command(
+    *,
+    local_x: float,
+    local_y: float,
+    side: int,
+    rear_clear: float,
+    front_clear: float,
+    reverse_enabled: bool,
+    reverse_clearance: float,
+    escape_speed: float,
+    turn_speed: float,
+    w_max: float,
+    fallback_turn_bias: float = 0.0,
+) -> Tuple[VelocityCommand, bool, str]:
+    """Choose a short escape command from obstacle bearing and free space."""
+    if side > 0 or (side == 0 and local_y >= 0.0):
+        turn_dir = -1.0
+    elif side < 0 or (side == 0 and local_y < 0.0):
+        turn_dir = 1.0
+    else:
+        turn_dir = 1.0 if fallback_turn_bias >= 0.0 else -1.0
+
+    turn = turn_dir * min(max(0.05, abs(turn_speed)), max(0.05, w_max))
+    gentle_turn = turn_dir * min(max(0.05, abs(turn_speed)), max(0.05, w_max * 0.35))
+    speed = max(0.02, abs(escape_speed))
+    clear_needed = max(0.0, reverse_clearance)
+    obstacle_ahead = local_x >= 0.15
+    obstacle_behind = local_x <= -0.15
+
+    if reverse_enabled and obstacle_ahead and rear_clear >= clear_needed:
+        return VelocityCommand(v=-speed, w=gentle_turn), True, "reverse_away"
+    if obstacle_behind and front_clear >= clear_needed:
+        return VelocityCommand(v=speed, w=gentle_turn), False, "forward_away"
+    if reverse_enabled and not obstacle_behind and rear_clear >= clear_needed:
+        return VelocityCommand(v=-speed, w=gentle_turn), True, "reverse_side"
+    if not obstacle_ahead and front_clear >= clear_needed:
+        return VelocityCommand(v=speed, w=gentle_turn), False, "forward_side"
+
+    # No safe longitudinal escape: rotate away from the closing side.
+    return VelocityCommand(v=0.0, w=turn), False, "rotate_away"
 
 
 def point_segment_projection(
@@ -1864,7 +1916,7 @@ class DwaPlannerNode(Node):
         self.declare_parameter("dynamic_layer_publish_period", 1.00)
         self.declare_parameter("dynamic_layer_ttl_sec", 300.0)
         self.declare_parameter("dynamic_layer_min_hold_sec", 30.0)
-        self.declare_parameter("dynamic_layer_clear_confirm_sec", 2.0)
+        self.declare_parameter("dynamic_layer_clear_confirm_sec", 5.0)
         self.declare_parameter("dynamic_layer_position_alpha", 0.35)
         self.declare_parameter("dynamic_layer_velocity_alpha", 0.25)
         self.declare_parameter("dynamic_layer_radius_margin", 0.85)
@@ -3438,7 +3490,12 @@ class DwaPlannerNode(Node):
                 block.clear_since = None
                 continue
 
-            if now - block.first_seen < min_hold:
+            # Keep a no-go region for at least min_hold after the most recent
+            # observation.  A moving obstacle can update the same block/trail,
+            # so first_seen alone would let a freshly observed moving corridor
+            # clear only a few seconds later and make A* flip routes again.
+            if dynamic_layer_hold_age(block, now) < min_hold:
+                block.clear_since = None
                 continue
             if not self._dynamic_layer_block_visible(block, transform):
                 continue
@@ -4081,6 +4138,8 @@ class DwaPlannerNode(Node):
             "dynamic_motion_confidence": dynamic_motion.confidence,
             "dynamic_motion_side": dynamic_motion.side,
             "dynamic_motion_radius": dynamic_motion.radius,
+            "dynamic_motion_local_x": dynamic_motion.local_x,
+            "dynamic_motion_local_y": dynamic_motion.local_y,
             "approaching_dynamic_risk": approaching_dynamic_risk,
             "is_dynamic_avoiding": dynamic_avoid_target is not None,
             "dynamic_avoid_side": (
@@ -4126,26 +4185,22 @@ class DwaPlannerNode(Node):
         """Short emergency escape when a tracked dynamic obstacle is closing in."""
         obstacles = ctx["obstacles_local"]
         rear_clear = self._rear_clearance_inline(obstacles)
+        front_clear = self._forward_clearance_inline(obstacles, kappa=0.0)
         turn_bias = self._escape_turn_bias(obstacles)
-        turn_dir = 1.0 if turn_bias >= 0.0 else -1.0
-        if ctx.get("dynamic_motion_side", 0) > 0:
-            turn_dir = -1.0
-        elif ctx.get("dynamic_motion_side", 0) < 0:
-            turn_dir = 1.0
-
-        if (self.p_dynamic_approach_reverse_enabled and
-                rear_clear >= self.p_dynamic_approach_reverse_clearance):
-            v_cmd = -abs(self.p_dynamic_approach_reverse_speed)
-            w_cmd = turn_dir * min(self.p_w_max * 0.35,
-                                   abs(self.p_dynamic_approach_turn_speed))
-            self._publish_cmd(VelocityCommand(v=v_cmd, w=w_cmd),
-                              allow_backward_override=True)
-        else:
-            self._publish_cmd(VelocityCommand(
-                v=0.0,
-                w=turn_dir * min(self.p_w_max * 0.45,
-                                 abs(self.p_dynamic_approach_turn_speed)),
-            ))
+        cmd, allow_backward, mode = choose_dynamic_approach_escape_command(
+            local_x=ctx.get("dynamic_motion_local_x", float("inf")),
+            local_y=ctx.get("dynamic_motion_local_y", 0.0),
+            side=ctx.get("dynamic_motion_side", 0),
+            rear_clear=rear_clear,
+            front_clear=front_clear,
+            reverse_enabled=bool(self.p_dynamic_approach_reverse_enabled),
+            reverse_clearance=self.p_dynamic_approach_reverse_clearance,
+            escape_speed=self.p_dynamic_approach_reverse_speed,
+            turn_speed=self.p_dynamic_approach_turn_speed,
+            w_max=self.p_w_max,
+            fallback_turn_bias=turn_bias,
+        )
+        self._publish_cmd(cmd, allow_backward_override=allow_backward)
 
         self._nav_state = NavState.APPROACHING_DYNAMIC
         self._relax_path_acceptance()
@@ -4158,7 +4213,9 @@ class DwaPlannerNode(Node):
             f"closing={ctx.get('dynamic_motion_closing', 0.0):.2f}, "
             f"tcpa={ctx.get('dynamic_motion_t_cpa', float('inf')):.2f}, "
             f"dcpa={ctx.get('dynamic_motion_d_cpa', float('inf')):.2f}, "
-            f"rear={rear_clear:.2f})",
+            f"local=({ctx.get('dynamic_motion_local_x', float('inf')):+.2f},"
+            f"{ctx.get('dynamic_motion_local_y', 0.0):+.2f}), "
+            f"mode={mode}, front={front_clear:.2f}, rear={rear_clear:.2f})",
             throttle_duration_sec=0.5)
         return True
 
