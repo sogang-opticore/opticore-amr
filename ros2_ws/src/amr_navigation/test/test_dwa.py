@@ -1661,6 +1661,7 @@ class TestDynamicLayerInsideEscape:
         node.p_dynamic_layer_prediction_max_distance = 2.70
         node.p_dynamic_layer_prediction_speed_max = 1.50
         node.p_dynamic_layer_inside_margin = 0.06
+        node.p_dynamic_layer_inside_risk_threshold = 0.32
         node.p_dynamic_layer_trail_ttl_sec = 60.0
         node._sec_now = lambda: 0.0
         node._lookup_local_to_map_transform = lambda: (0.0, 0.0, 0.0)
@@ -1672,6 +1673,8 @@ class TestDynamicLayerInsideEscape:
             DwaPlannerNode._dynamic_layer_point_risk_map.__get__(node))
         node._dynamic_layer_escape_vector_local = (
             DwaPlannerNode._dynamic_layer_escape_vector_local.__get__(node))
+        node._robot_dynamic_layer_membership = (
+            DwaPlannerNode._robot_dynamic_layer_membership.__get__(node))
         return node
 
     def test_inside_escape_vector_points_away_from_block_core(self):
@@ -1718,6 +1721,40 @@ class TestDynamicLayerInsideEscape:
         assert abs(escape[1]) < 1e-9
         assert escape[3] == 2
         assert escape[4] == "trail"
+
+    def test_robot_inside_membership_ignores_prediction_only_overlap(self):
+        block = DynamicObstacleMapBlock(
+            block_id=3,
+            x=-2.70,
+            y=0.0,
+            radius=1.0,
+            vx=1.0,
+            vy=0.0,
+            first_seen=0.0,
+            last_seen=0.0,
+            expire_at=10.0,
+        )
+        node = self._make_node(block)
+
+        predicted_risk, _, _, predicted_feature, _, _ = (
+            node._dynamic_layer_point_risk_map(
+                (0.0, 0.0), include_predicted=True)
+        )
+        observed_risk, _, _, observed_feature, _, _ = (
+            node._dynamic_layer_point_risk_map(
+                (0.0, 0.0), include_predicted=False)
+        )
+        inside, _, _, inside_risk, inside_feature = (
+            node._robot_dynamic_layer_membership()
+        )
+
+        assert predicted_risk > 0.9
+        assert predicted_feature == "pred"
+        assert observed_risk == 0.0
+        assert observed_feature == ""
+        assert inside is False
+        assert inside_risk == 0.0
+        assert inside_feature == ""
 
 
 class TestGlobalPathStaleGuard:

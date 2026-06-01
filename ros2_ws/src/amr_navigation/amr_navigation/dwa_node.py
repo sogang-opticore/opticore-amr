@@ -3276,6 +3276,7 @@ class DwaPlannerNode(Node):
         self,
         block: DynamicObstacleMapBlock,
         now: float,
+        include_predicted: bool = True,
     ) -> List[Tuple[Tuple[float, float], float, str]]:
         """Return stable no-go feature centers used for local risk decisions."""
         if now >= block.expire_at:
@@ -3302,27 +3303,29 @@ class DwaPlannerNode(Node):
                     "trail",
                 ))
 
-        raw_speed = math.hypot(block.vx, block.vy)
-        horizon = max(0.0, self.p_dynamic_layer_prediction_horizon)
-        max_prediction = max(0.0, self.p_dynamic_layer_prediction_max_distance)
-        max_speed = max(0.0, self.p_dynamic_layer_prediction_speed_max)
-        speed = min(raw_speed, max_speed) if max_speed > 0.0 else raw_speed
-        travel = min(speed * horizon, max_prediction)
-        if travel > 0.05 and raw_speed > 1e-6:
-            scale = travel / raw_speed
-            for frac in (1.0 / 3.0, 2.0 / 3.0, 1.0):
-                centers.append((
-                    (block.x + block.vx * scale * frac,
-                     block.y + block.vy * scale * frac),
-                    radius,
-                    "pred",
-                ))
+        if include_predicted:
+            raw_speed = math.hypot(block.vx, block.vy)
+            horizon = max(0.0, self.p_dynamic_layer_prediction_horizon)
+            max_prediction = max(0.0, self.p_dynamic_layer_prediction_max_distance)
+            max_speed = max(0.0, self.p_dynamic_layer_prediction_speed_max)
+            speed = min(raw_speed, max_speed) if max_speed > 0.0 else raw_speed
+            travel = min(speed * horizon, max_prediction)
+            if travel > 0.05 and raw_speed > 1e-6:
+                scale = travel / raw_speed
+                for frac in (1.0 / 3.0, 2.0 / 3.0, 1.0):
+                    centers.append((
+                        (block.x + block.vx * scale * frac,
+                         block.y + block.vy * scale * frac),
+                        radius,
+                        "pred",
+                    ))
 
         return centers
 
     def _dynamic_layer_point_risk_map(
         self,
         point_map: Tuple[float, float],
+        include_predicted: bool = True,
     ) -> Tuple[float, float, int, str, Optional[Tuple[float, float]], float]:
         now = self._sec_now()
         best_risk = 0.0
@@ -3334,7 +3337,7 @@ class DwaPlannerNode(Node):
 
         for block_id, block in self._dynamic_layer_blocks.items():
             for center, radius, feature in self._dynamic_layer_feature_centers(
-                    block, now):
+                    block, now, include_predicted=include_predicted):
                 dist = math.hypot(point_map[0] - center[0],
                                   point_map[1] - center[1])
                 margin = dist - radius
@@ -3388,26 +3391,32 @@ class DwaPlannerNode(Node):
 
         return best_risk, best_margin, best_feature
 
-    def _robot_dynamic_layer_membership(self) -> Tuple[bool, float, int, float]:
+    def _robot_dynamic_layer_membership(
+        self,
+    ) -> Tuple[bool, float, int, float, str]:
         """Return whether robot is deep enough inside dynamic no-go to escape."""
         if self._state is None or not self._dynamic_layer_blocks:
-            return False, float("inf"), -1, 0.0
+            return False, float("inf"), -1, 0.0, ""
 
         transform = self._lookup_local_to_map_transform()
         if transform is None:
-            return False, float("inf"), -1, 0.0
+            return False, float("inf"), -1, 0.0, ""
 
         robot_map = self._transform_xy((self._state.x, self._state.y), transform)
-        risk, margin, block_id, _, _, _ = self._dynamic_layer_point_risk_map(
-            robot_map)
+        # Prediction capsules steer planning away from future motion, but should
+        # not by themselves mean the robot is already inside the physical no-go.
+        # Inside escape is reserved for observed core/trail features.
+        risk, margin, block_id, feature, _, _ = self._dynamic_layer_point_risk_map(
+            robot_map, include_predicted=False)
         threshold = max(
             0.0,
             min(1.0, float(self.p_dynamic_layer_inside_risk_threshold)),
         )
-        return risk >= threshold, margin, block_id, risk
+        return risk >= threshold, margin, block_id, risk, feature
 
     def _dynamic_layer_escape_vector_local(
         self,
+        include_predicted: bool = True,
     ) -> Optional[Tuple[float, float, float, int, str, float]]:
         """Return a local vector away from the highest-risk no-go center."""
         if self._state is None or not self._dynamic_layer_blocks:
@@ -3419,7 +3428,8 @@ class DwaPlannerNode(Node):
 
         robot_map = self._transform_xy((self._state.x, self._state.y), transform)
         risk, margin, block_id, feature, center_map, _ = (
-            self._dynamic_layer_point_risk_map(robot_map)
+            self._dynamic_layer_point_risk_map(
+                robot_map, include_predicted=include_predicted)
         )
         if center_map is None:
             return None
@@ -4045,6 +4055,7 @@ class DwaPlannerNode(Node):
         inside_dynamic_margin = float("inf")
         inside_dynamic_risk = 0.0
         inside_dynamic_block_id = -1
+        inside_dynamic_feature = ""
         inside_dynamic_escape = None
         rejoin_target: Optional[RejoinTarget] = None
         goal_shortcut_target: Optional[GoalShortcutTarget] = None
@@ -4175,9 +4186,11 @@ class DwaPlannerNode(Node):
                 inside_dynamic_margin,
                 inside_dynamic_block_id,
                 inside_dynamic_risk,
+                inside_dynamic_feature,
             ) = self._robot_dynamic_layer_membership()
             if inside_dynamic_layer:
-                inside_dynamic_escape = self._dynamic_layer_escape_vector_local()
+                inside_dynamic_escape = self._dynamic_layer_escape_vector_local(
+                    include_predicted=False)
             dynamic_motion = self._select_dynamic_motion_estimate(
                 path_xy, self._state, projection, dynamic_tracks)
             approaching_dynamic_risk = (
@@ -4394,6 +4407,7 @@ class DwaPlannerNode(Node):
             "inside_dynamic_margin": inside_dynamic_margin,
             "inside_dynamic_risk": inside_dynamic_risk,
             "inside_dynamic_block_id": inside_dynamic_block_id,
+            "inside_dynamic_feature": inside_dynamic_feature,
             "inside_dynamic_escape_x": (
                 inside_dynamic_escape[0] if inside_dynamic_escape else 0.0
             ),
@@ -4569,6 +4583,7 @@ class DwaPlannerNode(Node):
                 f"(inside_margin={ctx.get('inside_dynamic_margin', float('inf')):.2f}, "
                 f"risk={ctx.get('inside_dynamic_risk', 0.0):.2f}, "
                 f"block={ctx.get('inside_dynamic_block_id', -1)}, "
+                f"feature={ctx.get('inside_dynamic_feature', '')}, "
                 f"layer_blocks={ctx.get('dynamic_layer_block_count', 0)})",
                 throttle_duration_sec=0.5)
             return
@@ -4630,6 +4645,7 @@ class DwaPlannerNode(Node):
             f"escape_margin={ctx.get('inside_dynamic_escape_margin', float('inf')):.2f}, "
             f"escape_risk={ctx.get('inside_dynamic_escape_risk', 0.0):.2f}, "
             f"block={ctx.get('inside_dynamic_block_id', -1)}, "
+            f"inside_feature={ctx.get('inside_dynamic_feature', '')}, "
             f"escape_block={ctx.get('inside_dynamic_escape_block_id', -1)}, "
             f"feature={ctx.get('inside_dynamic_escape_feature', '')}, "
             f"front={front_clear:.2f}, rear={rear_clear:.2f}, "
@@ -4748,6 +4764,7 @@ class DwaPlannerNode(Node):
                 f"inside_margin={ctx.get('inside_dynamic_margin', float('inf')):.2f}, "
                 f"inside_risk={ctx.get('inside_dynamic_risk', 0.0):.2f}, "
                 f"inside_block={ctx.get('inside_dynamic_block_id', -1)}, "
+                f"inside_feature={ctx.get('inside_dynamic_feature', '')}, "
                 f"target_risk={ctx.get('dynamic_layer_target_risk', 0.0):.2f}, "
                 f"target_feat={ctx.get('dynamic_layer_target_feature', '')}, "
                 f"raw_pts={ctx.get('dynamic_raw_obstacle_count', 0)}, "

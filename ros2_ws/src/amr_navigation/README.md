@@ -313,7 +313,7 @@ angular:
 | `dynamic_layer_trail_max_points` | 24 | 단일 block trail이 지나치게 길어져 맵 일부를 통째로 막지 않도록 제한하는 최대 point 수 |
 | `dynamic_layer_escape_distance` | 1.20 m | layer 재계획 대기 중이어도 접근 장애물이 이 거리 안이면 짧은 escape 허용 |
 | `dynamic_layer_inside_margin` | 0.06 m | DWA가 로봇이 dynamic no-go block/trail 안에 있는지 판단할 때 block radius에 더하는 여유 |
-| `dynamic_layer_inside_risk_threshold` | 0.32 | dynamic no-go 경계 접촉은 통과/감속으로 두고, 중심 방향으로 충분히 들어갔을 때만 `INSIDE_DYNAMIC_ZONE` escape를 수행하는 침투 위험도 기준 |
+| `dynamic_layer_inside_risk_threshold` | 0.32 | dynamic no-go 경계 접촉은 통과/감속으로 두고, 관측된 core/trail 중심 방향으로 충분히 들어갔을 때만 `INSIDE_DYNAMIC_ZONE` escape를 수행하는 침투 위험도 기준. 예측 capsule(`pred`)은 A*/target risk에는 쓰지만 robot-inside 판정에서는 제외한다 |
 | `dynamic_layer_inside_escape_speed` | 0.18 m/s | 로봇이 dynamic no-go 내부에 있을 때 Pure Pursuit를 막고 가장 가까운 no-go feature 반대 방향으로 빠져나가는 저속 탈출 속도 |
 | `dynamic_layer_inside_turn_speed` | 0.55 rad/s | dynamic no-go 내부에서 탈출 방향을 향해 정렬할 때 쓰는 회전 속도 상한 |
 | `dynamic_layer_inside_align_angle` | 0.75 rad | 탈출 방향이 이 각도 이내일 때만 전진 탈출을 허용하고, 그보다 크면 먼저 회전 또는 안전 후진을 선택 |
