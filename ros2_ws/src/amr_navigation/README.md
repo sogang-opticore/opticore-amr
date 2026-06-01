@@ -483,6 +483,14 @@ ros2 launch amr_navigation dwa_only.launch.py
 ros2 topic echo /cmd_vel       # 빈 평가함수라 (0,0)이 나와야 함 (Week 1 의도)
 ros2 topic echo /dwa/status    # WAITING_ODOM → STOPPED → NORMAL 상태 변화
 
+# waypoint 여러 개를 한 번에 실행
+ros2 run amr_navigation waypoint_sequence.py \
+  --goals "20,10;10,5;35,-10"
+# → 각 waypoint마다 /goal_pose를 짧게 발행하고,
+#   DWA가 GOAL_REACHED/REACHED를 발행하면 다음 waypoint로 넘어간다.
+#   A*는 goal을 받은 뒤 자체적으로 /global_path를 1Hz 재계획하므로
+#   같은 goal을 터미널에서 계속 발행할 필요가 없다.
+
 # 통합 검증 (warehouse.launch.py가 같이 떠 있을 때)
 ros2 topic pub --once /global_path nav_msgs/msg/Path \
   "{header: {frame_id: 'map'}, poses: [
@@ -540,6 +548,7 @@ ros2 topic pub --once /global_path nav_msgs/msg/Path \
 
 | 일자 | 변경 | 작성자 | 리뷰 |
 |---|---|---|---|
+| 2026-06-01 | 여러 waypoint를 한 번의 터미널 명령으로 순차 실행하는 `waypoint_sequence.py` 추가. `/dwa/status`의 `GOAL_REACHED`/`REACHED`를 보고 다음 `/goal_pose`를 발행하며, stale `REACHED` 방지를 위해 발행 직후 무시 시간과 motion 확인 조건을 둔다 | Codex | RunPod 주행 검증 필요 |
 | 2026-06-01 | DWA dynamic layer가 후방 접근 동적 장애물을 놓치지 않도록 전방-only 필터를 제거하고, track 속도 벡터의 swept segment가 global path/CPA를 침범하면 `/dynamic_obstacle_layer` no-go 후보로 등록하도록 보강했다 | Codex | RunPod 주행 검증 필요 |
 | 2026-05-31 | Dynamic layer temporal smoothing 추가. `/dynamic_obstacle_layer` 발행 간격을 1.0s로 완화하고 block 중심/속도 LPF를 추가했으며, A\* dynamic side preference를 cost=0.50, distance=8.0m, lock=6.0s로 보강했다 | Codex | RunPod 주행 검증 필요 |
 | 2026-05-31 | A\* dynamic branch side preference cost 추가. `dynamic_path_side_preference_cost=0.35`, `dynamic_path_side_preference_distance=6.0m`로 dynamic branch lock 중 반대쪽 우회 가지에 soft cost를 주어 1Hz 재계획 좌우 flip을 줄인다 | Codex | RunPod 주행 검증 필요 |

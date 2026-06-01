@@ -64,6 +64,12 @@ install(PROGRAMS
 # ---------------------------------------------------------------------------
 # launch / config 설치
 # ---------------------------------------------------------------------------
+# Sequential waypoint runner: publish /goal_pose list and wait for DWA REACHED.
+install(PROGRAMS
+  ${PROJECT_NAME}/waypoint_sequence.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 install(DIRECTORY
   launch
   config
