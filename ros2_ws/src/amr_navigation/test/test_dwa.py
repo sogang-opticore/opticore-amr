@@ -1469,6 +1469,71 @@ class TestDynamicLayerRearPrediction:
         assert relevant is False
 
 
+class TestDynamicLayerInsideEscape:
+    def _make_node(self, block):
+        from amr_navigation.dwa_node import DwaPlannerNode
+
+        node = SimpleNamespace()
+        node._state = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
+        node._dynamic_layer_blocks = {block.block_id: block}
+        node.p_dynamic_layer_prediction_horizon = 4.0
+        node.p_dynamic_layer_prediction_max_distance = 2.70
+        node.p_dynamic_layer_prediction_speed_max = 1.50
+        node.p_dynamic_layer_inside_margin = 0.06
+        node._sec_now = lambda: 0.0
+        node._lookup_local_to_map_transform = lambda: (0.0, 0.0, 0.0)
+        node._transform_xy = DwaPlannerNode._transform_xy
+        node._inverse_transform_xy = DwaPlannerNode._inverse_transform_xy
+        node._dynamic_layer_escape_vector_local = (
+            DwaPlannerNode._dynamic_layer_escape_vector_local.__get__(node))
+        return node
+
+    def test_inside_escape_vector_points_away_from_block_core(self):
+        block = DynamicObstacleMapBlock(
+            block_id=1,
+            x=-0.50,
+            y=0.0,
+            radius=1.0,
+            vx=0.0,
+            vy=0.0,
+            first_seen=0.0,
+            last_seen=0.0,
+            expire_at=10.0,
+        )
+        node = self._make_node(block)
+
+        escape = node._dynamic_layer_escape_vector_local()
+
+        assert escape is not None
+        assert escape[0] > 0.0
+        assert abs(escape[1]) < 1e-9
+        assert escape[3] == 1
+        assert escape[4] == "core"
+
+    def test_inside_escape_vector_uses_trail_when_trail_is_closest(self):
+        block = DynamicObstacleMapBlock(
+            block_id=2,
+            x=10.0,
+            y=0.0,
+            radius=1.0,
+            vx=0.0,
+            vy=0.0,
+            first_seen=0.0,
+            last_seen=0.0,
+            expire_at=10.0,
+            trail=[(0.50, -1.0, 0.0), (0.50, 1.0, 1.0)],
+        )
+        node = self._make_node(block)
+
+        escape = node._dynamic_layer_escape_vector_local()
+
+        assert escape is not None
+        assert escape[0] < 0.0
+        assert abs(escape[1]) < 1e-9
+        assert escape[3] == 2
+        assert escape[4] == "trail"
+
+
 class TestGlobalPathStaleGuard:
     """중복 /global_path publisher가 기존 path를 흔드는 회귀 방지."""
 

@@ -1882,6 +1882,9 @@ class DwaPlannerNode(Node):
         self.declare_parameter("dynamic_layer_escape_distance", 1.20)
         self.declare_parameter("dynamic_layer_escape_t_cpa", 1.00)
         self.declare_parameter("dynamic_layer_inside_margin", 0.06)
+        self.declare_parameter("dynamic_layer_inside_escape_speed", 0.18)
+        self.declare_parameter("dynamic_layer_inside_turn_speed", 0.55)
+        self.declare_parameter("dynamic_layer_inside_align_angle", 0.75)
         self.declare_parameter("dynamic_layer_occupied_value", 100)
         self.declare_parameter("rejoin_predicted_exit_offset", 0.42)
         self.declare_parameter("rejoin_align_angle_thresh", 1.75)
@@ -2244,6 +2247,12 @@ class DwaPlannerNode(Node):
             "dynamic_layer_escape_t_cpa").value
         self.p_dynamic_layer_inside_margin = gp(
             "dynamic_layer_inside_margin").value
+        self.p_dynamic_layer_inside_escape_speed = gp(
+            "dynamic_layer_inside_escape_speed").value
+        self.p_dynamic_layer_inside_turn_speed = gp(
+            "dynamic_layer_inside_turn_speed").value
+        self.p_dynamic_layer_inside_align_angle = gp(
+            "dynamic_layer_inside_align_angle").value
         self.p_dynamic_layer_occupied_value = gp(
             "dynamic_layer_occupied_value").value
         self.p_rejoin_predicted_exit_offset = gp(
@@ -3138,6 +3147,108 @@ class DwaPlannerNode(Node):
 
         return best_margin <= 0.0, best_margin, best_id
 
+    def _dynamic_layer_escape_vector_local(
+        self,
+    ) -> Optional[Tuple[float, float, float, int, str]]:
+        """Return a local vector that points out of the closest dynamic no-go."""
+        if self._state is None or not self._dynamic_layer_blocks:
+            return None
+
+        transform = self._lookup_local_to_map_transform()
+        if transform is None:
+            return None
+
+        robot_map = self._transform_xy((self._state.x, self._state.y), transform)
+        now = self._sec_now()
+        horizon = max(0.0, self.p_dynamic_layer_prediction_horizon)
+        max_prediction = max(0.0, self.p_dynamic_layer_prediction_max_distance)
+        max_speed = max(0.0, self.p_dynamic_layer_prediction_speed_max)
+        inside_margin = max(0.0, self.p_dynamic_layer_inside_margin)
+
+        best_margin = float("inf")
+        best_block_id = -1
+        best_point_map: Optional[Tuple[float, float]] = None
+        best_feature = ""
+        best_block: Optional[DynamicObstacleMapBlock] = None
+
+        def consider(
+            block: DynamicObstacleMapBlock,
+            block_id: int,
+            closest_map: Tuple[float, float],
+            radius: float,
+            feature: str,
+        ) -> None:
+            nonlocal best_margin, best_block_id, best_point_map
+            nonlocal best_feature, best_block
+            dist = math.hypot(
+                robot_map[0] - closest_map[0],
+                robot_map[1] - closest_map[1],
+            )
+            margin = dist - radius
+            if margin < best_margin:
+                best_margin = margin
+                best_block_id = block_id
+                best_point_map = closest_map
+                best_feature = feature
+                best_block = block
+
+        for block_id, block in self._dynamic_layer_blocks.items():
+            if now >= block.expire_at:
+                continue
+
+            radius = max(0.0, block.radius + inside_margin)
+            consider(block, block_id, (block.x, block.y), radius, "core")
+
+            if len(block.trail) >= 2:
+                for start, end in zip(block.trail, block.trail[1:]):
+                    _, _, closest = point_segment_projection(
+                        robot_map,
+                        (start[0], start[1]),
+                        (end[0], end[1]),
+                    )
+                    consider(block, block_id, closest, radius, "trail")
+            elif block.trail:
+                tx, ty, _ = block.trail[-1]
+                consider(block, block_id, (tx, ty), radius, "trail")
+
+            raw_speed = math.hypot(block.vx, block.vy)
+            speed = min(raw_speed, max_speed) if max_speed > 0.0 else raw_speed
+            travel = min(speed * horizon, max_prediction)
+            if travel > 0.05 and raw_speed > 1e-6:
+                scale = travel / raw_speed
+                pred_end = (block.x + block.vx * scale,
+                            block.y + block.vy * scale)
+                _, _, closest = point_segment_projection(
+                    robot_map, (block.x, block.y), pred_end)
+                consider(block, block_id, closest, radius, "pred")
+
+        if best_point_map is None:
+            return None
+
+        closest_odom = self._inverse_transform_xy(best_point_map, transform)
+        closest_local = world_to_local(closest_odom, self._state)
+        escape_x = -closest_local[0]
+        escape_y = -closest_local[1]
+        if math.hypot(escape_x, escape_y) < 1e-3 and best_block is not None:
+            raw_speed = math.hypot(best_block.vx, best_block.vy)
+            if raw_speed > 1e-6:
+                away_map = (
+                    robot_map[0] - best_block.vx / raw_speed,
+                    robot_map[1] - best_block.vy / raw_speed,
+                )
+                away_odom = self._inverse_transform_xy(away_map, transform)
+                away_local = world_to_local(away_odom, self._state)
+                escape_x = away_local[0]
+                escape_y = away_local[1]
+
+        return (
+            escape_x,
+            escape_y,
+            best_margin,
+            best_block_id,
+            best_feature,
+        )
+
     def _dynamic_layer_segment_clearance(
         self,
         start_local: Tuple[float, float],
@@ -3676,6 +3787,7 @@ class DwaPlannerNode(Node):
         inside_dynamic_layer = False
         inside_dynamic_margin = float("inf")
         inside_dynamic_block_id = -1
+        inside_dynamic_escape = None
         rejoin_target: Optional[RejoinTarget] = None
         goal_shortcut_target: Optional[GoalShortcutTarget] = None
         goal_shortcut_dynamic_clearance = float("inf")
@@ -3803,6 +3915,8 @@ class DwaPlannerNode(Node):
             inside_dynamic_layer, inside_dynamic_margin, inside_dynamic_block_id = (
                 self._robot_dynamic_layer_membership()
             )
+            if inside_dynamic_layer:
+                inside_dynamic_escape = self._dynamic_layer_escape_vector_local()
             dynamic_motion = self._select_dynamic_motion_estimate(
                 path_xy, self._state, projection, dynamic_tracks)
             approaching_dynamic_risk = (
@@ -3941,6 +4055,21 @@ class DwaPlannerNode(Node):
             "inside_dynamic_layer": inside_dynamic_layer,
             "inside_dynamic_margin": inside_dynamic_margin,
             "inside_dynamic_block_id": inside_dynamic_block_id,
+            "inside_dynamic_escape_x": (
+                inside_dynamic_escape[0] if inside_dynamic_escape else 0.0
+            ),
+            "inside_dynamic_escape_y": (
+                inside_dynamic_escape[1] if inside_dynamic_escape else 0.0
+            ),
+            "inside_dynamic_escape_margin": (
+                inside_dynamic_escape[2] if inside_dynamic_escape else float("inf")
+            ),
+            "inside_dynamic_escape_block_id": (
+                inside_dynamic_escape[3] if inside_dynamic_escape else -1
+            ),
+            "inside_dynamic_escape_feature": (
+                inside_dynamic_escape[4] if inside_dynamic_escape else ""
+            ),
             "dynamic_motion_state": dynamic_motion.state,
             "dynamic_motion_track_id": dynamic_motion.track_id,
             "dynamic_motion_distance": dynamic_motion.distance,
@@ -4033,6 +4162,88 @@ class DwaPlannerNode(Node):
             throttle_duration_sec=0.5)
         return True
 
+    def _execute_dynamic_layer_escape(self, ctx: dict) -> None:
+        """Controlled local escape while the robot is inside dynamic no-go."""
+        obstacles = ctx["obstacles_local"]
+        escape_x = ctx.get("inside_dynamic_escape_x", 0.0)
+        escape_y = ctx.get("inside_dynamic_escape_y", 0.0)
+        escape_norm = math.hypot(escape_x, escape_y)
+        self._nav_state = NavState.INSIDE_DYNAMIC_ZONE
+        self._relax_path_acceptance()
+        self._in_align_mode = False
+        self._align_trigger_count = 0
+
+        if escape_norm < 1e-3:
+            self._publish_cmd(VelocityCommand(v=0.0, w=0.0))
+            self._publish_status_value(NavState.INSIDE_DYNAMIC_ZONE.value)
+            self._log_state_throttled()
+            self.get_logger().warn(
+                "inside dynamic no-go but escape vector is unavailable; "
+                "holding for A* start-escape replan "
+                f"(inside_margin={ctx.get('inside_dynamic_margin', float('inf')):.2f}, "
+                f"block={ctx.get('inside_dynamic_block_id', -1)}, "
+                f"layer_blocks={ctx.get('dynamic_layer_block_count', 0)})",
+                throttle_duration_sec=0.5)
+            return
+
+        angle = math.atan2(escape_y, escape_x)
+        align_angle = max(0.10, float(self.p_dynamic_layer_inside_align_angle))
+        escape_speed = max(0.0, float(self.p_dynamic_layer_inside_escape_speed))
+        turn_speed = min(
+            self.p_w_max,
+            max(0.05, abs(float(self.p_dynamic_layer_inside_turn_speed))),
+        )
+        front_clear = self._forward_clearance_inline(obstacles, kappa=0.0)
+        rear_clear = self._rear_clearance_inline(obstacles)
+        mode = "rotate"
+        v_cmd = 0.0
+        w_cmd = math.copysign(turn_speed, angle)
+
+        if abs(angle) <= align_angle:
+            mode = "forward"
+            heading_scale = max(0.35, math.cos(angle))
+            v_cmd = escape_speed * heading_scale
+            w_cmd = max(-turn_speed, min(turn_speed, 1.4 * angle))
+            motion_clear = self._trajectory_clearance_margin(
+                obstacles, v_cmd, w_cmd)
+            if (motion_clear < self.p_clearance_stop_distance or
+                    front_clear < self.p_clearance_stop_distance):
+                mode = "front_blocked_rotate"
+                v_cmd = 0.0
+                w_cmd = math.copysign(turn_speed, angle)
+        elif (self.p_dynamic_approach_reverse_enabled and
+              abs(normalize_angle(angle - math.pi)) <= align_angle and
+              rear_clear >= self.p_dynamic_approach_reverse_clearance):
+            mode = "reverse"
+            v_cmd = -abs(self.p_dynamic_approach_reverse_speed)
+            w_cmd = max(
+                -turn_speed,
+                min(turn_speed, 1.2 * normalize_angle(angle - math.pi)),
+            )
+
+        allow_backward = mode == "reverse"
+        self._publish_cmd(
+            VelocityCommand(v=v_cmd, w=w_cmd),
+            allow_backward_override=allow_backward,
+        )
+        self._publish_status_value(NavState.INSIDE_DYNAMIC_ZONE.value)
+        self._log_state_throttled()
+        self.get_logger().warn(
+            "inside dynamic no-go; suppressing Pure Pursuit and escaping "
+            f"(mode={mode}, angle={math.degrees(angle):+.1f}deg, "
+            f"v={v_cmd:+.2f}, w={w_cmd:+.2f}, "
+            f"inside_margin={ctx.get('inside_dynamic_margin', float('inf')):.2f}, "
+            f"escape_margin={ctx.get('inside_dynamic_escape_margin', float('inf')):.2f}, "
+            f"block={ctx.get('inside_dynamic_block_id', -1)}, "
+            f"escape_block={ctx.get('inside_dynamic_escape_block_id', -1)}, "
+            f"feature={ctx.get('inside_dynamic_escape_feature', '')}, "
+            f"front={front_clear:.2f}, rear={rear_clear:.2f}, "
+            f"motion={ctx.get('dynamic_motion_state', 'UNKNOWN')}, "
+            f"dyn_v={ctx.get('dynamic_motion_speed', 0.0):.2f}, "
+            f"tcpa={ctx.get('dynamic_motion_t_cpa', float('inf')):.2f}, "
+            f"layer_blocks={ctx.get('dynamic_layer_block_count', 0)})",
+            throttle_duration_sec=0.5)
+
     def _execute_normal(self, ctx: dict) -> None:
         """NavState.NORMAL — Pure Pursuit + adaptive velocity."""
         alpha       = ctx["alpha"]
@@ -4088,6 +4299,10 @@ class DwaPlannerNode(Node):
             <= self.p_dynamic_layer_escape_t_cpa
         )
         if close_approach_escape and self._execute_dynamic_approach_escape(ctx):
+            return
+
+        if inside_dynamic_layer:
+            self._execute_dynamic_layer_escape(ctx)
             return
 
         if dynamic_blocked and not is_dynamic_avoiding:

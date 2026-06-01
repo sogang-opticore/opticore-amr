@@ -348,6 +348,9 @@ dwa_planner:
     dynamic_layer_escape_t_cpa: 1.00
     # TODO(미확정): no-go 내부 판정 여유. 실제 로그에서 dyn_in_margin 분포를 보고 0.05~0.20m 범위 튜닝.
     dynamic_layer_inside_margin: 0.06
+    dynamic_layer_inside_escape_speed: 0.18
+    dynamic_layer_inside_turn_speed: 0.55
+    dynamic_layer_inside_align_angle: 0.75
     dynamic_layer_occupied_value: 100
 
     # ----- 진단 로그 throttle (s) -----

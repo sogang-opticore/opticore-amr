@@ -163,7 +163,7 @@ angular:
 | `NORMAL` | path 수신 완료, Pure Pursuit 정상 추종 루프 실행 중 (코드가 발행하는 실제 값; 구 문서 `PLANNING`) |
 | `REJOIN` | path 이탈 상태. 가장 가까운 점 대신 미래 path 후보를 골라 작은 조향각으로 재합류 중 |
 | `DYNAMIC_BLOCKED` | LiDAR 동적 장애물이 global path corridor를 막고 있으며, 기본값에서는 dynamic layer 기반 A\* 우회 재계획을 기다림 |
-| `INSIDE_DYNAMIC_ZONE` | 로봇 현재 pose가 `/dynamic_obstacle_layer` no-go 내부 또는 가장자리에 있어 A\*가 start escape corridor를 열어 탈출 경로를 재계획해야 하는 상태 |
+| `INSIDE_DYNAMIC_ZONE` | 로봇 현재 pose가 `/dynamic_obstacle_layer` no-go 내부 또는 가장자리에 있어 DWA가 정상 Pure Pursuit를 중단하고 가장 가까운 no-go block/trail/prediction의 반대 방향으로 저속 탈출하며, A\*가 start escape corridor를 열어 탈출 경로를 재계획해야 하는 상태 |
 | `APPROACHING_DYNAMIC` | 추적된 동적 장애물의 CPA/closing speed가 위험해 정지, 짧은 후퇴, 또는 제자리 회피 회전을 우선 |
 | `CROSSING_DYNAMIC` | 동적 장애물이 움직이며 path를 가로지르는 중으로 판단되어 우회보다 감속 대기를 우선 |
 | `RECEDING_DYNAMIC` | 동적 장애물이 로봇/경로에서 멀어지는 중으로 판단되어 path가 clear될 때까지 감속 대기 |
@@ -310,6 +310,9 @@ angular:
 | `dynamic_layer_trail_max_points` | 24 | 단일 block trail이 지나치게 길어져 맵 일부를 통째로 막지 않도록 제한하는 최대 point 수 |
 | `dynamic_layer_escape_distance` | 1.20 m | layer 재계획 대기 중이어도 접근 장애물이 이 거리 안이면 짧은 escape 허용 |
 | `dynamic_layer_inside_margin` | 0.06 m | DWA가 로봇이 dynamic no-go block/trail 안에 있는지 판단할 때 block radius에 더하는 여유 |
+| `dynamic_layer_inside_escape_speed` | 0.18 m/s | 로봇이 dynamic no-go 내부에 있을 때 Pure Pursuit를 막고 가장 가까운 no-go feature 반대 방향으로 빠져나가는 저속 탈출 속도 |
+| `dynamic_layer_inside_turn_speed` | 0.55 rad/s | dynamic no-go 내부에서 탈출 방향을 향해 정렬할 때 쓰는 회전 속도 상한 |
+| `dynamic_layer_inside_align_angle` | 0.75 rad | 탈출 방향이 이 각도 이내일 때만 전진 탈출을 허용하고, 그보다 크면 먼저 회전 또는 안전 후진을 선택 |
 > 2026-06-01: `/dynamic_obstacle_layer`는 임시 overlay이므로 `/map`처럼 latched(`TRANSIENT_LOCAL`)로 남기지 않고 `VOLATILE` QoS로 발행/구독한다. 전체 맵 크기 grid 대신 실제 occupied cell 주변의 cropped grid만 발행해 Foxglove에서 정적 `/map` 전체를 덮어 사라지거나 검게 보이는 현상을 줄인다. Foxglove 가시성을 위해 같은 내용을 `/dynamic_obstacle_layer_markers` MarkerArray로도 발행한다.
 
 | `align_release_angle` | 0.70 rad | ALIGN 중 안전하면 15도까지 기다리지 않고 NORMAL로 조기 복귀 |
