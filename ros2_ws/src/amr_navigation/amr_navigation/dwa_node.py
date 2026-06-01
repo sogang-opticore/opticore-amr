@@ -1692,8 +1692,8 @@ class DwaPlannerNode(Node):
         self.declare_parameter("dynamic_layer_topic", "/dynamic_obstacle_layer")
         self.declare_parameter("dynamic_layer_publish_period", 1.00)
         self.declare_parameter("dynamic_layer_ttl_sec", 300.0)
-        self.declare_parameter("dynamic_layer_min_hold_sec", 2.0)
-        self.declare_parameter("dynamic_layer_clear_confirm_sec", 1.0)
+        self.declare_parameter("dynamic_layer_min_hold_sec", 30.0)
+        self.declare_parameter("dynamic_layer_clear_confirm_sec", 2.0)
         self.declare_parameter("dynamic_layer_position_alpha", 0.35)
         self.declare_parameter("dynamic_layer_velocity_alpha", 0.25)
         self.declare_parameter("dynamic_layer_radius_margin", 0.85)
@@ -2964,16 +2964,27 @@ class DwaPlannerNode(Node):
 
         if len(self._dynamic_layer_blocks) > max_blocks and self._state is not None:
             robot_map = self._transform_xy((self._state.x, self._state.y), transform)
+            protected_ids = {
+                block_id
+                for block_id, block in self._dynamic_layer_blocks.items()
+                if now - block.first_seen < min_hold
+            }
+            remaining_slots = max(0, max_blocks - len(protected_ids))
+            prune_candidates = [
+                (block_id, block)
+                for block_id, block in self._dynamic_layer_blocks.items()
+                if block_id not in protected_ids
+            ]
             keep_ids = {
                 block_id for block_id, _ in sorted(
-                    self._dynamic_layer_blocks.items(),
+                    prune_candidates,
                     key=lambda item: (
                         now - item[1].last_seen,
                         math.hypot(item[1].x - robot_map[0],
                                    item[1].y - robot_map[1]),
                     ),
-                )[:max_blocks]
-            }
+                )[:remaining_slots]
+            } | protected_ids
             pruned = [
                 block_id for block_id in self._dynamic_layer_blocks
                 if block_id not in keep_ids
@@ -2985,6 +2996,12 @@ class DwaPlannerNode(Node):
                     "dynamic obstacle layer pruned extra blocks "
                     f"(removed={len(pruned)}, max={max_blocks})",
                     throttle_duration_sec=2.0)
+            if len(protected_ids) > max_blocks:
+                self.get_logger().warn(
+                    "dynamic obstacle layer holding protected blocks above max "
+                    f"(protected={len(protected_ids)}, max={max_blocks}, "
+                    f"min_hold={min_hold:.1f}s)",
+                    throttle_duration_sec=5.0)
 
         self._publish_dynamic_obstacle_layer()
         return len(self._dynamic_layer_blocks)

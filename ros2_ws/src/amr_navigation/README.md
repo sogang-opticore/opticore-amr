@@ -288,10 +288,10 @@ angular:
 | `dynamic_layer_local_fallback_ticks` | 8 | global replan을 기다려도 계속 막히면 DWA local avoid target을 다시 허용하는 control tick 수 |
 | `dynamic_layer_path_corridor_width` | 1.20 m | 동적 track이 현재 global path 근처에 있을 때만 no-go layer 후보로 올리는 corridor 폭 |
 | `dynamic_layer_path_lookahead` | 5.0 m | no-go layer 후보 판정에 사용할 현재 path 전방 거리 |
-| `dynamic_layer_max_blocks` | 3 | false positive 누적으로 layer가 커지지 않도록 유지할 최대 dynamic block 수 |
+| `dynamic_layer_max_blocks` | 3 | false positive 누적으로 layer가 커지지 않도록 유지할 목표 dynamic block 수. 단, `dynamic_layer_min_hold_sec` 안의 block은 조기 삭제하지 않는다 |
 | `dynamic_layer_ttl_sec` | 300.0 s | 한 번 관찰한 동적 장애물 영역을 임시 no-go로 유지할 최대 시간 |
-| `dynamic_layer_min_hold_sec` | 2.0 s | 사라진 것처럼 보여도 최소 이 시간 동안은 block 유지 |
-| `dynamic_layer_clear_confirm_sec` | 1.0 s | block 위치가 다시 관찰 가능하고 비어 있음을 확인해야 해제하는 시간 |
+| `dynamic_layer_min_hold_sec` | 30.0 s | 사라진 것처럼 보여도 최소 이 시간 동안은 block 유지 |
+| `dynamic_layer_clear_confirm_sec` | 2.0 s | block 위치가 다시 관찰 가능하고 비어 있음을 확인해야 해제하는 시간 |
 | `dynamic_layer_publish_period` | 1.0 s | `/dynamic_obstacle_layer` 발행 최소 간격. 너무 잦은 overlay 변경으로 A\* 경로가 흔들리는 것을 줄인다 |
 | `dynamic_layer_position_alpha` / `dynamic_layer_velocity_alpha` | 0.35 / 0.25 | 같은 동적 block의 중심과 예측 속도를 새 관측에 얼마나 빠르게 따라붙일지 정하는 LPF 계수 |
 | `dynamic_layer_radius_margin` | 0.85 m | 관찰 반경에 로봇 반경/안전 여유를 더해 점유 영역을 확장 |

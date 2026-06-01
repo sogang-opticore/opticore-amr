@@ -316,8 +316,8 @@ dwa_planner:
     dynamic_layer_topic: "/dynamic_obstacle_layer"
     dynamic_layer_publish_period: 1.00
     dynamic_layer_ttl_sec: 300.0
-    dynamic_layer_min_hold_sec: 2.0
-    dynamic_layer_clear_confirm_sec: 1.0
+    dynamic_layer_min_hold_sec: 30.0
+    dynamic_layer_clear_confirm_sec: 2.0
     dynamic_layer_position_alpha: 0.35
     dynamic_layer_velocity_alpha: 0.25
     dynamic_layer_radius_margin: 0.85
