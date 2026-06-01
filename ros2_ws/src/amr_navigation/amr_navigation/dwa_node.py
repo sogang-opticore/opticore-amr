@@ -615,7 +615,21 @@ def should_block_dynamic_layer_reentry(
         return False
     if not math.isfinite(clearance):
         return True
-    return clearance <= max(0.0, hard_margin)
+    return clearance <= float(hard_margin)
+
+
+def dynamic_escape_speed_from_closing(
+    base_speed: float,
+    max_speed: float,
+    speed_gain: float,
+    closing_speed: float,
+) -> float:
+    """Scale dynamic-obstacle escape speed by measured closing speed."""
+    base = max(0.02, abs(base_speed))
+    limit = max(base, abs(max_speed))
+    closing = max(0.0, float(closing_speed))
+    scaled = base + max(0.0, speed_gain) * closing
+    return min(limit, max(base, scaled))
 
 
 def predict_signed_path_offset(
@@ -1095,6 +1109,9 @@ def choose_dynamic_approach_escape_command(
     escape_speed: float,
     turn_speed: float,
     w_max: float,
+    max_escape_speed: float = 0.45,
+    speed_gain: float = 0.18,
+    closing_speed: float = 0.0,
     fallback_turn_bias: float = 0.0,
 ) -> Tuple[VelocityCommand, bool, str]:
     """Choose a short escape command from obstacle bearing and free space."""
@@ -1107,7 +1124,8 @@ def choose_dynamic_approach_escape_command(
 
     turn = turn_dir * min(max(0.05, abs(turn_speed)), max(0.05, w_max))
     gentle_turn = turn_dir * min(max(0.05, abs(turn_speed)), max(0.05, w_max * 0.35))
-    speed = max(0.02, abs(escape_speed))
+    speed = dynamic_escape_speed_from_closing(
+        escape_speed, max_escape_speed, speed_gain, closing_speed)
     clear_needed = max(0.0, reverse_clearance)
     obstacle_ahead = local_x >= 0.15
     obstacle_behind = local_x <= -0.15
@@ -1917,6 +1935,8 @@ class DwaPlannerNode(Node):
         self.declare_parameter("dynamic_approach_reverse_enabled", True)
         self.declare_parameter("dynamic_approach_reverse_clearance", 0.80)
         self.declare_parameter("dynamic_approach_reverse_speed", 0.16)
+        self.declare_parameter("dynamic_approach_reverse_max_speed", 0.45)
+        self.declare_parameter("dynamic_approach_reverse_speed_gain", 0.18)
         self.declare_parameter("dynamic_approach_turn_speed", 0.45)
         self.declare_parameter("dynamic_layer_enabled", True)
         self.declare_parameter("dynamic_layer_prefer_global_replan", True)
@@ -1950,7 +1970,9 @@ class DwaPlannerNode(Node):
         self.declare_parameter("dynamic_layer_inside_turn_speed", 0.55)
         self.declare_parameter("dynamic_layer_inside_align_angle", 0.75)
         self.declare_parameter("dynamic_layer_reentry_margin", 0.12)
-        self.declare_parameter("dynamic_layer_reentry_hard_margin", 0.0)
+        self.declare_parameter("dynamic_layer_reentry_hard_margin", -0.10)
+        self.declare_parameter("dynamic_layer_reentry_rotate_ticks", 12)
+        self.declare_parameter("dynamic_layer_reentry_turn_speed", 0.55)
         self.declare_parameter("dynamic_layer_occupied_value", 100)
         self.declare_parameter("rejoin_predicted_exit_offset", 0.42)
         self.declare_parameter("rejoin_align_angle_thresh", 1.75)
@@ -2062,6 +2084,7 @@ class DwaPlannerNode(Node):
         self._dynamic_clear_ticks = 0
         self._dynamic_avoid_side = 0
         self._dynamic_avoid_until = 0.0
+        self._dynamic_reentry_ticks = 0
         self._dynamic_tracks: dict[int, DynamicObstacleTrack] = {}
         self._next_dynamic_track_id = 1
         self._dynamic_layer_blocks: dict[int, DynamicObstacleMapBlock] = {}
@@ -2261,6 +2284,10 @@ class DwaPlannerNode(Node):
             "dynamic_approach_reverse_clearance").value
         self.p_dynamic_approach_reverse_speed = gp(
             "dynamic_approach_reverse_speed").value
+        self.p_dynamic_approach_reverse_max_speed = gp(
+            "dynamic_approach_reverse_max_speed").value
+        self.p_dynamic_approach_reverse_speed_gain = gp(
+            "dynamic_approach_reverse_speed_gain").value
         self.p_dynamic_approach_turn_speed = gp(
             "dynamic_approach_turn_speed").value
         self.p_dynamic_layer_enabled = gp("dynamic_layer_enabled").value
@@ -2323,6 +2350,10 @@ class DwaPlannerNode(Node):
             "dynamic_layer_reentry_margin").value
         self.p_dynamic_layer_reentry_hard_margin = gp(
             "dynamic_layer_reentry_hard_margin").value
+        self.p_dynamic_layer_reentry_rotate_ticks = gp(
+            "dynamic_layer_reentry_rotate_ticks").value
+        self.p_dynamic_layer_reentry_turn_speed = gp(
+            "dynamic_layer_reentry_turn_speed").value
         self.p_dynamic_layer_occupied_value = gp(
             "dynamic_layer_occupied_value").value
         self.p_rejoin_predicted_exit_offset = gp(
@@ -4333,6 +4364,9 @@ class DwaPlannerNode(Node):
             escape_speed=self.p_dynamic_approach_reverse_speed,
             turn_speed=self.p_dynamic_approach_turn_speed,
             w_max=self.p_w_max,
+            max_escape_speed=self.p_dynamic_approach_reverse_max_speed,
+            speed_gain=self.p_dynamic_approach_reverse_speed_gain,
+            closing_speed=ctx.get("dynamic_motion_closing", 0.0),
             fallback_turn_bias=turn_bias,
         )
         self._publish_cmd(cmd, allow_backward_override=allow_backward)
@@ -4350,9 +4384,47 @@ class DwaPlannerNode(Node):
             f"dcpa={ctx.get('dynamic_motion_d_cpa', float('inf')):.2f}, "
             f"local=({ctx.get('dynamic_motion_local_x', float('inf')):+.2f},"
             f"{ctx.get('dynamic_motion_local_y', 0.0):+.2f}), "
+            f"cmd_v={cmd.v:+.2f}, "
             f"mode={mode}, front={front_clear:.2f}, rear={rear_clear:.2f})",
             throttle_duration_sec=0.5)
         return True
+
+    def _execute_dynamic_reentry_turn(self, ctx: dict) -> None:
+        """Rotate away when repeated no-go reentry would otherwise deadlock."""
+        escape = self._dynamic_layer_escape_vector_local()
+        angle = 0.0
+        feature = ""
+        if escape is not None:
+            angle = math.atan2(escape[1], escape[0])
+            feature = escape[4]
+        if abs(angle) < 0.10:
+            target_y = ctx.get("ly", 0.0)
+            if abs(target_y) > 0.05:
+                angle = -math.copysign(0.60, target_y)
+            else:
+                angle = math.copysign(0.60, self._escape_turn_bias(
+                    ctx.get("obstacles_local", [])) or 1.0)
+
+        turn_speed = min(
+            self.p_w_max,
+            max(0.05, abs(float(self.p_dynamic_layer_reentry_turn_speed))),
+        )
+        w_cmd = math.copysign(turn_speed, angle)
+        self._nav_state = NavState.DYNAMIC_BLOCKED
+        self._relax_path_acceptance()
+        self._publish_cmd(VelocityCommand(v=0.0, w=w_cmd))
+        self._publish_status_value(NavState.DYNAMIC_BLOCKED.value)
+        self._log_state_throttled()
+        self.get_logger().warn(
+            "dynamic no-go reentry rotating instead of holding "
+            f"(ticks={self._dynamic_reentry_ticks}, "
+            f"target_clear={ctx.get('dynamic_layer_target_clearance', float('inf')):.2f}, "
+            f"soft={int(ctx.get('dynamic_layer_soft_reentry', False))}, "
+            f"hard={int(ctx.get('dynamic_layer_reentry_blocked', False))}, "
+            f"target=({ctx.get('lx', 0.0):+.2f},{ctx.get('ly', 0.0):+.2f}), "
+            f"angle={math.degrees(angle):+.1f}deg, w={w_cmd:+.2f}, "
+            f"feature={feature}, layer_blocks={ctx.get('dynamic_layer_block_count', 0)})",
+            throttle_duration_sec=0.5)
 
     def _execute_dynamic_layer_escape(self, ctx: dict) -> None:
         """Controlled local escape while the robot is inside dynamic no-go."""
@@ -4407,7 +4479,13 @@ class DwaPlannerNode(Node):
               abs(normalize_angle(angle - math.pi)) <= align_angle and
               rear_clear >= self.p_dynamic_approach_reverse_clearance):
             mode = "reverse"
-            v_cmd = -abs(self.p_dynamic_approach_reverse_speed)
+            reverse_speed = dynamic_escape_speed_from_closing(
+                self.p_dynamic_approach_reverse_speed,
+                self.p_dynamic_approach_reverse_max_speed,
+                self.p_dynamic_approach_reverse_speed_gain,
+                ctx.get("dynamic_motion_closing", 0.0),
+            )
+            v_cmd = -reverse_speed
             w_cmd = max(
                 -turn_speed,
                 min(turn_speed, 1.2 * normalize_angle(angle - math.pi)),
@@ -4456,6 +4534,8 @@ class DwaPlannerNode(Node):
         inside_dynamic_layer = ctx.get("inside_dynamic_layer", False)
         dynamic_layer_reentry_blocked = ctx.get(
             "dynamic_layer_reentry_blocked", False)
+        dynamic_layer_soft_reentry = ctx.get(
+            "dynamic_layer_soft_reentry", False)
         dynamic_motion_state = ctx.get("dynamic_motion_state", "UNKNOWN")
         approaching_dynamic_risk = ctx.get("approaching_dynamic_risk", False)
 
@@ -4498,25 +4578,22 @@ class DwaPlannerNode(Node):
             return
 
         if inside_dynamic_layer:
+            self._dynamic_reentry_ticks = 0
             self._execute_dynamic_layer_escape(ctx)
             return
 
-        if dynamic_layer_reentry_blocked:
-            self._relax_path_acceptance()
-            self._publish_cmd(VelocityCommand(v=0.0, w=0.0))
-            self._publish_status_value(NavState.DYNAMIC_BLOCKED.value)
-            self._log_state_throttled()
-            self.get_logger().warn(
-                "dynamic no-go reentry blocked; holding for A* replan "
-                f"(target_clear={ctx.get('dynamic_layer_target_clearance', float('inf')):.2f}, "
-                f"reentry_margin={self.p_dynamic_layer_reentry_margin:.2f}, "
-                f"target=({lx:+.2f},{ly:+.2f}), "
-                f"is_avoid={int(is_dynamic_avoiding)}, "
-                f"layer_blocks={ctx.get('dynamic_layer_block_count', 0)}, "
-                f"motion={dynamic_motion_state}, "
-                f"dyn_v={ctx.get('dynamic_motion_speed', 0.0):.2f}, "
-                f"dyn_static={ctx.get('dynamic_static_filtered', 0)})",
-                throttle_duration_sec=0.75)
+        if dynamic_layer_reentry_blocked or dynamic_layer_soft_reentry:
+            self._dynamic_reentry_ticks += 1
+        else:
+            self._dynamic_reentry_ticks = 0
+
+        repeated_reentry = (
+            dynamic_layer_soft_reentry
+            and self._dynamic_reentry_ticks >= max(
+                1, int(self.p_dynamic_layer_reentry_rotate_ticks))
+        )
+        if dynamic_layer_reentry_blocked or repeated_reentry:
+            self._execute_dynamic_reentry_turn(ctx)
             return
 
         if dynamic_blocked and not is_dynamic_avoiding:

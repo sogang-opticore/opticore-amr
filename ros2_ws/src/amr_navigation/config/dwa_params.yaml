@@ -318,6 +318,8 @@ dwa_planner:
     dynamic_approach_reverse_enabled: true
     dynamic_approach_reverse_clearance: 0.80
     dynamic_approach_reverse_speed: 0.16
+    dynamic_approach_reverse_max_speed: 0.45
+    dynamic_approach_reverse_speed_gain: 0.18
     dynamic_approach_turn_speed: 0.45
     dynamic_layer_enabled: true
     dynamic_layer_prefer_global_replan: true
@@ -352,7 +354,9 @@ dwa_planner:
     dynamic_layer_inside_turn_speed: 0.55
     dynamic_layer_inside_align_angle: 0.75
     dynamic_layer_reentry_margin: 0.12
-    dynamic_layer_reentry_hard_margin: 0.0
+    dynamic_layer_reentry_hard_margin: -0.10
+    dynamic_layer_reentry_rotate_ticks: 12
+    dynamic_layer_reentry_turn_speed: 0.55
     dynamic_layer_occupied_value: 100
 
     # ----- 진단 로그 throttle (s) -----

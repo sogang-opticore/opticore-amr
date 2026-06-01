@@ -33,6 +33,7 @@ from amr_navigation.dwa_node import (
     classify_dynamic_motion,
     choose_dynamic_approach_escape_command,
     choose_dynamic_avoid_target,
+    dynamic_escape_speed_from_closing,
     choose_rejoin_target,
     choose_goal_shortcut_target,
     should_prefer_goal_shortcut_target,
@@ -1449,6 +1450,31 @@ class TestDynamicApproachEscapeCommand:
         assert cmd.v > 0.0
         assert allow_backward is False
 
+    def test_front_approach_reverse_speed_scales_with_closing_speed(self):
+        cmd, allow_backward, mode = choose_dynamic_approach_escape_command(
+            local_x=0.8,
+            local_y=0.0,
+            side=1,
+            rear_clear=2.0,
+            front_clear=0.2,
+            reverse_enabled=True,
+            reverse_clearance=0.8,
+            escape_speed=0.16,
+            turn_speed=0.45,
+            w_max=1.5,
+            max_escape_speed=0.45,
+            speed_gain=0.18,
+            closing_speed=1.30,
+        )
+
+        assert mode == "reverse_away"
+        assert cmd.v < -0.35
+        assert cmd.v >= -0.45
+        assert allow_backward is True
+
+    def test_dynamic_escape_speed_is_capped(self):
+        assert dynamic_escape_speed_from_closing(0.16, 0.45, 0.18, 4.0) == 0.45
+
 
 class TestDynamicLayerRearPrediction:
     def _make_node(self):
@@ -1585,13 +1611,16 @@ class TestDynamicLayerRearPrediction:
 
 class TestDynamicLayerReentryGuard:
     def test_positive_boundary_clearance_is_soft_not_hard_block(self):
-        assert should_block_dynamic_layer_reentry(0.02, 0.0) is False
+        assert should_block_dynamic_layer_reentry(0.02, -0.10) is False
 
-    def test_negative_clearance_is_hard_block(self):
-        assert should_block_dynamic_layer_reentry(-0.01, 0.0) is True
+    def test_shallow_negative_clearance_is_still_soft(self):
+        assert should_block_dynamic_layer_reentry(-0.02, -0.10) is False
+
+    def test_deep_negative_clearance_is_hard_block(self):
+        assert should_block_dynamic_layer_reentry(-0.12, -0.10) is True
 
     def test_infinite_clearance_is_not_blocked(self):
-        assert should_block_dynamic_layer_reentry(float("inf"), 0.0) is False
+        assert should_block_dynamic_layer_reentry(float("inf"), -0.10) is False
 
 
 class TestDynamicLayerInsideEscape:
