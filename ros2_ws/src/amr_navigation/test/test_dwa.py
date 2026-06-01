@@ -32,6 +32,8 @@ from amr_navigation.dwa_node import (
     classify_dynamic_motion,
     choose_dynamic_avoid_target,
     choose_rejoin_target,
+    choose_goal_shortcut_target,
+    should_prefer_goal_shortcut_target,
     occupancy_grid_has_static_obstacle_near,
     should_use_rejoin,
     should_force_rejoin_for_short_lookahead,
@@ -677,6 +679,75 @@ class TestPathProjectionLookahead:
         assert target is not None
         assert target.distance > 0.80
         assert target.clearance >= 0.25
+
+    def test_goal_shortcut_accepts_clear_goal_bearing_target(self):
+        robot = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
+
+        target = choose_goal_shortcut_target(
+            robot=robot,
+            goal_xy=(8.0, 1.5),
+            obstacles_local=[],
+            robot_radius=0.20,
+            max_lookahead=3.60,
+            min_goal_distance=1.20,
+            min_clearance=0.90,
+            max_angle=0.70,
+        )
+
+        assert target is not None
+        assert abs(target.alpha) < math.radians(20.0)
+        assert abs(target.distance - 3.60) < 1e-9
+
+    def test_goal_shortcut_rejects_obstacle_on_initial_arc(self):
+        robot = RobotState(x=0.0, y=0.0, theta=0.0, v=0.0, w=0.0)
+
+        target = choose_goal_shortcut_target(
+            robot=robot,
+            goal_xy=(8.0, 1.5),
+            obstacles_local=[(1.5, 0.25)],
+            robot_radius=0.20,
+            max_lookahead=3.60,
+            min_goal_distance=1.20,
+            min_clearance=0.90,
+            max_angle=0.70,
+        )
+
+        assert target is None
+
+    def test_goal_shortcut_preferred_over_costly_rejoin(self):
+        path = [(0.0, 0.0), (5.0, 0.0)]
+        robot = RobotState(x=0.0, y=1.0, theta=0.0, v=0.0, w=0.0)
+        proj = project_to_path(path, (robot.x, robot.y), 0)
+        rejoin = choose_rejoin_target(
+            path_xy=path,
+            robot=robot,
+            projection=proj,
+            min_lookahead=0.80,
+            max_lookahead=3.50,
+            step=0.25,
+            heading_weight=1.2,
+            distance_weight=0.12,
+            curvature_weight=0.18,
+        )
+        shortcut = choose_goal_shortcut_target(
+            robot=robot,
+            goal_xy=(8.0, 1.2),
+            obstacles_local=[],
+            robot_radius=0.20,
+            max_lookahead=3.60,
+            min_goal_distance=1.20,
+            min_clearance=0.90,
+            max_angle=0.70,
+        )
+
+        assert shortcut is not None
+        assert should_prefer_goal_shortcut_target(
+            shortcut,
+            rejoin,
+            rejoin_cost_margin=0.12,
+            clearance_gain=0.25,
+            rejoin_clearance_min=0.80,
+        ) is True
 
     def test_rejoin_stays_active_until_heading_is_aligned(self):
         assert should_use_rejoin(

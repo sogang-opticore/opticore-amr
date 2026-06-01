@@ -259,6 +259,11 @@ angular:
 | `short_lookahead_rejoin_min_distance` | 0.35 m | path가 로봇 근처에서 접혀 실제 local lookahead가 너무 짧아지면 `REJOIN`으로 승격 |
 | `short_lookahead_rejoin_ratio` | 0.55 | 실제 local lookahead가 effective lookahead 대비 이 비율보다 짧으면 접힌 lookahead로 판단 |
 | `short_lookahead_goal_margin` | 1.0 m | goal 근처 final approach에서는 short-lookahead REJOIN을 비활성화 |
+| `goal_shortcut_enabled` | true | `REJOIN` 후보가 있어도 goal 방향 local corridor가 LiDAR와 dynamic layer 기준 안전하면 path 합류점 대신 goal-bearing shortcut을 선택 |
+| `goal_shortcut_max_lookahead` | 3.60 m | goal을 한 번에 찍지 않고 이 거리 안의 bounded target으로 잘라 매 tick 재검사 |
+| `goal_shortcut_min_clearance` | 0.90 m | shortcut 직선 segment와 초기 Pure Pursuit arc가 동시에 만족해야 하는 최소 LiDAR clearance |
+| `goal_shortcut_max_angle` | 0.70 rad | 큰 U-turn shortcut을 막고, 비교적 작은 조향으로 goal 방향을 탈 수 있을 때만 사용 |
+| `goal_shortcut_path_error_speed_scale` / `goal_shortcut_cross_track_gain_scale` | 0.35 / 0.0 | shortcut 중에는 path 복귀 감속과 CTE 복귀 조향을 낮춰 불필요하게 global path 위로 돌아가려는 힘을 줄임 |
 | `dynamic_avoid_enabled` | true | LiDAR 기반 동적 장애물 local bypass 활성화 |
 | `dynamic_path_check_distance` | 3.20 m | 현재 path projection부터 앞쪽으로 동적 차단을 검사할 거리 |
 | `dynamic_path_corridor_width` | 0.50 m | global path 주변 이 폭 안의 LiDAR point cluster를 차단 후보로 판단 |

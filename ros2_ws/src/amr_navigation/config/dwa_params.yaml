@@ -105,6 +105,18 @@ dwa_planner:
     short_lookahead_rejoin_ratio: 0.55        # local L < effective_lookahead * ratio 조건
     short_lookahead_goal_margin: 1.0          # m, goal 근처 final approach에서는 적용하지 않음
 
+    # REJOIN 중 goal 방향이 LiDAR/dynamic layer 기준 충분히 열려 있으면
+    # path 위 합류점보다 goal-bearing shortcut을 선호한다.
+    goal_shortcut_enabled: true
+    goal_shortcut_min_goal_distance: 1.20
+    goal_shortcut_max_lookahead: 3.60
+    goal_shortcut_min_clearance: 0.90
+    goal_shortcut_max_angle: 0.70
+    goal_shortcut_rejoin_cost_margin: 0.12
+    goal_shortcut_clearance_gain: 0.25
+    goal_shortcut_path_error_speed_scale: 0.35
+    goal_shortcut_cross_track_gain_scale: 0.0
+
     max_clearance: 1.0       # m, [unused] 호환 위해 유지
     goal_tolerance: 0.20     # m, 도착 판정
     # goal_tolerance 경계에서 감속 상한이 0에 가까워지면 0.20m에 붙은 채 REACHED가 안 날 수 있다.

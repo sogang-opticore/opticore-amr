@@ -130,6 +130,20 @@ class RejoinTarget:
 
 
 @dataclass
+class GoalShortcutTarget:
+    """Safe short-horizon target that points toward the final goal."""
+    point: Tuple[float, float]
+    yaw: float
+    distance: float
+    alpha: float
+    curvature: float
+    clearance: float
+    direct_clearance: float
+    arc_clearance: float
+    score: float
+
+
+@dataclass
 class DynamicPathBlockage:
     """LiDAR obstacle cluster that blocks the near-term global path corridor."""
     blocked: bool
@@ -1542,6 +1556,91 @@ def choose_rejoin_target(
     return best if best is not None else fallback
 
 
+def choose_goal_shortcut_target(
+    robot: RobotState,
+    goal_xy: Tuple[float, float],
+    obstacles_local: Optional[List[Tuple[float, float]]],
+    robot_radius: float,
+    max_lookahead: float,
+    min_goal_distance: float,
+    min_clearance: float,
+    max_angle: float,
+) -> Optional[GoalShortcutTarget]:
+    """Pick a bounded goal-bearing target when the local corridor is clear."""
+    local_goal = world_to_local(goal_xy, robot)
+    goal_distance = math.hypot(local_goal[0], local_goal[1])
+    if goal_distance < max(0.0, min_goal_distance):
+        return None
+    if local_goal[0] <= 0.05:
+        return None
+
+    alpha = math.atan2(local_goal[1], local_goal[0])
+    if abs(alpha) > max(0.0, max_angle):
+        return None
+
+    target_distance = min(goal_distance, max(0.20, max_lookahead))
+    scale = target_distance / max(goal_distance, 1e-6)
+    local_target = (local_goal[0] * scale, local_goal[1] * scale)
+    direct_clear = segment_clearance_margin(
+        (0.0, 0.0), local_target, obstacles_local or [], robot_radius)
+    arc_clear = pure_pursuit_arc_clearance_margin(
+        local_target, obstacles_local or [], robot_radius)
+    clearance = min(direct_clear, arc_clear)
+    if clearance < max(0.0, min_clearance):
+        return None
+
+    curvature = (
+        abs(2.0 * local_target[1] / (target_distance * target_distance))
+        if target_distance >= 1e-3 else float("inf")
+    )
+    yaw = math.atan2(goal_xy[1] - robot.y, goal_xy[0] - robot.x)
+    score = (
+        abs(alpha)
+        + 0.15 * curvature
+        - 0.05 * min(clearance, 2.0)
+    )
+    return GoalShortcutTarget(
+        point=local_to_world(local_target, robot),
+        yaw=yaw,
+        distance=target_distance,
+        alpha=alpha,
+        curvature=curvature,
+        clearance=clearance,
+        direct_clearance=direct_clear,
+        arc_clearance=arc_clear,
+        score=score,
+    )
+
+
+def should_prefer_goal_shortcut_target(
+    shortcut: Optional[GoalShortcutTarget],
+    rejoin_target: Optional[RejoinTarget],
+    rejoin_cost_margin: float,
+    clearance_gain: float,
+    rejoin_clearance_min: float,
+) -> bool:
+    """Compare a safe goal shortcut with the normal path rejoin target."""
+    if shortcut is None:
+        return False
+    if rejoin_target is None:
+        return True
+
+    shortcut_cost = shortcut.score
+    rejoin_cost = (
+        abs(rejoin_target.alpha)
+        + 0.45 * abs(rejoin_target.arrival_error)
+        + 0.15 * rejoin_target.curvature
+    )
+    if shortcut_cost <= rejoin_cost + max(0.0, rejoin_cost_margin):
+        return True
+
+    if (rejoin_target.clearance < max(0.0, rejoin_clearance_min)
+            and shortcut.clearance >= rejoin_target.clearance
+            + max(0.0, clearance_gain)):
+        return True
+    return False
+
+
 def pick_lookahead_point(
     path_xy: List[Tuple[float, float]],
     robot_xy: Tuple[float, float],
@@ -1789,6 +1888,15 @@ class DwaPlannerNode(Node):
         self.declare_parameter("short_lookahead_rejoin_min_distance", 0.35)
         self.declare_parameter("short_lookahead_rejoin_ratio", 0.55)
         self.declare_parameter("short_lookahead_goal_margin", 1.0)
+        self.declare_parameter("goal_shortcut_enabled", True)
+        self.declare_parameter("goal_shortcut_min_goal_distance", 1.20)
+        self.declare_parameter("goal_shortcut_max_lookahead", 3.60)
+        self.declare_parameter("goal_shortcut_min_clearance", 0.90)
+        self.declare_parameter("goal_shortcut_max_angle", 0.70)
+        self.declare_parameter("goal_shortcut_rejoin_cost_margin", 0.12)
+        self.declare_parameter("goal_shortcut_clearance_gain", 0.25)
+        self.declare_parameter("goal_shortcut_path_error_speed_scale", 0.35)
+        self.declare_parameter("goal_shortcut_cross_track_gain_scale", 0.0)
         self.declare_parameter("max_clearance", 1.0)
         self.declare_parameter("goal_tolerance", 0.20)
         self.declare_parameter("goal_reached_epsilon", 0.03)
@@ -2147,6 +2255,22 @@ class DwaPlannerNode(Node):
             "short_lookahead_rejoin_ratio").value
         self.p_short_lookahead_goal_margin = gp(
             "short_lookahead_goal_margin").value
+        self.p_goal_shortcut_enabled = gp("goal_shortcut_enabled").value
+        self.p_goal_shortcut_min_goal_distance = gp(
+            "goal_shortcut_min_goal_distance").value
+        self.p_goal_shortcut_max_lookahead = gp(
+            "goal_shortcut_max_lookahead").value
+        self.p_goal_shortcut_min_clearance = gp(
+            "goal_shortcut_min_clearance").value
+        self.p_goal_shortcut_max_angle = gp("goal_shortcut_max_angle").value
+        self.p_goal_shortcut_rejoin_cost_margin = gp(
+            "goal_shortcut_rejoin_cost_margin").value
+        self.p_goal_shortcut_clearance_gain = gp(
+            "goal_shortcut_clearance_gain").value
+        self.p_goal_shortcut_path_error_speed_scale = gp(
+            "goal_shortcut_path_error_speed_scale").value
+        self.p_goal_shortcut_cross_track_gain_scale = gp(
+            "goal_shortcut_cross_track_gain_scale").value
         self.p_max_clearance            = gp("max_clearance").value
         self.p_goal_tolerance           = gp("goal_tolerance").value
         self.p_goal_reached_epsilon     = gp("goal_reached_epsilon").value
@@ -3014,6 +3138,112 @@ class DwaPlannerNode(Node):
 
         return best_margin <= 0.0, best_margin, best_id
 
+    def _dynamic_layer_segment_clearance(
+        self,
+        start_local: Tuple[float, float],
+        end_local: Tuple[float, float],
+    ) -> float:
+        """Clearance from a local segment to active dynamic no-go blocks."""
+        if not self._dynamic_layer_blocks:
+            return float("inf")
+        if self._state is None:
+            return 0.0
+
+        transform = self._lookup_local_to_map_transform()
+        if transform is None:
+            return 0.0
+
+        start_odom = local_to_world(start_local, self._state)
+        end_odom = local_to_world(end_local, self._state)
+        start_map = self._transform_xy(start_odom, transform)
+        end_map = self._transform_xy(end_odom, transform)
+
+        now = self._sec_now()
+        horizon = max(0.0, self.p_dynamic_layer_prediction_horizon)
+        max_prediction = max(0.0, self.p_dynamic_layer_prediction_max_distance)
+        max_speed = max(0.0, self.p_dynamic_layer_prediction_speed_max)
+        inside_margin = max(0.0, self.p_dynamic_layer_inside_margin)
+        best_margin = float("inf")
+
+        for block in self._dynamic_layer_blocks.values():
+            if now >= block.expire_at:
+                continue
+
+            radius = max(0.0, block.radius + inside_margin)
+            dist = point_segment_distance((block.x, block.y), start_map, end_map)
+            if len(block.trail) >= 2:
+                for trail_start, trail_end in zip(block.trail, block.trail[1:]):
+                    dist = min(
+                        dist,
+                        segment_segment_distance(
+                            start_map,
+                            end_map,
+                            (trail_start[0], trail_start[1]),
+                            (trail_end[0], trail_end[1]),
+                        ),
+                    )
+            elif block.trail:
+                tx, ty, _ = block.trail[-1]
+                dist = min(
+                    dist,
+                    point_segment_distance((tx, ty), start_map, end_map),
+                )
+
+            raw_speed = math.hypot(block.vx, block.vy)
+            speed = min(raw_speed, max_speed) if max_speed > 0.0 else raw_speed
+            travel = min(speed * horizon, max_prediction)
+            if travel > 0.05 and raw_speed > 1e-6:
+                scale = travel / raw_speed
+                pred_end = (block.x + block.vx * scale,
+                            block.y + block.vy * scale)
+                dist = min(
+                    dist,
+                    segment_segment_distance(
+                        start_map, end_map, (block.x, block.y), pred_end),
+                )
+
+            best_margin = min(best_margin, dist - radius)
+
+        return best_margin
+
+    def _choose_goal_shortcut_target(
+        self,
+        goal_xy: Tuple[float, float],
+        rejoin_target: Optional[RejoinTarget],
+        obstacles_local: List[Tuple[float, float]],
+    ) -> Tuple[Optional[GoalShortcutTarget], float]:
+        if not self.p_goal_shortcut_enabled or self._state is None:
+            return None, float("inf")
+
+        shortcut = choose_goal_shortcut_target(
+            robot=self._state,
+            goal_xy=goal_xy,
+            obstacles_local=obstacles_local,
+            robot_radius=self.p_robot_radius,
+            max_lookahead=self.p_goal_shortcut_max_lookahead,
+            min_goal_distance=self.p_goal_shortcut_min_goal_distance,
+            min_clearance=self.p_goal_shortcut_min_clearance,
+            max_angle=self.p_goal_shortcut_max_angle,
+        )
+        if shortcut is None:
+            return None, float("inf")
+
+        local_target = world_to_local(shortcut.point, self._state)
+        dynamic_clearance = self._dynamic_layer_segment_clearance(
+            (0.0, 0.0), local_target)
+        if dynamic_clearance < 0.05:
+            return None, dynamic_clearance
+
+        if not should_prefer_goal_shortcut_target(
+                shortcut,
+                rejoin_target,
+                self.p_goal_shortcut_rejoin_cost_margin,
+                self.p_goal_shortcut_clearance_gain,
+                self.p_rejoin_clearance_min):
+            return None, dynamic_clearance
+
+        return shortcut, dynamic_clearance
+
     def _update_dynamic_obstacle_layer(
         self,
         tracks: List[DynamicObstacleTrack],
@@ -3447,6 +3677,8 @@ class DwaPlannerNode(Node):
         inside_dynamic_margin = float("inf")
         inside_dynamic_block_id = -1
         rejoin_target: Optional[RejoinTarget] = None
+        goal_shortcut_target: Optional[GoalShortcutTarget] = None
+        goal_shortcut_dynamic_clearance = float("inf")
         if rejoin_requested:
             rejoin_target = choose_rejoin_target(
                 path_xy=path_xy,
@@ -3464,6 +3696,12 @@ class DwaPlannerNode(Node):
                 clearance_min=self.p_rejoin_clearance_min,
                 clearance_weight=self.p_rejoin_clearance_weight,
             )
+            goal_shortcut_target, goal_shortcut_dynamic_clearance = (
+                self._choose_goal_shortcut_target(
+                    (gx, gy), rejoin_target, obstacles_local)
+            )
+            if goal_shortcut_target is not None:
+                rejoin_target = None
 
         # Adaptive lookahead (approach scaling)
         approach_scale = min(1.0, dist_to_goal / max(self.p_lookahead_dist, 1e-3))
@@ -3472,7 +3710,11 @@ class DwaPlannerNode(Node):
             self.p_lookahead_time * abs(self._state.v),
             self.p_lookahead_dist * approach_scale,
         )
-        if rejoin_target is not None:
+        if goal_shortcut_target is not None:
+            effective_lookahead = goal_shortcut_target.distance
+            lookahead = goal_shortcut_target.point
+            target_path_yaw = goal_shortcut_target.yaw
+        elif rejoin_target is not None:
             effective_lookahead = rejoin_target.distance
             lookahead = rejoin_target.point
             target_path_yaw = rejoin_target.yaw
@@ -3490,7 +3732,7 @@ class DwaPlannerNode(Node):
         lx, ly = world_to_local(lookahead, self._state)
         L = math.hypot(lx, ly)
         short_lookahead_rejoin = False
-        if (rejoin_target is None and
+        if (rejoin_target is None and goal_shortcut_target is None and
                 should_force_rejoin_for_short_lookahead(
                     local_lookahead_distance=L,
                     effective_lookahead=effective_lookahead,
@@ -3520,6 +3762,18 @@ class DwaPlannerNode(Node):
                 clearance_weight=self.p_rejoin_clearance_weight,
             )
             if rejoin_target is not None:
+                goal_shortcut_target, goal_shortcut_dynamic_clearance = (
+                    self._choose_goal_shortcut_target(
+                        (gx, gy), rejoin_target, obstacles_local)
+                )
+            if goal_shortcut_target is not None:
+                rejoin_target = None
+                effective_lookahead = goal_shortcut_target.distance
+                lookahead = goal_shortcut_target.point
+                target_path_yaw = goal_shortcut_target.yaw
+                lx, ly = world_to_local(lookahead, self._state)
+                L = math.hypot(lx, ly)
+            elif rejoin_target is not None:
                 short_lookahead_rejoin = True
                 effective_lookahead = rejoin_target.distance
                 lookahead = rejoin_target.point
@@ -3608,6 +3862,8 @@ class DwaPlannerNode(Node):
                     side_switch_penalty=self.p_dynamic_avoid_side_switch_penalty,
                 )
                 if dynamic_avoid_target is not None:
+                    goal_shortcut_target = None
+                    goal_shortcut_dynamic_clearance = float("inf")
                     lookahead = dynamic_avoid_target.point
                     target_path_yaw = dynamic_avoid_target.yaw
                     effective_lookahead = dynamic_avoid_target.distance
@@ -3645,6 +3901,29 @@ class DwaPlannerNode(Node):
                 rejoin_target.desired_distance if rejoin_target else 0.0
             ),
             "rejoin_score": rejoin_target.score if rejoin_target else 0.0,
+            "goal_shortcut_active": goal_shortcut_target is not None,
+            "goal_shortcut_distance": (
+                goal_shortcut_target.distance if goal_shortcut_target else 0.0
+            ),
+            "goal_shortcut_alpha": (
+                goal_shortcut_target.alpha if goal_shortcut_target else 0.0
+            ),
+            "goal_shortcut_clearance": (
+                goal_shortcut_target.clearance
+                if goal_shortcut_target else float("inf")
+            ),
+            "goal_shortcut_direct_clearance": (
+                goal_shortcut_target.direct_clearance
+                if goal_shortcut_target else float("inf")
+            ),
+            "goal_shortcut_arc_clearance": (
+                goal_shortcut_target.arc_clearance
+                if goal_shortcut_target else float("inf")
+            ),
+            "goal_shortcut_dynamic_clearance": goal_shortcut_dynamic_clearance,
+            "goal_shortcut_score": (
+                goal_shortcut_target.score if goal_shortcut_target else 0.0
+            ),
             "dynamic_blocked": dynamic_blocked,
             "dynamic_block_count": dynamic_blockage.count,
             "dynamic_block_distance": dynamic_blockage.distance,
@@ -3768,6 +4047,7 @@ class DwaPlannerNode(Node):
         predicted_path_offset = ctx.get("predicted_path_offset", path_offset)
         path_heading_error = ctx["path_heading_error"]
         is_rejoining = ctx.get("is_rejoining", False)
+        is_goal_shortcut = ctx.get("goal_shortcut_active", False)
         dynamic_blocked = ctx.get("dynamic_blocked", False)
         is_dynamic_avoiding = ctx.get("is_dynamic_avoiding", False)
         inside_dynamic_layer = ctx.get("inside_dynamic_layer", False)
@@ -3941,6 +4221,8 @@ class DwaPlannerNode(Node):
 
         # (v) path 이탈 감속 — 경로에서 벌어질수록 속도를 낮춰 복귀 회전을 우선한다.
         path_error_for_speed = max(path_offset, predicted_path_offset)
+        if is_goal_shortcut:
+            path_error_for_speed *= self.p_goal_shortcut_path_error_speed_scale
         if path_error_for_speed > self.p_path_error_slowdown_offset:
             denom = max(
                 self.p_path_lost_offset - self.p_path_error_slowdown_offset,
@@ -3986,6 +4268,8 @@ class DwaPlannerNode(Node):
         cross_track_gain = self.p_path_cross_track_gain
         if is_rejoining:
             cross_track_gain *= self.p_rejoin_cross_track_gain_scale
+        if is_goal_shortcut:
+            cross_track_gain *= self.p_goal_shortcut_cross_track_gain_scale
         if is_dynamic_avoiding:
             cross_track_gain *= self.p_dynamic_avoid_cross_track_gain_scale
         w_path = (
@@ -4103,6 +4387,16 @@ class DwaPlannerNode(Node):
             self._publish_best_trajectory(sim_traj)
 
         # 진단 로그
+        goal_shortcut_diag = ""
+        if is_goal_shortcut:
+            goal_shortcut_diag = (
+                f" gcut=1"
+                f" gdist={ctx.get('goal_shortcut_distance', 0.0):.2f}"
+                f" gclr={ctx.get('goal_shortcut_clearance', float('inf')):.2f}"
+                f" garc={ctx.get('goal_shortcut_arc_clearance', float('inf')):.2f}"
+                f" gdyn={ctx.get('goal_shortcut_dynamic_clearance', float('inf')):.2f}"
+                f" gscore={ctx.get('goal_shortcut_score', 0.0):.2f}"
+            )
         dynamic_diag = ""
         if dynamic_blocked or is_dynamic_avoiding or inside_dynamic_layer:
             dynamic_diag = (
@@ -4152,6 +4446,7 @@ class DwaPlannerNode(Node):
                 f"{' dynbrake=1' if dynamic_target_brake else ''}"
                 f"{' wesc=1' if wall_escape_active else ''}"
                 f"{' sj=1' if ctx.get('short_lookahead_rejoin', False) else ''}"
+                f"{goal_shortcut_diag}"
                 f"{dynamic_diag}"
                 f"{' creep=1' if near_wall_creep else ''}")
 
