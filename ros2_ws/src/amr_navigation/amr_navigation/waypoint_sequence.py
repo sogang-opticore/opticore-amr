@@ -10,8 +10,10 @@ from typing import Iterable, List, Optional, Sequence
 
 import rclpy
 from geometry_msgs.msg import PoseStamped
+from rclpy.exceptions import ParameterAlreadyDeclaredException
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
+from rclpy.parameter import Parameter
 from rclpy.utilities import remove_ros_args
 from std_msgs.msg import String
 
@@ -160,7 +162,7 @@ class WaypointSequenceNode(Node):
 
     def __init__(self, args: argparse.Namespace, waypoints: List[Waypoint]) -> None:
         super().__init__("waypoint_sequence")
-        self.declare_parameter("use_sim_time", True)
+        self._enable_sim_time_by_default()
 
         self._waypoints = waypoints
         self._frame = args.frame
@@ -192,6 +194,18 @@ class WaypointSequenceNode(Node):
             f"({wp.x:.2f}, {wp.y:.2f}, yaw={wp.yaw_deg:.1f})" for wp in waypoints
         )
         self.get_logger().info(f"loaded {len(waypoints)} waypoint(s): {summary}")
+
+    def _enable_sim_time_by_default(self) -> None:
+        try:
+            self.declare_parameter("use_sim_time", True)
+        except ParameterAlreadyDeclaredException:
+            pass
+
+        param = self.get_parameter("use_sim_time")
+        if param.value is not True:
+            self.set_parameters([
+                Parameter("use_sim_time", Parameter.Type.BOOL, True)
+            ])
 
     def _tick(self) -> None:
         if self.done or self.failed:
