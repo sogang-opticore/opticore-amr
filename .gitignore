@@ -28,3 +28,6 @@ CATKIN_IGNORE
 session_dashboard.md
 # ros2_ws 내부 gitignore (불필요)
 ros2_ws/.gitignore
+
+# Personal Docker setup (not team-shared)
+Dockerfile
