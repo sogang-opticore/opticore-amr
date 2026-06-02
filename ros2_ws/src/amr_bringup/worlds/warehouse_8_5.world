@@ -155,21 +155,21 @@
     <!-- 상단열: (10,24)(30,24)(50,24) — 선반A(y=21)와 입출고존(y=27~) 사이 통로 -->
     <!-- 겹침 검증: 충전존X=1~9,Y=1~7 / 대기존X=51~59,Y=1~7 / 선반C,y=9,t=1m / 선반A,y=21,t=1m -->
 
-    <model name="col_s1"><static>true</static><pose>10 6 1.5 0 0 0</pose>
+    <model name="col_s1"><static>true</static><pose>10 8 1.5 0 0 0</pose>
       <link name="link">
         <collision name="c"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry></collision>
         <visual name="v"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry>
           <material><ambient>0.60 0.62 0.70 1</ambient><diffuse>0.65 0.67 0.75 1</diffuse></material>
       </visual></link>
     </model>
-    <model name="col_s2"><static>true</static><pose>30 6 1.5 0 0 0</pose>
+    <model name="col_s2"><static>true</static><pose>30 8 1.5 0 0 0</pose>
       <link name="link">
         <collision name="c"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry></collision>
         <visual name="v"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry>
           <material><ambient>0.60 0.62 0.70 1</ambient><diffuse>0.65 0.67 0.75 1</diffuse></material>
       </visual></link>
     </model>
-    <model name="col_s3"><static>true</static><pose>50 6 1.5 0 0 0</pose>
+    <model name="col_s3"><static>true</static><pose>50 8 1.5 0 0 0</pose>
       <link name="link">
         <collision name="c"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry></collision>
         <visual name="v"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry>
@@ -415,7 +415,7 @@
     <!-- ==================== CHARGING ZONE SW (X=1~9, Y=1~7) ==================== -->
     <!-- 바닥 마킹 -->
     <model name="charging_floor">
-      <static>true</static><pose>5 5 0.002 0 0 0</pose>
+      <static>true</static><pose>5 5 0.005 0 0 0</pose>
       <link name="link">
         <visual name="v"><geometry><box><size>8 6 0.002</size></box></geometry>
           <material><ambient>0.18 0.18 0.65 0.9</ambient><diffuse>0.20 0.20 0.75 0.9</diffuse></material>
@@ -490,7 +490,7 @@
     <!-- ==================== WAITING ZONE SE (X=51~59, Y=1~7) ==================== -->
     <!-- 바닥 마킹 -->
     <model name="waiting_floor">
-      <static>true</static><pose>55 5 0.002 0 0 0</pose>
+      <static>true</static><pose>55 5 0.005 0 0 0</pose>
       <link name="link">
         <visual name="v"><geometry><box><size>8 6 0.002</size></box></geometry>
           <material><ambient>0.55 0.45 0.08 0.9</ambient><diffuse>0.65 0.55 0.10 0.9</diffuse></material>
@@ -645,52 +645,17 @@
 
     <!-- ==================== DYNAMIC OBSTACLES ==================== -->
     <!-- 초기 스폰 위치만 설정 — 이동 경로는 dynamic_obstacle_mover.py 담당 -->
-    <include>
+    <!-- <include>
       <uri>model://standing_person</uri>
       <name>person_1</name>
       <pose>14.0 18.0 0.0 0 0 0</pose>
     </include>
 
-    <!-- person_2: Row A 남쪽 면 옆 (동적, 1m 왕복) -->
-    <include>
-      <uri>model://standing_person</uri>
-      <name>person_2</name>
-      <pose>32.0 20.0 0.0 0 0 0</pose>
-    </include>
-
-    <!-- person_3: Row B 남쪽 면 옆 (동적, 1m 왕복) -->
-    <include>
-      <uri>model://standing_person</uri>
-      <name>person_3</name>
-      <pose>25.0 14.0 0.0 0 0 0</pose>
-    </include>
-
-    <!-- person_s1: 트럭 뒤 occlusion (정적) -->
-    <include>
-      <uri>model://standing_person</uri>
-      <name>person_s1</name>
-      <pose>12.0 34.0 0.0 0 0 0</pose>
-    </include>
-
-    <!-- person_s2: forklift y=30 선상 (정적) -->
-    <include>
-      <uri>model://standing_person</uri>
-      <name>person_s2</name>
-      <pose>40.0 30.0 0.0 0 0 0</pose>
-    </include>
-
-    <!-- person_s3: Row C 북쪽 면 옆 (정적) -->
-    <include>
-      <uri>model://standing_person</uri>
-      <name>person_s3</name>
-      <pose>18.0 10.0 0.0 0 0 0</pose>
-    </include>
-
     <include>
       <uri>model://pickup</uri>
       <name>forklift_1</name>
-      <pose>10.0 30.0 0.0 0 0 1.5708</pose>
-    </include>
+      <pose>10.0 30.0 0.0 0 0 0</pose>
+    </include> -->
 
     <!-- ==================== CEILING (60m × 40m) ==================== -->
     <!--  벽 높이 3.0m에 맞춰 천장 슬래브 Z=3.1 (두께 0.2m)            -->

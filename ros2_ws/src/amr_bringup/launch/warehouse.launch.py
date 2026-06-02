@@ -88,7 +88,7 @@ def generate_launch_description():
                     '/imu_raw@sensor_msgs/msg/Imu[ignition.msgs.IMU',
                     # Camera (Ign→ROS)
                     '/camera@sensor_msgs/msg/Image[ignition.msgs.Image',
-                    '/camera/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
+                    '/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
                     '/ground_truth@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
                 ],
             ),

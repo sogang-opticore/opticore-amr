@@ -29,6 +29,7 @@ setup(
     entry_points={
         'console_scripts': [
             'yolo_detector = amr_perception.yolo_detector:main',
+            'object_tracker = amr_perception.object_tracker:main',
         ],
     },
 )

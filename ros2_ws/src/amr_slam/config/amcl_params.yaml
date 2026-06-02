@@ -27,17 +27,46 @@ amcl:
     alpha3: 0.2
     alpha4: 0.2
 
-    # 초기 위치 — 스폰 위치(3.0, 15.0)에 맞춤
+    # 초기 위치 — SLAM 으로 만든 맵 기준 map frame 좌표
+    #
+    # 2026-05-25 (SW · 페어, DWA spiral 진단 3 차) 재확인:
+    #   slam_toolbox 가 매핑 시작 시점 로봇 위치를 map frame (0, 0) 으로 잡음.
+    #   매번 같은 world (3.0, 15.0) 에 스폰하면 → map frame 으로 (0, 0) 이 정답.
+    #   warehouse_map.yaml 의 origin: [-3.05, -15.2, 0] 은 매핑 결과 좌하단으로
+    #   3.05m / 15.2m 만큼 확장된 결과 (= map 픽셀 (0,0) 의 map frame 좌표).
+    #   world frame ≠ map frame — 두 frame 의 translation 차이는 매핑 시작 시
+    #   로봇 위치(world (3,15))를 map frame 원점으로 잡았기 때문에 발생.
+    #
+    #   ⚠ 한 차례 (6.09, 30.30) 으로 잘못 정정했었음 — world≠map 관계를 잘못 모델링.
+    #   그 좌표는 맵 픽셀 (911, 183) 으로 변환되는데, 맵 크기 800×600 픽셀
+    #   (40×30m / 0.05) 밖 → A* "Start 점유/맵-밖" 에러 → 본 (0, 0) 복원.
     set_initial_pose: true
     initial_pose:
-      x: 0.0   # 3.0 - 3.09 ≈ 0
-      y: 0.0   # 15.0 - 15.3 ≈ 0
+      x: 0.0    # map frame: SLAM 시작 위치 = 스폰 위치
+      y: 0.0
       yaw: 0.0
 
-    # 맵 업데이트
-    update_min_d: 0.1
-    update_min_a: 0.1
+    # 맵 업데이트 — 2026-05-25 (SW · 페어)
+    #
+    # 진단 흐름 (CLAUDE.md §0.1 원칙 8 의 교훈):
+    #   1차 patch (transform_tolerance: 1.0 → 0.1) 는 spiral 의 진짜 원인이 아니었다.
+    #   spiral 은 dwa_node 의 매 cycle TF lookup 이 원인이었고, 그건 재설계 (cycle 안
+    #   TF lookup 0회) 로 이미 해결.
+    #
+    #   transform_tolerance: 0.1 의 부작용: AMCL 의 LiDAR message_filter 가 너무 엄격
+    #   해져서 LiDAR stamp 가 cache 시작점보다 살짝 옛것이면 모두 drop:
+    #     "Message Filter dropping message ... earlier than all the data in cache"
+    #   → AMCL 이 localization 을 못 함 → map→odom_filtered TF 갱신 안 됨 →
+    #     DWA path 변환이 옛 TF 사용 → stuck.
+    #
+    # 8차 진단 (2026-05-25): transform_tolerance 1.0 으로 되돌림. 새 DWA 설계에선
+    # cycle 안 TF lookup 자체가 없어서 transform_tolerance 가 커도 영향 없음.
+    # AMCL 의 message_filter 가 다시 정상 동작 → LiDAR 받음 → localization 됨.
+    update_min_d: 0.05            # 5cm 마다 pose 재추정
+    update_min_a: 0.05            # 0.05rad ≈ 2.9° 마다
     resample_interval: 1
-    transform_tolerance: 1.0
+    transform_tolerance: 1.0      # 1초 valid (nav2_amcl default). 새 DWA 는 cycle 안
+                                  # TF lookup 없어서 영향 없음. AMCL message_filter
+                                  # 가 LiDAR 받을 수 있도록 충분히 관대해야.
     recovery_alpha_slow: 0.001
     recovery_alpha_fast: 0.1

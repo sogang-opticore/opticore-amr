@@ -2,25 +2,40 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>amr_navigation</name>
-  <version>0.0.0</version>
-  <description>Opticore AMR Navigation — A* Global Planner + DWA Local Planner (직접 구현)</description>
-  <maintainer email="root@todo.todo">root</maintainer>
-  <license>TODO: License declaration</license>
+  <version>0.1.0</version>
+  <description>
+    Opticore AMR Navigation — A* Global Planner + DWA Local Planner.
+    핵심 알고리즘은 Nav2(dwb / NavFn / Smac)를 사용하지 않고 직접 구현한다.
+    Python(rclpy) 우선, 성능 결정적 부분만 C++(rclcpp)로 추가 가능.
+  </description>
+  <maintainer email="ekfghfl@gmail.com">Sangwon Ji</maintainer>
+  <license>MIT</license>
 
-  <!-- Python 빌드 시스템 -->
+  <!-- ament_cmake + Python 노드 동시 빌드/install -->
   <buildtool_depend>ament_cmake</buildtool_depend>
   <buildtool_depend>ament_cmake_python</buildtool_depend>
 
-  <!-- ROS2 의존성 -->
-  <depend>rclpy</depend>
+  <!-- C++ 의존성 (HU의 astar_planner.hpp 등) -->
+  <depend>rclcpp</depend>
+  <depend>tf2_ros</depend>
+
+  <!-- Python 의존성 (SW의 dwa_node.py 등) -->
+  <exec_depend>rclpy</exec_depend>
+
+  <!-- 메시지/공통 -->
   <depend>nav_msgs</depend>
   <depend>geometry_msgs</depend>
   <depend>sensor_msgs</depend>
-  <depend>tf2_ros</depend>
+  <depend>std_msgs</depend>
+  <depend>visualization_msgs</depend>
   <depend>tf2_geometry_msgs</depend>
+
+  <!-- nav_full.launch.py 가 amr_slam/launch/localization.launch.py 를 include -->
+  <exec_depend>amr_slam</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>
+  <test_depend>ament_cmake_pytest</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
