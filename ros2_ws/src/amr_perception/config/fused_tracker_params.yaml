@@ -5,7 +5,7 @@ fused_tracker:
     lidar_topic: /lidar
     robot_detections_topic: /perception/detections
     cctv_detections_topic: /cctv/detections     # [미확정] P-9 확정 시 갱신
-    camera_info_topic: /camera/camera_info
+    camera_info_topic: /camera_info
     map_topic: /map
     lidar_frame: lidar_link
     cluster_markers_topic: /perception/lidar_clusters
