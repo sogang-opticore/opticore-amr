@@ -333,7 +333,7 @@ class ObjectTrackerNode(Node):
         point = origin + t * ray_world
         return (float(point[0]), float(point[1]))
 
-        def _pixel_to_world(self, u: float, v: float, header) -> tuple | None:
+    def _pixel_to_world(self, u: float, v: float, header) -> tuple | None:
         """
         픽셀 (u, v)을 target_frame 기준 지면(z=0) 좌표로 변환.
         카메라 ray를 TF rotation으로 target_frame에 회전시킨 뒤 지면과 교차시킨다.
