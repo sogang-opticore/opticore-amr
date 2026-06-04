@@ -3,9 +3,10 @@
 multisource_kalman.py — P-7 multi-source 칼만 + association + 클래스 라벨
 
 ROS 비의존 순수 모듈 (lidar_clustering.py 패턴). fused_tracker가 _tick에서 소비.
-- FusedKalmanTrack: object_tracker.KalmanTrack 확장. source별 R 차등.
+- FusedKalmanTrack: object_tracker.KalmanTrack 확장. source별 R 차등 + tentative/confirmed.
 - associate(): 위치 근접 + 클래스 일관성 greedy 매칭.
 위치는 칼만이 공분산으로 자동 가중(LiDAR R 작게 → 더 신뢰). 클래스는 YOLO 관측이 채움.
+생성 강화: 새 트랙은 tentative, min_hits 관측 누적돼야 confirmed(=publish 대상).
 """
 
 from dataclasses import dataclass
@@ -45,11 +46,16 @@ class FusedKalmanTrack:
 
     _next_id = 0
 
-    def __init__(self, obs: 'Observation', dt: float):
+    def __init__(self, obs: 'Observation', dt: float, min_hits: int = 3):
         self.track_id = FusedKalmanTrack._next_id
         FusedKalmanTrack._next_id += 1
         self.dt = dt
         self.miss_count = 0
+
+        # 생성 강화: min_hits 관측 누적돼야 confirmed. 그 전엔 tentative(미발행).
+        self.min_hits = max(1, int(min_hits))
+        self.hit_count = 1
+        self.confirmed = self.hit_count >= self.min_hits
 
         self.H = np.array([[1, 0, 0, 0],
                            [0, 1, 0, 0]], dtype=float)
@@ -87,6 +93,10 @@ class FusedKalmanTrack:
         self.miss_count = 0
         self.source |= obs.source
         self._update_class(obs)
+
+        self.hit_count += 1
+        if self.hit_count >= self.min_hits:
+            self.confirmed = True
 
     def _update_class(self, obs: 'Observation'):
         # YOLO 관측만 클래스 갱신. unknown은 언제든 덮어쓰고, 그 외엔 conf 높은 쪽 우선.

@@ -2,22 +2,20 @@
 """
 fused_tracker — LiDAR + 로봇 카메라 YOLO + CCTV YOLO 융합 semantic 트래커
 
-P-5 스캐폴드 + P-6(LiDAR 자체 클러스터링, 옵션 A) + P-7(multi-source 칼만).
+P-5 스캐폴드 + P-6(LiDAR 자체 클러스터링) + P-7(multi-source 칼만).
 
-P-7 추가분:
+P-7:
   predict(등속) → 소스별 순차 association(거리+클래스 게이트) → update(source별 R 차등)
-  → unmatched 관측은 새 트랙, unmatched 트랙은 miss_count 증가 후 소멸.
-  위치는 칼만이 공분산으로 자동 가중(LiDAR R 작게 → 신뢰), 클래스는 YOLO가 채움.
-  velocity는 칼만 state[vx,vy]에서 나옴. _publish_tracks가 KF 트랙 → TrackedObject 변환.
+  → unmatched 관측은 새 트랙(tentative), unmatched 트랙은 miss_count↑ 후 소멸.
+  위치는 칼만이 공분산으로 자동 가중(LiDAR R 작게), 클래스는 YOLO가 채움.
+  유령 트랙 억제: ① 생성 강화(tentative→confirmed, publish는 confirmed만)
+                ② tentative 빨리 소멸  ③ map bounds 밖 관측/트랙 reject.
 
 구현 단계:
   P-6   LiDAR 자체 클러스터링 → _process_lidar
-  P-7   multi-source 칼만 + association + 클래스 → _update_tracks (이번)
+  P-7   multi-source 칼만 + association + 클래스 → _update_tracks
   P-8   TrackedObject MarkerArray 컴패니언 → self._marker_pub
   P-9/10  CCTV 디텍션 입력 → _cctv_det_cb (지금은 보관만)
-
-TODO(P-8): /perception/tracked_objects/markers (TrackedObject 3D 박스).
-  self._marker_pub 자리는 그대로 비워둔다 (cluster 마커와 별개).
 """
 
 import math
@@ -53,7 +51,6 @@ from amr_perception.lidar_clustering import (
     cluster_points,
     has_static_obstacle_near,
 )
-# --- P-7: 융합 칼만 코어 (ROS 비의존 순수 모듈) ---
 from amr_perception.multisource_kalman import (
     Observation,
     FusedKalmanTrack,
@@ -85,24 +82,27 @@ class FusedTracker(Node):
         self.declare_parameter('lidar_topic', '/lidar')
         self.declare_parameter('robot_detections_topic', '/perception/detections')
         self.declare_parameter('cctv_detections_topic', '/cctv/detections')  # [미확정] P-9 확정 시 갱신
-        self.declare_parameter('camera_info_topic', '/camera/camera_info')
+        self.declare_parameter('camera_info_topic', '/camera_info')
         self.declare_parameter('map_topic', '/map')
-        self.declare_parameter('lidar_frame', 'lidar_link')  # scan.header.frame_id 비었을 때 fallback
-        self.declare_parameter('camera_frame', 'camera_optical_link')  # robot cam 역투영 프레임
+        self.declare_parameter('lidar_frame', 'lidar_link')
+        self.declare_parameter('camera_frame', 'camera_optical_link')
         self.declare_parameter('cluster_markers_topic', '/perception/lidar_clusters')
 
-        # P-6 클러스터링 (DWA dynamic_track_* 출발값 재사용)
+        # P-6 클러스터링
         self.declare_parameter('cluster_distance', 0.35)
         self.declare_parameter('cluster_min_points', 3)
         self.declare_parameter('cluster_max_radius', 0.85)
-        # P-6 static wall 필터 (DWA dynamic_static_filter_* 재사용)
+        # P-6 static wall 필터
         self.declare_parameter('static_filter_enabled', True)
         self.declare_parameter('static_filter_radius', 0.60)
         self.declare_parameter('static_filter_occupied_threshold', 65)
         self.declare_parameter('static_filter_unknown_as_static', True)
-        # P-7 association/소멸 (object_tracker 출발값 재사용)
+        # P-7 association / 트랙 수명 / 생성 강화 / 경계
         self.declare_parameter('max_association_dist', 4.0)
-        self.declare_parameter('max_miss_count', 90)
+        self.declare_parameter('max_miss_count', 20)          # confirmed 트랙 (10Hz → 2초)
+        self.declare_parameter('tentative_max_miss', 3)       # 미confirmed 트랙 (0.3초)
+        self.declare_parameter('min_track_hits', 3)           # confirmed 되기까지 관측 수
+        self.declare_parameter('map_bounds_margin', 1.0)      # 맵 경계 여유 (m)
 
         gp = self.get_parameter
         output_topic = gp('output_topic').value
@@ -124,6 +124,9 @@ class FusedTracker(Node):
         self._static_filter_unknown_as_static = bool(gp('static_filter_unknown_as_static').value)
         self._max_assoc_dist = float(gp('max_association_dist').value)
         self._max_miss = int(gp('max_miss_count').value)
+        self._tentative_max_miss = int(gp('tentative_max_miss').value)
+        self._min_hits = int(gp('min_track_hits').value)
+        self._bounds_margin = float(gp('map_bounds_margin').value)
 
         # --- QoS ---
         track_qos = QoSProfile(
@@ -152,13 +155,13 @@ class FusedTracker(Node):
         self._latest_cctv_det = None
         self._camera_info = None
 
-        # --- P-6 산출물: map 프레임 LiDAR 동적 관측 ---
+        # --- P-6 산출물 ---
         self._lidar_observations = []  # List[LidarObservation]
 
-        # --- P-7 트랙 상태: 융합 칼만 필터 리스트 (publish 시 TrackedObject로 변환) ---
+        # --- P-7 트랙 상태 ---
         self._kf_tracks = []  # List[FusedKalmanTrack]
 
-        # --- TF (map ← odom_filtered ← ... ← {lidar_link, camera_optical_link}) ---
+        # --- TF ---
         self._tf_buffer = Buffer()
         self._tf_listener = TransformListener(self._tf_buffer, self)
 
@@ -172,17 +175,16 @@ class FusedTracker(Node):
         # --- 발행 ---
         self._track_pub = self.create_publisher(TrackedObjectArray, output_topic, track_qos)
         self._cluster_marker_pub = self.create_publisher(MarkerArray, cluster_markers_topic, 10)
-        self._marker_pub = None  # TODO(P-8): TrackedObject MarkerArray 컴패니언
+        self._marker_pub = self.create_publisher(MarkerArray, output_topic + '/markers', 10)
 
-        # --- 타이머: 클러스터링 → 융합 → 트랙 발행 ---
+        # --- 타이머 ---
         self._timer = self.create_timer(1.0 / PUBLISH_RATE_HZ, self._tick)
 
         self.get_logger().info(
             f"fused_tracker 기동 (P-7). 출력={output_topic} (frame={OUTPUT_FRAME}). "
-            f"cluster(d={self._cluster_distance}, min={self._cluster_min_points}, "
-            f"rmax={self._cluster_max_radius}) static_filter={self._static_filter_enabled} "
-            f"assoc_dist={self._max_assoc_dist} max_miss={self._max_miss}. "
-            f"구독: {lidar_topic}, {map_topic}, {robot_det_topic}, {cctv_det_topic}, {cam_info_topic}"
+            f"assoc_dist={self._max_assoc_dist} max_miss={self._max_miss} "
+            f"tentative_miss={self._tentative_max_miss} min_hits={self._min_hits} "
+            f"bounds_margin={self._bounds_margin}. cam_info={cam_info_topic}"
         )
 
     # ----- 구독 콜백 (보관만) -----
@@ -193,18 +195,18 @@ class FusedTracker(Node):
         self._latest_map = msg
 
     def _robot_det_cb(self, msg: Detection2DArray):
-        self._latest_robot_det = msg  # P-7: _tick에서 소비(consume-once)
+        self._latest_robot_det = msg  # _tick에서 consume-once
 
     def _cctv_det_cb(self, msg: Detection2DArray):
-        self._latest_cctv_det = msg  # TODO(P-10): CCTV ground projection → map
+        self._latest_cctv_det = msg  # TODO(P-10)
 
     def _camera_info_cb(self, msg: CameraInfo):
-        self._camera_info = msg  # K matrix (robot cam 역투영용)
+        self._camera_info = msg
 
     # ----- 타이머 -----
     def _tick(self):
         self._process_lidar()
-        self._update_tracks()   # P-7
+        self._update_tracks()
         self._publish_tracks()
 
     # ----- P-6: LiDAR scan → map 프레임 동적 관측 -----
@@ -241,7 +243,7 @@ class FusedTracker(Node):
         grid = self._latest_map
         if self._static_filter_enabled and grid is None:
             self.get_logger().warn(
-                '/map 미수신 — static 필터 비활성 상태로 동작(모든 cluster 동적 후보).',
+                '/map 미수신 — static 필터 비활성(모든 cluster 동적 후보).',
                 throttle_duration_sec=5.0,
             )
 
@@ -270,18 +272,21 @@ class FusedTracker(Node):
     def _update_tracks(self):
         dt = 1.0 / PUBLISH_RATE_HZ
 
-        # 1) predict + miss_count 증가 (update 시 0으로 리셋)
         for t in self._kf_tracks:
             t.predict(dt)
             t.miss_count += 1
 
-        # 2) 소스별 순차 association/update.
-        #    LiDAR 먼저(위치 정밀화) → robot YOLO(refine된 트랙에 클래스 스탬프).
+        # 소스별 순차: LiDAR(위치 정밀화) → robot YOLO(클래스 스탬프)
         self._associate_and_update(self._lidar_to_obs(), dt)
         self._associate_and_update(self._robot_cam_to_obs(), dt)
 
-        # 3) 오래 못 본 트랙 소멸
-        self._kf_tracks = [t for t in self._kf_tracks if t.miss_count < self._max_miss]
+        # cull: confirmed/tentative 수명 분기 + 맵 밖 트랙(predict 발산) 제거
+        alive = []
+        for t in self._kf_tracks:
+            limit = self._max_miss if t.confirmed else self._tentative_max_miss
+            if t.miss_count < limit and self._in_map_bounds(*t.position):
+                alive.append(t)
+        self._kf_tracks = alive
 
     def _associate_and_update(self, observations, dt):
         if not observations:
@@ -291,21 +296,23 @@ class FusedTracker(Node):
         for ti, oi in matches:
             self._kf_tracks[ti].update(observations[oi])
         for oi in unmatched_obs:
-            self._kf_tracks.append(FusedKalmanTrack(observations[oi], dt))
+            self._kf_tracks.append(
+                FusedKalmanTrack(observations[oi], dt, self._min_hits))
 
     def _lidar_to_obs(self):
-        return [Observation(o.x, o.y, SOURCE_LIDAR) for o in self._lidar_observations]
+        return [Observation(o.x, o.y, SOURCE_LIDAR)
+                for o in self._lidar_observations
+                if self._in_map_bounds(o.x, o.y)]
 
     def _robot_cam_to_obs(self):
         """robot YOLO Detection2DArray → 핀홀 역투영(지면 z=0) → map Observation. consume-once."""
         det = self._latest_robot_det
-        self._latest_robot_det = None  # stale 재투영 방지
+        self._latest_robot_det = None
         if det is None:
             return []
         if self._camera_info is None:
             self.get_logger().warn(
-                'camera_info 미수신 — robot YOLO 투영 불가(LiDAR-only 동작). '
-                'camera_info_topic 파라미터 확인.',
+                'camera_info 미수신 — robot YOLO 투영 불가(LiDAR-only). camera_info_topic 확인.',
                 throttle_duration_sec=5.0,
             )
             return []
@@ -317,6 +324,8 @@ class FusedTracker(Node):
             world = self._pixel_to_world(u, v, det.header)
             if world is None:
                 continue
+            if not self._in_map_bounds(world[0], world[1]):
+                continue
             cls, conf = None, 0.0
             if d.results:
                 cls = d.results[0].hypothesis.class_id or None
@@ -324,15 +333,26 @@ class FusedTracker(Node):
             obs.append(Observation(world[0], world[1], SOURCE_ROBOT_CAM, cls, conf))
         return obs
 
+    def _in_map_bounds(self, x, y):
+        grid = self._latest_map
+        if grid is None:
+            return True  # 맵 없으면 통과 (필터 불가)
+        info = grid.info
+        ox = info.origin.position.x
+        oy = info.origin.position.y
+        w = info.width * info.resolution
+        h = info.height * info.resolution
+        m = self._bounds_margin
+        return (ox - m) <= x <= (ox + w + m) and (oy - m) <= y <= (oy + h + m)
+
     def _pixel_to_world(self, u, v, header):
         """픽셀 (u,v) → camera_optical_link ray → map 지면(z=0) 교차점."""
         info = self._camera_info
-        K = info.k  # row-major 9
+        K = info.k
         fx, fy, cx, cy = K[0], K[4], K[2], K[5]
         if fx == 0.0 or fy == 0.0:
             return None
 
-        # optical frame ray (x right, y down, z forward)
         ray_cam = np.array([(u - cx) / fx, (v - cy) / fy, 1.0], dtype=float)
 
         tf = self._lookup_tf(self._camera_frame, header.stamp)
@@ -342,8 +362,7 @@ class FusedTracker(Node):
         origin = np.array([tr.x, tr.y, tr.z], dtype=float)
         ray_map = self._quat_to_rot(tf.transform.rotation) @ ray_cam
 
-        # 지면 z=0 교차: 카메라는 지면 위(origin_z>0), ray는 아래로 향해야 함
-        if ray_map[2] >= -1e-6:
+        if ray_map[2] >= -1e-6:  # 지면(z=0) 아래로 향해야 교차
             return None
         s = -origin[2] / ray_map[2]
         if s <= 0.0:
@@ -412,14 +431,16 @@ class FusedTracker(Node):
         m.color.b = cb
         return m
 
-    # ----- 출력: KF 트랙 → TrackedObjectArray (P-7) -----
+    # ----- 출력: confirmed KF 트랙만 → TrackedObjectArray -----
     def _publish_tracks(self):
         out = TrackedObjectArray()
         out.header = Header()
         out.header.stamp = self.get_clock().now().to_msg()
         out.header.frame_id = OUTPUT_FRAME
-        out.tracks = [self._to_msg(t) for t in self._kf_tracks]
+        confirmed = [t for t in self._kf_tracks if t.confirmed]
+        out.tracks = [self._to_msg(t) for t in confirmed]
         self._track_pub.publish(out)
+        self._publish_track_markers(confirmed, out.header.stamp)
 
     def _to_msg(self, t: FusedKalmanTrack) -> TrackedObject:
         m = TrackedObject()
@@ -433,6 +454,65 @@ class FusedTracker(Node):
         m.source = int(t.source) & 0xFF
         m.position_covariance = [float(v) for v in t.position_covariance]
         return m
+
+    # ----- P-8: confirmed 트랙 → 3D 박스 + 라벨 (Foxglove 시각화) -----
+    _CLASS_COLOR = {
+        'person':   (0.0, 1.0, 0.0),   # 초록
+        'forklift': (1.0, 0.55, 0.0),  # 주황
+        'unknown':  (0.6, 0.6, 0.6),   # 회색
+    }
+
+    def _publish_track_markers(self, tracks, stamp):
+        arr = MarkerArray()
+        clear = Marker()
+        clear.action = Marker.DELETEALL
+        arr.markers.append(clear)
+
+        for t in tracks:
+            px, py = t.position
+            cr, cg, cb = self._CLASS_COLOR.get(t.class_name, self._CLASS_COLOR['unknown'])
+
+            # 본체 박스 — source에 robot_cam/cctv 있으면(클래스 확정) 불투명, LiDAR-only면 반투명
+            box = Marker()
+            box.header.frame_id = OUTPUT_FRAME
+            box.header.stamp = stamp
+            box.ns = 'tracked_objects'
+            box.id = int(t.track_id)
+            box.type = Marker.CUBE
+            box.action = Marker.ADD
+            box.pose.position = Point(x=px, y=py, z=0.5)
+            box.pose.orientation.w = 1.0
+            box.scale.x = 0.6
+            box.scale.y = 0.6
+            box.scale.z = 1.0
+            box.color.r = cr
+            box.color.g = cg
+            box.color.b = cb
+            box.color.a = 0.9 if t.class_name != 'unknown' else 0.4
+            arr.markers.append(box)
+
+            # 라벨 — id / class / conf / source
+            label = Marker()
+            label.header.frame_id = OUTPUT_FRAME
+            label.header.stamp = stamp
+            label.ns = 'tracked_labels'
+            label.id = int(t.track_id)
+            label.type = Marker.TEXT_VIEW_FACING
+            label.action = Marker.ADD
+            label.pose.position = Point(x=px, y=py, z=1.3)
+            label.pose.orientation.w = 1.0
+            label.scale.z = 0.3
+            label.color.r = 1.0
+            label.color.g = 1.0
+            label.color.b = 1.0
+            label.color.a = 1.0
+            if t.class_name == 'unknown':
+                label.text = f"#{t.track_id} unknown s{t.source}"
+            else:
+                label.text = f"#{t.track_id} {t.class_name} {t.class_confidence:.2f} s{t.source}"
+            arr.markers.append(label)
+
+        self._marker_pub.publish(arr)
 
 
 def main(args=None):
