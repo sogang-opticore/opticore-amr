@@ -16,5 +16,6 @@ fused_tracker:
     # P-6 static wall 필터 (DWA dynamic_static_filter_* 출발값)
     static_filter_enabled: true
     static_filter_radius: 0.60
+    #static_filter_radius: 0.60
     static_filter_occupied_threshold: 65
     static_filter_unknown_as_static: true
