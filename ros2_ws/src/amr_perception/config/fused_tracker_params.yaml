@@ -1,0 +1,20 @@
+fused_tracker:
+  ros__parameters:
+    use_sim_time: true
+    output_topic: /perception/tracked_objects
+    lidar_topic: /lidar
+    robot_detections_topic: /perception/detections
+    cctv_detections_topic: /cctv/detections     # [미확정] P-9 확정 시 갱신
+    camera_info_topic: /camera/camera_info
+    map_topic: /map
+    lidar_frame: lidar_link
+    cluster_markers_topic: /perception/lidar_clusters
+    # P-6 클러스터링 (DWA dynamic_track_* 출발값)
+    cluster_distance: 0.35
+    cluster_min_points: 3
+    cluster_max_radius: 0.85
+    # P-6 static wall 필터 (DWA dynamic_static_filter_* 출발값)
+    static_filter_enabled: true
+    static_filter_radius: 0.60
+    static_filter_occupied_threshold: 65
+    static_filter_unknown_as_static: true
