@@ -102,6 +102,7 @@ class FusedTracker(Node):
         self.declare_parameter('max_miss_count', 20)          # confirmed 트랙 (10Hz → 2초)
         self.declare_parameter('tentative_max_miss', 3)       # 미confirmed 트랙 (0.3초)
         self.declare_parameter('min_track_hits', 3)           # confirmed 되기까지 관측 수
+        self.declare_parameter('tracking_frame', 'odom_filtered')  # 트래킹 좌표계(EKF). publish는 항상 map
         self.declare_parameter('map_bounds_margin', 1.0)      # 맵 경계 여유 (m)
 
         gp = self.get_parameter
@@ -177,6 +178,11 @@ class FusedTracker(Node):
         self._cluster_marker_pub = self.create_publisher(MarkerArray, cluster_markers_topic, 10)
         self._marker_pub = self.create_publisher(MarkerArray, output_topic + '/markers', 10)
 
+        self._tracking_frame = self.get_parameter('tracking_frame').value
+        self.get_logger().info(
+            f"tracking_frame={self._tracking_frame} → publish in {OUTPUT_FRAME} "
+            f"(AMCL 점프 흡수: 트래킹 odom, 출력 map)")
+
         # --- 타이머 ---
         self._timer = self.create_timer(1.0 / PUBLISH_RATE_HZ, self._tick)
 
@@ -209,7 +215,7 @@ class FusedTracker(Node):
         self._update_tracks()
         self._publish_tracks()
 
-    # ----- P-6: LiDAR scan → map 프레임 동적 관측 -----
+    # ----- P-6: LiDAR scan → tracking_frame 동적 관측 (static 대조는 map) -----
     def _process_lidar(self):
         self._lidar_observations = []
         scan = self._latest_scan
@@ -229,21 +235,16 @@ class FusedTracker(Node):
             return
 
         src_frame = scan.header.frame_id or self._lidar_frame
-        tf = self._lookup_tf(src_frame, scan.header.stamp)
-        if tf is None:
+        # 트래킹 좌표 = tracking_frame(EKF, 점프 없음) / 벽 필터 = map
+        tf_track = self._lookup_tf2d(src_frame, scan.header.stamp, self._tracking_frame)
+        tf_map = self._lookup_tf2d(src_frame, scan.header.stamp, OUTPUT_FRAME)
+        if tf_track is None:
             return
 
-        tx = tf.transform.translation.x
-        ty = tf.transform.translation.y
-        q = tf.transform.rotation
-        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y),
-                         1.0 - 2.0 * (q.y * q.y + q.z * q.z))
-        cos_y, sin_y = math.cos(yaw), math.sin(yaw)
-
         grid = self._latest_map
-        if self._static_filter_enabled and grid is None:
+        if self._static_filter_enabled and (grid is None or tf_map is None):
             self.get_logger().warn(
-                '/map 미수신 — static 필터 비활성(모든 cluster 동적 후보).',
+                '/map(또는 map TF) 미수신 — static 필터 비활성(모든 cluster 동적 후보).',
                 throttle_duration_sec=5.0,
             )
 
@@ -251,19 +252,19 @@ class FusedTracker(Node):
         static_clusters = []
         for c in clusters:
             cx, cy = c.center
-            mx = tx + cx * cos_y - cy * sin_y
-            my = ty + cx * sin_y + cy * cos_y
+            ox, oy = self._apply_xy(tf_track, cx, cy)  # tracking_frame 관측 좌표
 
-            if (self._static_filter_enabled and grid is not None
-                    and has_static_obstacle_near(
+            if (self._static_filter_enabled and grid is not None and tf_map is not None):
+                mx, my = self._apply_xy(tf_map, cx, cy)  # map 좌표로 벽 대조
+                if has_static_obstacle_near(
                         grid, (mx, my),
                         self._static_filter_radius,
                         self._static_filter_occupied_threshold,
-                        self._static_filter_unknown_as_static)):
-                static_clusters.append((mx, my, c.radius))
-                continue
+                        self._static_filter_unknown_as_static):
+                    static_clusters.append((ox, oy, c.radius))  # 마커는 tracking_frame
+                    continue
 
-            dynamic_obs.append(LidarObservation(mx, my, c.radius, scan.header.stamp))
+            dynamic_obs.append(LidarObservation(ox, oy, c.radius, scan.header.stamp))
 
         self._lidar_observations = dynamic_obs
         self._publish_cluster_markers(dynamic_obs, static_clusters)
@@ -346,7 +347,7 @@ class FusedTracker(Node):
         return (ox - m) <= x <= (ox + w + m) and (oy - m) <= y <= (oy + h + m)
 
     def _pixel_to_world(self, u, v, header):
-        """픽셀 (u,v) → camera_optical_link ray → map 지면(z=0) 교차점."""
+        """픽셀 → camera ray → tracking_frame 지면(z=0) 교차. consume는 호출부."""
         info = self._camera_info
         K = info.k
         fx, fy, cx, cy = K[0], K[4], K[2], K[5]
@@ -355,19 +356,19 @@ class FusedTracker(Node):
 
         ray_cam = np.array([(u - cx) / fx, (v - cy) / fy, 1.0], dtype=float)
 
-        tf = self._lookup_tf(self._camera_frame, header.stamp)
+        tf = self._lookup_tf(self._camera_frame, header.stamp, self._tracking_frame)
         if tf is None:
             return None
         tr = tf.transform.translation
         origin = np.array([tr.x, tr.y, tr.z], dtype=float)
-        ray_map = self._quat_to_rot(tf.transform.rotation) @ ray_cam
+        ray_world = self._quat_to_rot(tf.transform.rotation) @ ray_cam
 
-        if ray_map[2] >= -1e-6:  # 지면(z=0) 아래로 향해야 교차
+        if ray_world[2] >= -1e-6:  # 지면(z=0) 아래로 향해야 교차
             return None
-        s = -origin[2] / ray_map[2]
+        s = -origin[2] / ray_world[2]
         if s <= 0.0:
             return None
-        p = origin + s * ray_map
+        p = origin + s * ray_world
         return float(p[0]), float(p[1])
 
     @staticmethod
@@ -379,17 +380,48 @@ class FusedTracker(Node):
             [2 * (x * z - y * w),     2 * (y * z + x * w),     1 - 2 * (x * x + y * y)],
         ], dtype=float)
 
-    def _lookup_tf(self, src_frame: str, stamp):
+    # ----- 좌표 변환 헬퍼 (tracking ↔ output 프레임) -----
+    @staticmethod
+    def _tf_to_2d(tf):
+        """raw TransformStamped → (tx, ty, cos_yaw, sin_yaw) 2D 평면 변환."""
+        tx = tf.transform.translation.x
+        ty = tf.transform.translation.y
+        q = tf.transform.rotation
+        yaw = math.atan2(2.0 * (q.w * q.z + q.x * q.y),
+                         1.0 - 2.0 * (q.y * q.y + q.z * q.z))
+        return tx, ty, math.cos(yaw), math.sin(yaw)
+
+    @staticmethod
+    def _apply_xy(tf2d, x, y):
+        tx, ty, c, s = tf2d
+        return tx + x * c - y * s, ty + x * s + y * c
+
+    @staticmethod
+    def _apply_vec(tf2d, vx, vy):
+        _, _, c, s = tf2d  # 속도는 회전만(평행이동 없음)
+        return vx * c - vy * s, vx * s + vy * c
+
+    def _lookup_tf2d(self, src_frame, stamp, target):
+        tf = self._lookup_tf(src_frame, stamp, target)
+        return self._tf_to_2d(tf) if tf is not None else None
+
+    def _output_transform(self):
+        """tracking_frame → OUTPUT_FRAME(map) 변환(publish 시점, 최신). None이면 변환 불가."""
+        if self._tracking_frame == OUTPUT_FRAME:
+            return (0.0, 0.0, 1.0, 0.0)  # 동일 프레임 = 항등(map 모드 데모용)
+        return self._lookup_tf2d(self._tracking_frame, Time(), OUTPUT_FRAME)
+
+    def _lookup_tf(self, src_frame: str, stamp, target: str = OUTPUT_FRAME):
         try:
             return self._tf_buffer.lookup_transform(
-                OUTPUT_FRAME, src_frame, stamp, timeout=Duration(seconds=0.05))
+                target, src_frame, stamp, timeout=Duration(seconds=0.05))
         except TransformException:
             pass
         try:
-            return self._tf_buffer.lookup_transform(OUTPUT_FRAME, src_frame, Time())
+            return self._tf_buffer.lookup_transform(target, src_frame, Time())
         except TransformException as e:
             self.get_logger().warn(
-                f'TF {src_frame}->{OUTPUT_FRAME} 실패: {e}',
+                f'TF {src_frame}->{target} 실패: {e}',
                 throttle_duration_sec=2.0,
             )
             return None
@@ -413,7 +445,7 @@ class FusedTracker(Node):
 
     def _cyl_marker(self, mid, x, y, radius, cr, cg, cb):
         m = Marker()
-        m.header.frame_id = OUTPUT_FRAME
+        m.header.frame_id = self._tracking_frame
         m.header.stamp = self.get_clock().now().to_msg()
         m.ns = 'lidar_clusters'
         m.id = mid
@@ -431,27 +463,36 @@ class FusedTracker(Node):
         m.color.b = cb
         return m
 
-    # ----- 출력: confirmed KF 트랙만 → TrackedObjectArray -----
+    # ----- 출력: confirmed KF 트랙 → map 프레임 TrackedObjectArray -----
     def _publish_tracks(self):
+        out_tf = self._output_transform()
+        if out_tf is None:
+            self.get_logger().warn(
+                f'{self._tracking_frame}->{OUTPUT_FRAME} 변환 불가 — 이번 틱 발행 skip.',
+                throttle_duration_sec=2.0,
+            )
+            return
+
         out = TrackedObjectArray()
         out.header = Header()
         out.header.stamp = self.get_clock().now().to_msg()
         out.header.frame_id = OUTPUT_FRAME
         confirmed = [t for t in self._kf_tracks if t.confirmed]
-        out.tracks = [self._to_msg(t) for t in confirmed]
+        out.tracks = [self._to_msg(t, out_tf) for t in confirmed]
         self._track_pub.publish(out)
-        self._publish_track_markers(confirmed, out.header.stamp)
+        self._publish_track_markers(confirmed, out.header.stamp, out_tf)
 
-    def _to_msg(self, t: FusedKalmanTrack) -> TrackedObject:
+    def _to_msg(self, t: FusedKalmanTrack, out_tf) -> TrackedObject:
         m = TrackedObject()
         m.id = int(t.track_id) & 0xFFFFFFFF
         m.class_name = t.class_name
         m.class_confidence = float(t.class_confidence)
-        px, py = t.position
+        px, py = self._apply_xy(out_tf, *t.position)
         m.position = Point(x=px, y=py, z=0.0)
-        vx, vy = t.velocity
+        vx, vy = self._apply_vec(out_tf, *t.velocity)
         m.velocity = Vector3(x=vx, y=vy, z=0.0)
         m.source = int(t.source) & 0xFF
+        # position_covariance: tracking_frame 기준 유지. map↔odom yaw 미소라 회전 생략(리뷰 노트).
         m.position_covariance = [float(v) for v in t.position_covariance]
         return m
 
@@ -462,17 +503,16 @@ class FusedTracker(Node):
         'unknown':  (0.6, 0.6, 0.6),   # 회색
     }
 
-    def _publish_track_markers(self, tracks, stamp):
+    def _publish_track_markers(self, tracks, stamp, out_tf):
         arr = MarkerArray()
         clear = Marker()
         clear.action = Marker.DELETEALL
         arr.markers.append(clear)
 
         for t in tracks:
-            px, py = t.position
+            px, py = self._apply_xy(out_tf, *t.position)
             cr, cg, cb = self._CLASS_COLOR.get(t.class_name, self._CLASS_COLOR['unknown'])
 
-            # 본체 박스 — source에 robot_cam/cctv 있으면(클래스 확정) 불투명, LiDAR-only면 반투명
             box = Marker()
             box.header.frame_id = OUTPUT_FRAME
             box.header.stamp = stamp
@@ -491,7 +531,6 @@ class FusedTracker(Node):
             box.color.a = 0.9 if t.class_name != 'unknown' else 0.4
             arr.markers.append(box)
 
-            # 라벨 — id / class / conf / source
             label = Marker()
             label.header.frame_id = OUTPUT_FRAME
             label.header.stamp = stamp
