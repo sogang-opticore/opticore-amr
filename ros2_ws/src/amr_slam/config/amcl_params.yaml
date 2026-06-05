@@ -16,7 +16,7 @@ amcl:
 
     # 라이다 모델 — 프로젝트 LiDAR 스펙 반영
     laser_model_type: likelihood_field
-    laser_max_range: 12.0       # URDF max_laser_range와 동일
+    laser_max_range: 25.0       # URDF max_laser_range와 동일
     laser_min_range: 0.12       # URDF min과 동일
     max_beams: 60
 
