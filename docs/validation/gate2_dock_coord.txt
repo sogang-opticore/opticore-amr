@@ -1,0 +1,6 @@
+=== GATE2 evidence (v5) Sat Jun  6 15:55:26 UTC 2026 ===
+Dock WP = map(2.0, 15.0) [== validation_route_v5.py default WP[0], no edit]
+A* response to goal map(2,15):
+  경로 발행: 1496 웨이포인트, min_clear=0.95m  (no 'occupied' / 'out of bounds')
+  DWA accepted /global_path, robot driving (d_goal=14.99 -> decreasing).
+=> dock coord reachable. PASS.
