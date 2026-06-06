@@ -761,10 +761,10 @@
 
 <!-- ==================== CCTV CAMERAS ==================== -->
 
-    <!-- SW 코너 (2, 2, 6.5) — NE 방향 yaw=+45° -->
+    <!-- SW 코너 (2, 2, 2.8) — NE 방향 yaw=+45°, pitch=+60° 아래 향함 -->
     <model name="cctv_sw">
       <static>true</static>
-      <pose>2 2 6.5 0 -0.524 0.785</pose>
+      <pose>2 2 2.8 0 1.047 0.785</pose>
       <link name="link">
         <visual name="body">
           <geometry>
@@ -796,10 +796,10 @@
       </link>
     </model>
 
-    <!-- SE 코너 (58, 2, 6.5) — NW 방향 yaw=+135° -->
+    <!-- SE 코너 (58, 2, 2.8) — NW 방향 yaw=+135°, pitch=+60° 아래 향함 -->
     <model name="cctv_se">
       <static>true</static>
-      <pose>58 2 6.5 0 -0.524 2.356</pose>
+      <pose>58 2 2.8 0 1.047 2.356</pose>
       <link name="link">
         <visual name="body">
           <geometry>
@@ -831,10 +831,10 @@
       </link>
     </model>
 
-    <!-- NW 코너 (2, 38, 6.5) — SE 방향 yaw=−45° -->
+    <!-- NW 코너 (2, 38, 2.8) — SE 방향 yaw=-45°, pitch=+60° 아래 향함 -->
     <model name="cctv_nw">
       <static>true</static>
-      <pose>2 38 6.5 0 -0.524 -0.785</pose>
+      <pose>2 38 2.8 0 1.047 -0.785</pose>
       <link name="link">
         <visual name="body">
           <geometry>
@@ -866,10 +866,10 @@
       </link>
     </model>
 
-    <!-- NE 코너 (58, 38, 6.5) — SW 방향 yaw=−135° -->
+    <!-- NE 코너 (58, 38, 2.8) — SW 방향 yaw=-135°, pitch=+60° 아래 향함 -->
     <model name="cctv_ne">
       <static>true</static>
-      <pose>58 38 6.5 0 -0.524 -2.356</pose>
+      <pose>58 38 2.8 0 1.047 -2.356</pose>
       <link name="link">
         <visual name="body">
           <geometry>
