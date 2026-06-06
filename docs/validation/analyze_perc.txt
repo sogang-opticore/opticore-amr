@@ -1,0 +1,155 @@
+=== BAG /workspace/validation/tuned_run3_perc : 228.1s | tracked 2027 (8.9Hz) | frame_id=map ===
+
+--- A) map->odom_filtered (localization 안정성) ---
+  연속 점프: 중앙값 0.00cm, 최대 21.84cm, >20cm 3회
+  범위: x 7.98m, y 3.39m, yaw 0.835rad
+  5초 구간별 [로봇속도 → map→odom 최대점프]:
+    t=  0-  5s : 0.00m/s ->    0.0cm
+    t=  5- 10s : 0.00m/s ->    3.8cm  <-- 정지 중 점프!
+    t= 10- 15s : 0.28m/s ->    5.4cm
+    t= 15- 20s : 0.99m/s ->    3.5cm
+    t= 20- 25s : 1.86m/s ->    8.2cm
+    t= 25- 30s : 1.02m/s ->   21.0cm
+    t= 30- 35s : 0.94m/s ->   20.2cm
+    t= 35- 40s : 0.34m/s ->   17.2cm
+    t= 40- 45s : 0.00m/s ->    0.0cm
+    t= 45- 50s : 0.00m/s ->    0.0cm
+    t= 50- 55s : 0.00m/s ->   16.1cm  <-- 정지 중 점프!
+    t= 55- 60s : 0.44m/s ->   18.8cm
+    t= 60- 65s : 0.48m/s ->   21.8cm
+    t= 65- 70s : 1.30m/s ->   13.9cm
+    t= 70- 75s : 1.75m/s ->   12.8cm
+    t= 75- 80s : 0.09m/s ->   16.5cm
+    t= 80- 85s : 0.00m/s ->    0.0cm
+    t= 85- 90s : 0.00m/s ->    0.0cm
+    t= 90- 95s : 0.00m/s ->    0.0cm
+    t= 95-100s : 0.00m/s ->    0.0cm
+    t=100-105s : 0.00m/s ->    0.0cm
+    t=105-110s : 0.00m/s ->    0.0cm
+    t=110-115s : 0.00m/s ->    0.0cm
+    t=115-120s : 0.00m/s ->    0.0cm
+    t=120-125s : 0.00m/s ->    0.0cm
+    t=125-130s : 0.00m/s ->    0.0cm
+    t=130-135s : 0.00m/s ->    0.0cm
+    t=135-140s : 0.00m/s ->    0.0cm
+    t=140-145s : 0.00m/s ->    0.0cm
+    t=145-150s : 0.00m/s ->    0.0cm
+    t=150-155s : 0.00m/s ->    0.0cm
+    t=155-160s : 0.00m/s ->    0.0cm
+    t=160-165s : 0.00m/s ->    0.0cm
+    t=165-170s : 0.00m/s ->    0.0cm
+    t=170-175s : 0.00m/s ->    0.0cm
+    t=175-180s : 0.00m/s ->    0.0cm
+    t=180-185s : 0.00m/s ->    0.0cm
+    t=185-190s : 0.00m/s ->    0.0cm
+    t=190-195s : 0.00m/s ->    0.0cm
+    t=195-200s : 0.00m/s ->    0.0cm
+    t=200-205s : 0.00m/s ->    0.0cm
+    t=205-210s : 0.00m/s ->    0.0cm
+    t=210-215s : 0.00m/s ->    0.0cm
+    t=215-220s : 0.00m/s ->    0.0cm
+    t=220-225s : 0.00m/s ->    0.0cm
+    t=225-230s : 0.00m/s ->    0.0cm
+
+--- B) 트랙 id (트래커 건강도) ---
+  발행 고유 id: 80 (범위 30~170 = 내부 ~141 생성)
+  수명: 중앙값 5.10s, >5s 44/80, <1s 유령 2/80 (2%)
+  새 id source 분포: LiDAR-only(s1)=74, cam(s2)=1, LiDAR+cam(s3)=5
+
+--- C) 동시 confirmed 트랙 수 (5초 평균) ---
+    t=  0-  5s : avg  0.0  max  0
+    t=  5- 10s : avg  4.0  max  9
+    t= 10- 15s : avg 10.6  max 12
+    t= 15- 20s : avg  6.8  max 11
+    t= 20- 25s : avg  5.5  max 11
+    t= 25- 30s : avg  4.0  max  6
+    t= 30- 35s : avg  7.2  max  8
+    t= 35- 40s : avg 10.1  max 12
+    t= 40- 45s : avg  3.4  max  4
+    t= 45- 50s : avg  4.0  max  4
+    t= 50- 55s : avg  4.2  max  6
+    t= 55- 60s : avg  7.9  max 10
+    t= 60- 65s : avg  9.6  max 11
+    t= 65- 70s : avg  7.8  max 12
+    t= 70- 75s : avg  1.7  max  3
+    t= 75- 80s : avg  4.5  max  7
+    t= 80- 85s : avg  2.3  max  7
+    t= 85- 90s : avg  0.0  max  0
+    t= 90- 95s : avg  0.7  max  2
+    t= 95-100s : avg  1.9  max  2
+    t=100-105s : avg  1.0  max  1
+    t=105-110s : avg  1.2  max  2
+    t=110-115s : avg  2.0  max  2
+    t=115-120s : avg  0.9  max  2
+    t=120-125s : avg  0.0  max  0
+    t=125-130s : avg  1.1  max  2
+    t=130-135s : avg  1.8  max  2
+    t=135-140s : avg  1.0  max  1
+    t=140-145s : avg  1.4  max  2
+    t=145-150s : avg  2.0  max  2
+    t=150-155s : avg  0.5  max  2
+    t=155-160s : avg  0.0  max  0
+    t=160-165s : avg  1.3  max  2
+    t=165-170s : avg  2.0  max  2
+    t=170-175s : avg  1.1  max  2
+    t=175-180s : avg  1.2  max  2
+    t=180-185s : avg  2.0  max  2
+    t=185-190s : avg  0.8  max  2
+    t=190-195s : avg  0.1  max  1
+    t=195-200s : avg  1.5  max  2
+    t=200-205s : avg  1.5  max  2
+    t=205-210s : avg  1.0  max  1
+    t=210-215s : avg  1.7  max  2
+    t=215-220s : avg  1.4  max  2
+    t=220-225s : avg  0.0  max  0
+    t=225-230s : avg  0.4  max  2
+
+--- D) 5초+ 트랙 위치/드리프트 (map 프레임) ---
+    id  71 s3    person life 42.3s  pos(   7.28,  15.31)  drift  7.79m
+    id 157 s1   unknown life 26.8s  pos(   8.26,  14.45)  drift  5.57m
+    id 145 s1   unknown life 26.2s  pos(   8.19,  14.43)  drift  5.49m
+    id  88 s3    person life 23.8s  pos(   9.35,  19.22)  drift  1.11m
+    id 162 s1   unknown life 23.5s  pos(   8.45,  14.38)  drift  5.84m
+    id 154 s1   unknown life 22.1s  pos(   9.33,  14.24)  drift  1.18m
+    id  94 s1   unknown life 17.4s  pos(  -3.22,   3.82)  drift  0.68m
+    id 128 s1   unknown life 17.2s  pos(   9.31,  14.58)  drift  3.96m
+    id  30 s3  forklift life 16.6s  pos(   6.54,  14.62)  drift  7.26m
+    id  70 s1   unknown life 16.1s  pos(  18.29,  24.81)  drift 13.89m
+    id 103 s1   unknown life 15.0s  pos(  17.15,  24.77)  drift  9.35m
+    id 109 s1   unknown life 14.3s  pos(  18.67,  24.85)  drift  3.08m
+    id  99 s1   unknown life 14.1s  pos(  -3.22,   4.61)  drift  2.58m
+    id 102 s1   unknown life 12.5s  pos(  19.29,   6.28)  drift  6.77m
+    id  63 s3  forklift life 11.7s  pos(   7.88,  14.49)  drift  7.78m
+    id 108 s1   unknown life 11.4s  pos(  15.57,  25.09)  drift  5.22m
+    id  74 s1   unknown life 11.2s  pos(  16.61,  24.81)  drift  3.54m
+    id  34 s1   unknown life  8.9s  pos(  -3.24,   9.65)  drift  2.48m
+    id 111 s1   unknown life  8.5s  pos(  20.98,  24.79)  drift  5.27m
+    id 151 s1   unknown life  8.5s  pos(   8.60,  14.50)  drift  2.21m
+    id  77 s1   unknown life  8.2s  pos(  -3.07,   4.10)  drift  3.25m
+    id  37 s1   unknown life  8.2s  pos(  -3.20,   9.43)  drift  3.61m
+    id 156 s1   unknown life  8.1s  pos(   6.56,  14.70)  drift  4.32m
+    id 136 s1   unknown life  7.8s  pos(   6.42,  14.94)  drift  4.42m
+    id  80 s1   unknown life  7.7s  pos(  18.52,   6.07)  drift  4.49m
+    id  39 s1   unknown life  7.6s  pos(  -3.28,  10.86)  drift  3.61m
+    id 159 s1   unknown life  7.3s  pos(   7.75,  14.74)  drift  3.13m
+    id 149 s1   unknown life  7.2s  pos(   9.04,  14.23)  drift  1.02m
+    id 167 s1   unknown life  7.2s  pos(   9.03,  14.23)  drift  1.18m
+    id 160 s1   unknown life  7.2s  pos(   9.03,  14.22)  drift  1.12m
+    id  41 s1   unknown life  7.2s  pos(  14.52,  -5.17)  drift  4.36m
+    id  35 s1   unknown life  7.1s  pos(  24.64,   3.71)  drift  1.99m
+    id  50 s1   unknown life  7.0s  pos(  19.63,   3.00)  drift  5.58m
+    id  38 s3   unknown life  6.3s  pos(   8.76,  14.36)  drift  4.32m
+    id  42 s1   unknown life  6.3s  pos(  12.17,  -5.12)  drift 12.04m
+    id 123 s1   unknown life  6.1s  pos(  16.62,  24.73)  drift  3.62m
+    id 137 s1   unknown life  5.7s  pos(  -3.21,  10.05)  drift  2.90m
+    id 130 s1   unknown life  5.4s  pos(  11.65,  14.60)  drift  2.16m
+    id  66 s1   unknown life  5.2s  pos(  12.67,   0.43)  drift  2.01m
+    id  59 s1   unknown life  5.1s  pos(  -3.13,  11.62)  drift  1.70m
+    id  67 s1   unknown life  5.1s  pos(   4.81,  -6.58)  drift  5.03m
+    id  45 s1   unknown life  5.1s  pos(  19.97,  -5.07)  drift  2.11m
+    id 138 s1   unknown life  5.0s  pos(  -3.21,   8.67)  drift  2.45m
+    id 165 s1   unknown life  5.0s  pos(   8.23,  14.57)  drift  1.71m
+  음수 좌표(창고 밖) 트랙: 13/44  (0이어야 정상)
+
+=== 판정 가이드 ===
+  AMCL OK 기준: A)정지 구간 점프<2cm + 범위<수십cm | D)음수 좌표 0 + 드리프트<3m + s1 비율 낮음
