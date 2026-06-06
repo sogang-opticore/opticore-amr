@@ -24,6 +24,7 @@ def generate_launch_description():
     robot_description = robot_description_config.toxml()
 
     use_sim_time = LaunchConfiguration('use_sim_time', default='true')
+    robot_name = LaunchConfiguration('robot_name')   # ← 추가 (fleet 대비, 기본 opticore_amr)
 
     # ── 1. Ignition Gazebo (headless server-only) ──
     ign_gazebo = ExecuteProcess(
@@ -54,7 +55,7 @@ def generate_launch_description():
                 output='screen',
                 arguments=[
                     '-topic', 'robot_description',
-                    '-name', 'opticore_amr',
+                    '-name', robot_name,
                     '-x', '3.0', '-y', '15.0', '-z', '0.05',
                 ],
             ),
@@ -79,6 +80,8 @@ def generate_launch_description():
                     # Odometry (Ign→ROS)
                     '/odom@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
                     # TF (Ign→ROS)
+                    # Gazebo TF(odom→base_footprint)는 의도적으로 ROS /tf에 비브릿지.
+                    # EKF(odom_filtered→base_footprint)가 단독 권한 — 이중 publish 방지. 사실상 죽은 브리지.
                     '/tf_gazebo@tf2_msgs/msg/TFMessage[ignition.msgs.Pose_V',
                     # Joint states (Ign→ROS)
                     '/joint_states@sensor_msgs/msg/JointState[ignition.msgs.Model',
@@ -149,12 +152,22 @@ def generate_launch_description():
         name='lidar_tf_fix',
         arguments=['0', '0', '0', '0', '0', '0',
                 'lidar_link',
-                'opticore_amr/base_footprint/lidar_sensor'
+                [robot_name, '/base_footprint/lidar_sensor']
                 ],
+    )
+
+    camera_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='camera_tf_fix',
+        arguments=['0', '0', '0', '0', '0', '0',
+                   'camera_link',
+                   [robot_name, '/base_footprint/rgb_camera']],
     )
 
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='true'),
+        DeclareLaunchArgument('robot_name', default_value='opticore_amr'),
         ign_gazebo,
         robot_state_publisher,
         spawn_robot,     # +3s
@@ -164,4 +177,5 @@ def generate_launch_description():
         imu_injector,
         dynamic_obstacle_mover,  # +8s
         lidar_tf,
+        camera_tf,
     ])

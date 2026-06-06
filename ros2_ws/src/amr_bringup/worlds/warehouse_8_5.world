@@ -1,0 +1,711 @@
+<?xml version="1.0"?>
+<sdf version="1.8">
+  <world name="warehouse">
+
+    <!-- ============================================================ -->
+    <!--  Opticore Logistics Warehouse  v3.1                          -->
+    <!--  Size : 60m × 40m                                            -->
+    <!--  Updated: 2026-05-25                                         -->
+    <!--                                                              -->
+    <!--  Layout (world 좌표, Y-up):                                  -->
+    <!--                                                              -->
+    <!--  Y=40 ┌──────────────────────────────────────────────────┐   -->
+    <!--       │[Dock-1 Y=33~39]  Main Corridor  [Dock-A Y=33~39] │   -->
+    <!--       │[Dock-2 Y=27~33]                 [Dock-B Y=27~33] │   -->
+    <!--       │                                                  │   -->
+    <!--       │  col(10,24) col(30,24) col(50,24)                │   -->
+    <!--       │  [RowA y=21] X=11,18,25,32,39,46,53              │   -->
+    <!--       │  [RowB y=15]                                     │   -->
+    <!--       │  [RowC y= 9]                                     │   -->
+    <!--       │  col(10, 8) col(30, 8) col(50, 8)                │   -->
+    <!--       │                                                  │   -->
+    <!--       │[ChargingZone X=1~9 Y=1~7] [WaitingZone X=51~59]  │   -->
+    <!--  Y=0  └──────────────────────────────────────────────────┘   -->
+    <!--                                                              -->
+    <!--  기둥 6개 — 20m×16m 격자, 구역 완전 외부:                     -->
+    <!--    하단: (10,8) (30,8) (50,8)                                -->
+    <!--    상단: (10,24)(30,24)(50,24)                               -->
+    <!--                                                              -->
+    <!--  LiDAR/Camera 감지 설계:                                     -->
+    <!--    - 모든 구조물 collision + visual 쌍 구성                   -->
+    <!--    - 도크 후면벽 2.5m, 칸막이 2.5m (명확 분리)                -->
+    <!--    - 충전존: 후면벽+측벽 2면+캐노피 기둥(r=0.09m)             -->
+    <!--    - 대기존: 펜스 3면 높이 1.0m                               -->
+    <!--    - 신호등 폴 r=0.07m (LiDAR 포인트)                         -->
+    <!--    - 표지판 두께 0.06m (카메라 인식)                          -->
+    <!-- ============================================================ -->
+
+    <!-- ==================== SYSTEM PLUGINS ==================== -->
+    <plugin filename="ignition-gazebo-physics-system"
+            name="ignition::gazebo::systems::Physics"/>
+    <plugin filename="ignition-gazebo-sensors-system"
+            name="ignition::gazebo::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="ignition-gazebo-imu-system"
+            name="ignition::gazebo::systems::Imu"/>
+    <plugin filename="ignition-gazebo-user-commands-system"
+            name="ignition::gazebo::systems::UserCommands"/>
+    <plugin filename="ignition-gazebo-scene-broadcaster-system"
+            name="ignition::gazebo::systems::SceneBroadcaster"/>
+
+    <!-- ==================== PHYSICS ==================== -->
+    <physics type="ode">
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>250</real_time_update_rate>
+    </physics>
+
+    <!-- ==================== LIGHTING ==================== -->
+    <light type="directional" name="sun_main">
+      <cast_shadows>true</cast_shadows>
+      <pose>30 20 15 0 0 0</pose>
+      <diffuse>0.9 0.9 0.85 1</diffuse>
+      <specular>0.3 0.3 0.3 1</specular>
+      <direction>-0.3 -0.2 -1.0</direction>
+    </light>
+    <light type="directional" name="sun_fill">
+      <cast_shadows>false</cast_shadows>
+      <pose>30 20 15 0 0 0</pose>
+      <diffuse>0.35 0.35 0.4 1</diffuse>
+      <specular>0.05 0.05 0.05 1</specular>
+      <direction>0.3 0.2 -1.0</direction>
+    </light>
+    <light type="point" name="ceil_nw">
+      <pose>15 32 8 0 0 0</pose>
+      <diffuse>0.7 0.7 0.65 1</diffuse><specular>0.1 0.1 0.1 1</specular>
+      <attenuation><range>24</range><constant>0.3</constant><linear>0.04</linear><quadratic>0.008</quadratic></attenuation>
+      <cast_shadows>false</cast_shadows>
+    </light>
+    <light type="point" name="ceil_ne">
+      <pose>45 32 8 0 0 0</pose>
+      <diffuse>0.7 0.7 0.65 1</diffuse><specular>0.1 0.1 0.1 1</specular>
+      <attenuation><range>24</range><constant>0.3</constant><linear>0.04</linear><quadratic>0.008</quadratic></attenuation>
+      <cast_shadows>false</cast_shadows>
+    </light>
+    <light type="point" name="ceil_sw">
+      <pose>15 12 8 0 0 0</pose>
+      <diffuse>0.7 0.7 0.65 1</diffuse><specular>0.1 0.1 0.1 1</specular>
+      <attenuation><range>24</range><constant>0.3</constant><linear>0.04</linear><quadratic>0.008</quadratic></attenuation>
+      <cast_shadows>false</cast_shadows>
+    </light>
+    <light type="point" name="ceil_se">
+      <pose>45 12 8 0 0 0</pose>
+      <diffuse>0.7 0.7 0.65 1</diffuse><specular>0.1 0.1 0.1 1</specular>
+      <attenuation><range>24</range><constant>0.3</constant><linear>0.04</linear><quadratic>0.008</quadratic></attenuation>
+      <cast_shadows>false</cast_shadows>
+    </light>
+
+    <!-- ==================== GROUND PLANE ==================== -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="c">
+          <geometry><plane><normal>0 0 1</normal><size>80 60</size></plane></geometry>
+          <surface><friction><ode>
+            <mu>0.6</mu><mu2>0.5</mu2>
+            <slip1>0.003</slip1><slip2>0.003</slip2><fdir1>1 0 0</fdir1>
+          </ode></friction><contact><ode>
+            <kp>1e6</kp><kd>100.0</kd><max_vel>0.1</max_vel><min_depth>0.001</min_depth>
+          </ode></contact></surface>
+        </collision>
+        <visual name="v">
+          <geometry><plane><normal>0 0 1</normal><size>80 60</size></plane></geometry>
+          <material><ambient>0.32 0.31 0.29 1</ambient><diffuse>0.34 0.33 0.31 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ==================== WALLS (60×40m) ==================== -->
+    <model name="wall_south">
+      <static>true</static><pose>30 0 1.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>60 0.2 3.0</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>60 0.2 3.0</size></box></geometry>
+          <material><ambient>0.58 0.55 0.48 1</ambient><diffuse>0.60 0.57 0.50 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="wall_north">
+      <static>true</static><pose>30 40 1.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>60 0.2 3.0</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>60 0.2 3.0</size></box></geometry>
+          <material><ambient>0.58 0.55 0.48 1</ambient><diffuse>0.60 0.57 0.50 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="wall_west">
+      <static>true</static><pose>0 20 1.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.2 40 3.0</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 40 3.0</size></box></geometry>
+          <material><ambient>0.58 0.55 0.48 1</ambient><diffuse>0.60 0.57 0.50 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="wall_east">
+      <static>true</static><pose>60 20 1.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.2 40 3.0</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 40 3.0</size></box></geometry>
+          <material><ambient>0.58 0.55 0.48 1</ambient><diffuse>0.60 0.57 0.50 1</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- ==================== STRUCTURAL COLUMNS (6개, 20m×16m 격자) ==================== -->
+    <!-- 하단열: (10,8) (30,8) (50,8) — 선반C(y=9)와 충전/대기존 사이 통로 -->
+    <!-- 상단열: (10,24)(30,24)(50,24) — 선반A(y=21)와 입출고존(y=27~) 사이 통로 -->
+    <!-- 겹침 검증: 충전존X=1~9,Y=1~7 / 대기존X=51~59,Y=1~7 / 선반C,y=9,t=1m / 선반A,y=21,t=1m -->
+
+    <model name="col_s1"><static>true</static><pose>10 8 1.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry>
+          <material><ambient>0.60 0.62 0.70 1</ambient><diffuse>0.65 0.67 0.75 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="col_s2"><static>true</static><pose>30 8 1.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry>
+          <material><ambient>0.60 0.62 0.70 1</ambient><diffuse>0.65 0.67 0.75 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="col_s3"><static>true</static><pose>50 8 1.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry>
+          <material><ambient>0.60 0.62 0.70 1</ambient><diffuse>0.65 0.67 0.75 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="col_n1"><static>true</static><pose>10 24 1.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry>
+          <material><ambient>0.60 0.62 0.70 1</ambient><diffuse>0.65 0.67 0.75 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="col_n2"><static>true</static><pose>30 24 1.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry>
+          <material><ambient>0.60 0.62 0.70 1</ambient><diffuse>0.65 0.67 0.75 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="col_n3"><static>true</static><pose>50 24 1.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.25</radius><length>3.0</length></cylinder></geometry>
+          <material><ambient>0.60 0.62 0.70 1</ambient><diffuse>0.65 0.67 0.75 1</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- ==================== LOADING ZONE WEST (Dock-1: Y=33~39, Dock-2: Y=27~33) ==================== -->
+    <!-- 바닥 마킹 -->
+    <model name="loading_floor">
+      <static>true</static><pose>5 34 0.005 0 0 0</pose>
+      <link name="link">
+        <visual name="v"><geometry><box><size>10 12 0.002</size></box></geometry>
+          <material><ambient>0.15 0.55 0.15 0.9</ambient><diffuse>0.18 0.65 0.18 0.9</diffuse></material>
+      </visual></link>
+    </model>
+    <!-- 후면벽 (서벽, LiDAR 기준, 높이 2.5m) -->
+    <model name="dock_west_backwall">
+      <static>true</static><pose>1.0 34 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>2.0 12 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>2.0 12 2.5</size></box></geometry>
+          <material><ambient>0.35 0.35 0.35 1</ambient><diffuse>0.40 0.40 0.40 1</diffuse></material>
+      </visual></link>
+    </model>
+    <!-- Dock-1 / Dock-2 칸막이 (Y=33, 높이 2.5m — 명확 분리) -->
+    <model name="dock_west_divider">
+      <static>true</static><pose>5 34 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>10 0.25 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>10 0.25 2.5</size></box></geometry>
+          <material><ambient>0.55 0.55 0.55 1</ambient><diffuse>0.60 0.60 0.60 1</diffuse></material>
+      </visual></link>
+    </model>
+    <!-- Dock-1 표지판 (카메라 인식, 초록) -->
+    <model name="sign_dock1">
+      <static>true</static><pose>2.1 37 2.0 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.06 0.8 0.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.06 0.8 0.5</size></box></geometry>
+          <material><ambient>0.1 0.65 0.1 1</ambient><diffuse>0.1 0.75 0.1 1</diffuse></material>
+      </visual></link>
+    </model>
+    <!-- Dock-2 표지판 -->
+    <model name="sign_dock2">
+      <static>true</static><pose>2.1 31 2.0 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.06 0.8 0.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.06 0.8 0.5</size></box></geometry>
+          <material><ambient>0.1 0.55 0.1 1</ambient><diffuse>0.1 0.65 0.1 1</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- ==================== UNLOADING ZONE EAST (Dock-A: Y=33~39, Dock-B: Y=27~33) ==================== -->
+    <model name="unloading_floor">
+      <static>true</static><pose>55 34 0.005 0 0 0</pose>
+      <link name="link">
+        <visual name="v"><geometry><box><size>10 12 0.002</size></box></geometry>
+          <material><ambient>0.95 0.55 0.70 0.9</ambient><diffuse>1.0 0.60 0.75 0.9</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="dock_east_backwall">
+      <static>true</static><pose>59.0 34 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>2.0 12 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>2.0 12 2.5</size></box></geometry>
+          <material><ambient>0.35 0.35 0.35 1</ambient><diffuse>0.40 0.40 0.40 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="dock_east_divider">
+      <static>true</static><pose>55 34 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>10 0.25 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>10 0.25 2.5</size></box></geometry>
+          <material><ambient>0.55 0.55 0.55 1</ambient><diffuse>0.60 0.60 0.60 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="sign_dockA">
+      <static>true</static><pose>57.9 37 2.0 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.06 0.8 0.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.06 0.8 0.5</size></box></geometry>
+          <material><ambient>0.65 0.1 0.1 1</ambient><diffuse>0.75 0.1 0.1 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="sign_dockB">
+      <static>true</static><pose>57.9 31 2.0 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.06 0.8 0.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.06 0.8 0.5</size></box></geometry>
+          <material><ambient>0.55 0.1 0.1 1</ambient><diffuse>0.65 0.1 0.1 1</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- ==================== MAIN CORRIDOR FLOOR (X=10~50, Y=27~40) ==================== -->
+    <!-- loading/unloading floor는 X=0~10, X=50~60만 커버 → 가운데 바닥 마킹 누락 수정 -->
+    <model name="corridor_floor">
+      <static>true</static><pose>30 33.5 0.005 0 0 0</pose>
+      <link name="link">
+        <visual name="v"><geometry><box><size>40 13 0.002</size></box></geometry>
+          <material><ambient>0.75 0.70 0.45 0.9</ambient><diffuse>0.80 0.75 0.48 0.9</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- wall_corridor_south 제거 — corridor 구역 구분 벽 불필요 -->
+
+    <!-- ==================== EAST RACK ZONE FLOOR (X=50~60, Y=0~27) ==================== -->
+    <!-- 이 구간은 ground_plane만 있어 회색으로 보임 → 갈색 바닥 추가 -->
+    <model name="floor_east_zone">
+      <static>true</static><pose>55 13.5 0.005 0 0 0</pose>
+      <link name="link">
+        <visual name="v"><geometry><box><size>10 27 0.002</size></box></geometry>
+          <material><ambient>0.48 0.35 0.22 0.9</ambient><diffuse>0.52 0.38 0.24 0.9</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- ==================== MAIN RACK ZONE FLOOR (X=10~50, Y=0~27) ==================== -->
+    <!-- rack 구역 전체 바닥 갈색 마킹 -->
+    <model name="floor_rack_zone">
+      <static>true</static><pose>30 13.5 0.005 0 0 0</pose>
+      <link name="link">
+        <visual name="v"><geometry><box><size>40 27 0.002</size></box></geometry>
+          <material><ambient>0.45 0.33 0.20 0.9</ambient><diffuse>0.50 0.37 0.22 0.9</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- ==================== STORAGE RACKS (3 Row × 7 Col) ==================== -->
+    <!-- Col X: 11,18,25,32,39,46,53 (pitch 7m, 선반 5m×1m×2.5m) -->
+    <!-- Row A y=21, Row B y=15, Row C y=9                          -->
+    <!-- 이격: 입출고존(Y=27~)과 6m / 충전·대기존(Y=1~7)과 2m      -->
+
+    <!-- Row A (y=21) -->
+    <model name="rack_A1"><static>true</static><pose>11 21 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.52 0.42 0.28 1</ambient><diffuse>0.60 0.50 0.33 1</diffuse></material></visual></link></model>
+    <model name="rack_A2"><static>true</static><pose>18 21 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.52 0.42 0.28 1</ambient><diffuse>0.60 0.50 0.33 1</diffuse></material></visual></link></model>
+    <model name="rack_A3"><static>true</static><pose>25 21 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.52 0.42 0.28 1</ambient><diffuse>0.60 0.50 0.33 1</diffuse></material></visual></link></model>
+    <model name="rack_A4"><static>true</static><pose>32 21 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.52 0.42 0.28 1</ambient><diffuse>0.60 0.50 0.33 1</diffuse></material></visual></link></model>
+    <model name="rack_A5"><static>true</static><pose>39 21 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.52 0.42 0.28 1</ambient><diffuse>0.60 0.50 0.33 1</diffuse></material></visual></link></model>
+    <model name="rack_A6"><static>true</static><pose>46 21 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.52 0.42 0.28 1</ambient><diffuse>0.60 0.50 0.33 1</diffuse></material></visual></link></model>
+    <model name="rack_A7"><static>true</static><pose>53 21 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.52 0.42 0.28 1</ambient><diffuse>0.60 0.50 0.33 1</diffuse></material></visual></link></model>
+
+    <!-- Row B (y=15) -->
+    <model name="rack_B1"><static>true</static><pose>11 15 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.50 0.40 0.26 1</ambient><diffuse>0.58 0.48 0.31 1</diffuse></material></visual></link></model>
+    <model name="rack_B2"><static>true</static><pose>18 15 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.50 0.40 0.26 1</ambient><diffuse>0.58 0.48 0.31 1</diffuse></material></visual></link></model>
+    <model name="rack_B3"><static>true</static><pose>25 15 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.50 0.40 0.26 1</ambient><diffuse>0.58 0.48 0.31 1</diffuse></material></visual></link></model>
+    <model name="rack_B4"><static>true</static><pose>32 15 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.50 0.40 0.26 1</ambient><diffuse>0.58 0.48 0.31 1</diffuse></material></visual></link></model>
+    <model name="rack_B5"><static>true</static><pose>39 15 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.50 0.40 0.26 1</ambient><diffuse>0.58 0.48 0.31 1</diffuse></material></visual></link></model>
+    <model name="rack_B6"><static>true</static><pose>46 15 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.50 0.40 0.26 1</ambient><diffuse>0.58 0.48 0.31 1</diffuse></material></visual></link></model>
+    <model name="rack_B7"><static>true</static><pose>53 15 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.50 0.40 0.26 1</ambient><diffuse>0.58 0.48 0.31 1</diffuse></material></visual></link></model>
+
+    <!-- Row C (y=9) -->
+    <model name="rack_C1"><static>true</static><pose>11 9 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.48 0.38 0.24 1</ambient><diffuse>0.56 0.46 0.29 1</diffuse></material></visual></link></model>
+    <model name="rack_C2"><static>true</static><pose>18 9 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.48 0.38 0.24 1</ambient><diffuse>0.56 0.46 0.29 1</diffuse></material></visual></link></model>
+    <model name="rack_C3"><static>true</static><pose>25 9 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.48 0.38 0.24 1</ambient><diffuse>0.56 0.46 0.29 1</diffuse></material></visual></link></model>
+    <model name="rack_C4"><static>true</static><pose>32 9 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.48 0.38 0.24 1</ambient><diffuse>0.56 0.46 0.29 1</diffuse></material></visual></link></model>
+    <model name="rack_C5"><static>true</static><pose>39 9 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.48 0.38 0.24 1</ambient><diffuse>0.56 0.46 0.29 1</diffuse></material></visual></link></model>
+    <model name="rack_C6"><static>true</static><pose>46 9 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.48 0.38 0.24 1</ambient><diffuse>0.56 0.46 0.29 1</diffuse></material></visual></link></model>
+    <model name="rack_C7"><static>true</static><pose>53 9 1.25 0 0 0</pose><link name="link">
+      <collision name="c"><geometry><box><size>5.0 1.0 2.5</size></box></geometry></collision>
+      <visual name="v"><geometry><box><size>5.0 1.0 2.5</size></box></geometry>
+        <material><ambient>0.48 0.38 0.24 1</ambient><diffuse>0.56 0.46 0.29 1</diffuse></material></visual></link></model>
+
+    <!-- ==================== CHARGING ZONE SW (X=1~9, Y=1~7) ==================== -->
+    <!-- 바닥 마킹 -->
+    <model name="charging_floor">
+      <static>true</static><pose>5 5 0.005 0 0 0</pose>
+      <link name="link">
+        <visual name="v"><geometry><box><size>8 6 0.002</size></box></geometry>
+          <material><ambient>0.18 0.18 0.65 0.9</ambient><diffuse>0.20 0.20 0.75 0.9</diffuse></material>
+      </visual></link>
+    </model>
+    <!-- 후면벽 서쪽 (LiDAR 기준벽, 높이 2.5m) -->
+<!-- 측벽 남쪽 -->
+<!-- 측벽 북쪽 -->
+<!-- 캐노피 기둥 3개 (r=0.09m, LiDAR 포인트) -->
+    <model name="charging_col_c1"><static>true</static><pose>3.5 3 1.1 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.09</radius><length>2.2</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.09</radius><length>2.2</length></cylinder></geometry>
+          <material><ambient>0.3 0.3 0.85 1</ambient><diffuse>0.35 0.35 0.95 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="charging_col_c2"><static>true</static><pose>3.5 5 1.1 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.09</radius><length>2.2</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.09</radius><length>2.2</length></cylinder></geometry>
+          <material><ambient>0.3 0.3 0.85 1</ambient><diffuse>0.35 0.35 0.95 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="charging_col_c3"><static>true</static><pose>3.5 7 1.1 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.09</radius><length>2.2</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.09</radius><length>2.2</length></cylinder></geometry>
+          <material><ambient>0.3 0.3 0.85 1</ambient><diffuse>0.35 0.35 0.95 1</diffuse></material>
+      </visual></link>
+    </model>
+    <!-- 캐노피 루프 빔 -->
+    <model name="charging_canopy">
+      <static>true</static><pose>5.5 5 2.22 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>5.5 6 0.12</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>5.5 6 0.12</size></box></geometry>
+          <material><ambient>0.25 0.25 0.78 1</ambient><diffuse>0.30 0.30 0.88 1</diffuse></material>
+      </visual></link>
+    </model>
+    <!-- 충전 포스트 C1/C2/C3 (높이 1.2m, 카메라/LiDAR 감지) -->
+    <model name="charger_C1"><static>true</static><pose>5.5 3 0.6 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.35 0.35 1.2</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.35 0.35 1.2</size></box></geometry>
+          <material><ambient>0.28 0.28 0.95 1</ambient><diffuse>0.30 0.30 1.0 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="charger_C2"><static>true</static><pose>5.5 5 0.6 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.35 0.35 1.2</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.35 0.35 1.2</size></box></geometry>
+          <material><ambient>0.28 0.28 0.95 1</ambient><diffuse>0.30 0.30 1.0 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="charger_C3"><static>true</static><pose>5.5 7 0.6 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.35 0.35 1.2</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.35 0.35 1.2</size></box></geometry>
+          <material><ambient>0.28 0.28 0.95 1</ambient><diffuse>0.30 0.30 1.0 1</diffuse></material>
+      </visual></link>
+    </model>
+    <!-- 충전존 입구 표지판 (동쪽, 카메라 인식) -->
+    <model name="sign_charging">
+      <static>true</static><pose>8.9 5 1.8 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.06 1.4 0.45</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.06 1.4 0.45</size></box></geometry>
+          <material><ambient>0.28 0.28 0.92 1</ambient><diffuse>0.30 0.30 1.0 1</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- ==================== WAITING ZONE SE (X=51~59, Y=1~7) ==================== -->
+    <!-- 바닥 마킹 -->
+    <model name="waiting_floor">
+      <static>true</static><pose>55 5 0.005 0 0 0</pose>
+      <link name="link">
+        <visual name="v"><geometry><box><size>8 6 0.002</size></box></geometry>
+          <material><ambient>0.55 0.45 0.08 0.9</ambient><diffuse>0.65 0.55 0.10 0.9</diffuse></material>
+      </visual></link>
+    </model>
+    <!-- 펜스 동쪽 (후면, 높이 1.0m) -->
+<!-- 펜스 남쪽 -->
+<!-- 펜스 북쪽 -->
+<!-- 대기존 입구 표지판 (서쪽) -->
+    <model name="sign_waiting">
+      <static>true</static><pose>51.1 5 1.8 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.06 1.4 0.45</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.06 1.4 0.45</size></box></geometry>
+          <material><ambient>0.65 0.55 0.10 1</ambient><diffuse>0.75 0.65 0.12 1</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- ==================== TRAFFIC LIGHTS (2개, 도크 진입부) ==================== -->
+    <!-- tl_w: X=10.5, Y=27.5 (입고존 남쪽 진입부) -->
+    <model name="tl_w_pole"><static>true</static><pose>10.5 27.5 1.4 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.07</radius><length>2.8</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.07</radius><length>2.8</length></cylinder></geometry>
+          <material><ambient>0.22 0.22 0.22 1</ambient><diffuse>0.28 0.28 0.28 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="tl_w_red"><static>true</static><pose>10.5 27.5 2.9 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.32 0.32 0.32</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.32 0.32 0.32</size></box></geometry>
+          <material><ambient>0.9 0.08 0.08 1</ambient><diffuse>1.0 0.08 0.08 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="tl_w_yellow"><static>true</static><pose>10.5 27.5 2.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.32 0.32 0.32</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.32 0.32 0.32</size></box></geometry>
+          <material><ambient>0.9 0.75 0.0 1</ambient><diffuse>1.0 0.85 0.0 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="tl_w_green"><static>true</static><pose>10.5 27.5 2.1 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.32 0.32 0.32</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.32 0.32 0.32</size></box></geometry>
+          <material><ambient>0.1 0.8 0.1 1</ambient><diffuse>0.1 0.9 0.1 1</diffuse></material>
+      </visual></link>
+    </model>
+    <!-- tl_e: X=49.5, Y=27.5 (출고존 남쪽 진입부) -->
+    <model name="tl_e_pole"><static>true</static><pose>49.5 27.5 1.4 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.07</radius><length>2.8</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.07</radius><length>2.8</length></cylinder></geometry>
+          <material><ambient>0.22 0.22 0.22 1</ambient><diffuse>0.28 0.28 0.28 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="tl_e_red"><static>true</static><pose>49.5 27.5 2.9 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.32 0.32 0.32</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.32 0.32 0.32</size></box></geometry>
+          <material><ambient>0.9 0.08 0.08 1</ambient><diffuse>1.0 0.08 0.08 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="tl_e_yellow"><static>true</static><pose>49.5 27.5 2.5 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.32 0.32 0.32</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.32 0.32 0.32</size></box></geometry>
+          <material><ambient>0.9 0.75 0.0 1</ambient><diffuse>1.0 0.85 0.0 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="tl_e_green"><static>true</static><pose>49.5 27.5 2.1 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.32 0.32 0.32</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.32 0.32 0.32</size></box></geometry>
+          <material><ambient>0.1 0.8 0.1 1</ambient><diffuse>0.1 0.9 0.1 1</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- ==================== AISLE SIGNS (Row A/B/C 서측 진입부) ==================== -->
+    <model name="sign_rowA_pole"><static>true</static><pose>4 21 1.1 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.04</radius><length>2.2</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.04</radius><length>2.2</length></cylinder></geometry>
+          <material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.35 0.35 0.35 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="sign_rowA_board"><static>true</static><pose>4 21 2.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.60 0.06 0.38</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.60 0.06 0.38</size></box></geometry>
+          <material><ambient>0.10 0.30 0.82 1</ambient><diffuse>0.12 0.35 0.92 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="sign_rowB_pole"><static>true</static><pose>4 15 1.1 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.04</radius><length>2.2</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.04</radius><length>2.2</length></cylinder></geometry>
+          <material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.35 0.35 0.35 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="sign_rowB_board"><static>true</static><pose>4 15 2.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.60 0.06 0.38</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.60 0.06 0.38</size></box></geometry>
+          <material><ambient>0.10 0.30 0.82 1</ambient><diffuse>0.12 0.35 0.92 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="sign_rowC_pole"><static>true</static><pose>4 9 1.1 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>0.04</radius><length>2.2</length></cylinder></geometry></collision>
+        <visual name="v"><geometry><cylinder><radius>0.04</radius><length>2.2</length></cylinder></geometry>
+          <material><ambient>0.3 0.3 0.3 1</ambient><diffuse>0.35 0.35 0.35 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="sign_rowC_board"><static>true</static><pose>4 9 2.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.60 0.06 0.38</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.60 0.06 0.38</size></box></geometry>
+          <material><ambient>0.10 0.30 0.82 1</ambient><diffuse>0.12 0.35 0.92 1</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- ==================== STATIC OBSTACLES ==================== -->
+    <model name="pallet_1"><static>true</static><pose>14 18 0.25 0 0 0.15</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>1.2 0.8 0.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>1.2 0.8 0.5</size></box></geometry>
+          <material><ambient>0.60 0.50 0.30 1</ambient><diffuse>0.65 0.55 0.35 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="pallet_2"><static>true</static><pose>42 12 0.25 0 0 -0.10</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>1.2 0.8 0.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>1.2 0.8 0.5</size></box></geometry>
+          <material><ambient>0.60 0.50 0.30 1</ambient><diffuse>0.65 0.55 0.35 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="box_stack_1"><static>true</static><pose>28 18 0.30 0 0 0.05</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.6 0.6 0.6</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.6 0.6 0.6</size></box></geometry>
+          <material><ambient>0.65 0.55 0.35 1</ambient><diffuse>0.70 0.60 0.40 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="box_stack_2"><static>true</static><pose>46 12 0.30 0 0 -0.08</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.6 0.6 0.6</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.6 0.6 0.6</size></box></geometry>
+          <material><ambient>0.65 0.55 0.35 1</ambient><diffuse>0.70 0.60 0.40 1</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- ==================== DYNAMIC OBSTACLES ==================== -->
+    <!-- 초기 스폰 위치만 설정 — 이동 경로는 dynamic_obstacle_mover.py 담당 -->
+    <!-- <include>
+      <uri>model://standing_person</uri>
+      <name>person_1</name>
+      <pose>14.0 18.0 0.0 0 0 0</pose>
+    </include>
+
+    <include>
+      <uri>model://pickup</uri>
+      <name>forklift_1</name>
+      <pose>10.0 30.0 0.0 0 0 0</pose>
+    </include> -->
+
+    <!-- ==================== CEILING (60m × 40m) ==================== -->
+    <!--  벽 높이 3.0m에 맞춰 천장 슬래브 Z=3.1 (두께 0.2m)            -->
+    <!--  collision 없음 — LiDAR 간섭 방지, AMR 동작에 영향 없음        -->
+    <!--  X방향 3패널 + 중앙 조명 슬롯으로 분할                         -->
+
+    <!-- 서측 패널 (X=0~27) -->
+    <model name="ceiling_west">
+      <static>true</static>
+      <pose>13.5 20 3.1 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry><box><size>27 40 0.2</size></box></geometry>
+          <material>
+            <ambient>0.45 0.43 0.40 1</ambient>
+            <diffuse>0.47 0.45 0.42 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 동측 패널 (X=33~60) -->
+    <model name="ceiling_east">
+      <static>true</static>
+      <pose>46.5 20 3.1 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry><box><size>27 40 0.2</size></box></geometry>
+          <material>
+            <ambient>0.45 0.43 0.40 1</ambient>
+            <diffuse>0.47 0.45 0.42 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- 중앙 조명 슬롯 (X=27~33) — 약간 어두운 색으로 조명 홈 표현 -->
+    <model name="ceiling_light_slot">
+      <static>true</static>
+      <pose>30 20 3.1 0 0 0</pose>
+      <link name="link">
+        <visual name="v">
+          <geometry><box><size>6 40 0.2</size></box></geometry>
+          <material>
+            <ambient>0.30 0.30 0.28 1</ambient>
+            <diffuse>0.32 0.32 0.30 1</diffuse>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+  </world>
+</sdf>

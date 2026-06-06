@@ -148,14 +148,14 @@
     <plugin filename="ignition-gazebo-wheel-slip-system"
             name="ignition::gazebo::systems::WheelSlip">
       <wheel link_name="left_wheel_link">
-        <slip_compliance_lateral>0.05</slip_compliance_lateral>
-        <slip_compliance_longitudinal>0.05</slip_compliance_longitudinal>
+        <slip_compliance_lateral>0.01</slip_compliance_lateral>
+        <slip_compliance_longitudinal>0.03</slip_compliance_longitudinal>
         <wheel_normal_force>225</wheel_normal_force>
         <wheel_radius>0.08</wheel_radius>
       </wheel>
       <wheel link_name="right_wheel_link">
-        <slip_compliance_lateral>0.05</slip_compliance_lateral>
-        <slip_compliance_longitudinal>0.05</slip_compliance_longitudinal>
+        <slip_compliance_lateral>0.01</slip_compliance_lateral>
+        <slip_compliance_longitudinal>0.03</slip_compliance_longitudinal>
         <wheel_normal_force>225</wheel_normal_force>
         <wheel_radius>0.08</wheel_radius>
       </wheel>
@@ -211,7 +211,7 @@
     <sensor name="imu_sensor" type="imu">
       <always_on>true</always_on>
       <update_rate>100</update_rate>
-      <topic>imu</topic>
+      <topic>imu_raw</topic>
       <imu>
         <angular_velocity>
           <x><noise type="gaussian"><mean>0.0</mean><stddev>0.005</stddev><bias_mean>0.0001</bias_mean><bias_stddev>0.00005</bias_stddev></noise></x>

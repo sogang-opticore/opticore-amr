@@ -1,0 +1,137 @@
+astar_planner:
+  ros__parameters:
+    # 휴리스틱 종류: manhattan / euclidean / octile
+    # 8-connected 환경에서는 octile이 최적
+    heuristic: "octile"
+
+    # 대각 이동 허용 여부 (true = 8-connected)
+    allow_diagonal: true
+
+    # inflation 반경 [m] — 로봇 폭 0.40m + 여유
+    # 좁은 통로에서 경로가 막히면 줄여볼 것
+    #
+    # 변경 이력 (데이터):
+    # - 17차: 0.30 (마진 0.10m). (5,0)✅ (0,5)✅ (20,0)✅ (20,5)✅ 35초.
+    #         단 cooldown 없어 (0,-10) 무한 loop.
+    # - 18차: 0.40 (마진 0.20m, 보수적). 모든 시나리오 도달하나 좁은 통로 느림.
+    # - 19차: 0.35 (마진 0.15m, 균형 시도). (20,5) 에서 (12.5, 6.5) 부근 무한 stuck.
+    #         A* path 가 좁은 통로 안에 만들어지지만 robot 이 통과 못함.
+    #
+    # - 20차 (사용자 선택, 데이터 기반): 0.35 → 0.30 (17차 복귀)
+    #   17차 0.30 에서 (20,5) 성공했던 데이터로 복귀.
+    #   무한 loop 차단의 주역은 18차 추가된 recovery_cooldown (3s).
+    #   즉 17차 inflation + 18차 cooldown = 모든 좋은 부분의 합집합.
+    inflation_radius: 0.50
+
+    # 벽 근접 비용 [m] — inflation 바깥 free 셀도 모두 같은 비용으로 보지 않고,
+    # raw obstacle 기준 이 거리 안쪽은 추가 비용을 줘 통로 중앙을 선호한다.
+    # DWA robot_radius(0.20) + clearance_slowdown_distance(0.80) ≈ 1.0m보다 조금 크게 둔다.
+    # 로그상 0.55~0.80m clearance 경로에서 STOPPED_NEAR_WALL이 잦아 1.20m를 초안으로 상향.
+    # TODO(미확정): RunPod 주행 로그로 1.0~1.3m 범위 튜닝.
+    preferred_clearance: 1.25
+
+    # clearance 비용 가중치. 0이면 기존처럼 shortest path만 선호.
+    # 너무 낮으면 벽 경계 path가 남고, 너무 높으면 긴 우회를 과하게 선호할 수 있다.
+    # TODO(미확정): 6~10 범위 튜닝.
+    clearance_cost_weight: 9.0
+
+    # inflation 경계 바로 바깥을 강하게 밀어내는 barrier 비용.
+    # 좁은 통로에서는 여전히 통과 가능하지만, 대체 경로가 있으면 벽 붙은 후보를 피한다.
+    wall_avoid_clearance: 1.05
+    wall_avoid_cost_weight: 3.0
+    wall_avoid_min_margin: 0.05
+
+    # 경로 스무딩: none / catmull_rom / bezier
+    smoothing: "catmull_rom"
+    smoothing_min_clearance: 0.90
+
+    # 2026-05-24 보강: goal이 점유/inflation으로 막혔을 때
+    # 인근 자유공간 셀로 자동 보정. BFS 반경 [m]. 0이면 비활성.
+    # (예: Loading zone (3,15)이 맵 가장자리라 BLOCK → 인근 (3,14.5)로 자동 이동)
+    goal_snap_radius: 0.6
+
+    # 주기적 재계획 — 기본 1Hz.
+    # DWA의 stale empty 방어와 재계획 실패 시 기존 path 유지 정책을 전제로,
+    # 현재 pose 기준 global path를 주기적으로 갱신한다.
+    # 필요 시 0으로 바꾸면 goal/event 기반 재계획만 사용한다.
+    replan_period: 1.0
+
+    # DWA 상태 이벤트 기반 재계획.
+    # 즉시 재계획: EMERGENCY/PATH_LOST/RECOVERY_DONE/STOPPED_NEAR_WALL
+    # 복구 후 재계획 fallback: FORWARD_ONLY/RECOVERY → NORMAL 또는 STOPPED 전이
+    # STOPPED_NEAR_WALL도 1회 trigger로 포함한다. armed/cooldown으로 반복 발행은 막고,
+    # 벽에 붙은 기존 path를 recovery 전부터 교체할 기회를 준다.
+    dwa_status_topic: "/dwa/status"
+    status_replan_cooldown: 2.0
+    dynamic_status_replan_cooldown: 1.0
+    status_replan_states: ["EMERGENCY", "PATH_LOST", "RECOVERY_DONE", "STOPPED_NEAR_WALL", "DYNAMIC_BLOCKED", "INSIDE_DYNAMIC_ZONE", "APPROACHING_DYNAMIC", "CROSSING_DYNAMIC", "RECEDING_DYNAMIC", "STOPPED_DYNAMIC", "AVOIDING_DYNAMIC"]
+    dynamic_status_replan_states: ["DYNAMIC_BLOCKED", "INSIDE_DYNAMIC_ZONE", "APPROACHING_DYNAMIC", "CROSSING_DYNAMIC", "RECEDING_DYNAMIC", "STOPPED_DYNAMIC", "AVOIDING_DYNAMIC"]
+    status_replan_after_states: ["FORWARD_ONLY", "RECOVERY"]
+    status_replan_reset_states: ["NORMAL", "ALIGN", "STOPPED", "REACHED", "GOAL_REACHED"]
+
+    # 2026-05-31 추가 (SW · dwa-ys, 도착 인식 안정화 P1):
+    # goal dedup 임계값 [m] — 같은 goal 재수신 시 재계획 스킵.
+    # `ros2 topic pub --rate 0.5 /goal_pose ...` 로 같은 goal 을 반복 송신해도
+    # 이 거리 이내면 무시 → DWA 의 GOAL_REACHED 신호가 흔들리지 않음.
+    # TODO(미확정): 0.10 = A* 그리드 해상도(~0.05m)의 2배 초안. 시뮬 측정 후 확정.
+    #   더 작으면 floating-point noise 로 dedup 미동작, 더 크면 진짜 다른 goal 도 무시.
+    goal_dedup_dist: 0.10
+
+    # 2026-05-31 리뷰 반영(Codex): dedup 에 도착 방향(yaw) 차이도 포함 [rad].
+    # 같은 위치에서 yaw 만 바뀐 goal 을 '새 goal' 로 인식(놓치지 않게).
+    # TODO(미확정): 0.10 rad(≈5.7°) 초안. 시뮬 측정 후 확정.
+    # 참고: 현재 A*/DWA 는 최종 yaw 를 적극 추종하지 않음 → README §3.0 [미확정] 명시.
+    goal_dedup_yaw: 0.10
+
+    # 두 갈래 경로가 거의 같은 비용일 때 1Hz 재계획이 통로를 번갈아 선택하지 않도록,
+    # 새 후보가 기존 path의 남은 거리보다 이 값 이상 짧을 때만 갈아탄다.
+    # 0.35m는 0.05m grid 기준 약 7셀이라 AMCL/TF cm급 흔들림과 1~2셀 tie를 충분히 덮는다.
+    # TODO(미확정): RunPod에서 branch 전환 로그를 보고 0.25~0.50m 범위 튜닝.
+    path_switch_hysteresis: 0.35
+    path_switch_max_start_offset: 0.80
+    # 기존 path가 DWA 감속권(0.80m) 안쪽 벽을 물고 있고 새 path가 충분히 안전하면,
+    # 몇 m 더 돌아가더라도 경로를 바꿔 벽 옆 저속 복구 구간을 줄인다.
+    path_switch_bad_clearance: 0.90
+    path_switch_clearance_gain: 0.18
+    path_switch_clearance_max_extra_length: 3.0
+    path_switch_clearance_skip_distance: 1.0
+    # 안정 추종 중 기존 path가 더 안전하면 새 후보가 조금 짧더라도 벽 쪽으로 갈아타지 않는다.
+    path_switch_safety_clearance_loss: 0.20
+    path_switch_safety_max_length_sacrifice: 1.20
+    # path switch hysteresis는 정상/동적 우회처럼 주행 방향을 유지해야 하는 상태에 적용한다.
+    # REJOIN/STOPPED_NEAR_WALL/RECOVERY 중에는 stuck path 탈출을 위해 새 후보 수용성을 우선한다.
+    path_hysteresis_stable_states: ["NORMAL", "ALIGN", "AVOIDING_DYNAMIC", "DYNAMIC_BLOCKED", "INSIDE_DYNAMIC_ZONE", "APPROACHING_DYNAMIC", "CROSSING_DYNAMIC", "RECEDING_DYNAMIC", "STOPPED_DYNAMIC"]
+    # 새 goal 직후에는 DWA goal/path 수신 순서 보정을 위해 이 시간 동안 hysteresis를 건너뛰고 재발행.
+    # TODO(미확정): 대형 맵 plan time과 RunPod 수신 로그 기준 3~6s 범위 튜닝.
+    new_goal_force_publish_sec: 5.0
+
+    # 목표 근처에서 inflated map 기준 직선 segment가 안전하면 A* 우회 path 대신
+    # goal까지 직선 final approach path를 발행해 목표 주변 배회를 줄인다.
+    goal_direct_distance: 2.0
+    goal_direct_min_clearance: 0.90
+    dynamic_layer_enabled: true
+    dynamic_layer_topic: "/dynamic_obstacle_layer"
+    dynamic_layer_occupied_threshold: 65
+    dynamic_layer_timeout_sec: 35.0
+    dynamic_layer_start_escape_enabled: true
+    # TODO(미확정): 동적 장애물 주행 로그로 2.0~3.5m 범위를 비교한다.
+    dynamic_layer_start_escape_search_radius: 3.0
+    # TODO(미확정): 로봇 반경/라이다 노이즈 기준. 넓히면 탈출은 쉬우나 동적 layer를 과하게 무력화할 수 있다.
+    dynamic_layer_start_escape_corridor_radius: 0.45
+    dynamic_layer_start_escape_min_clearance: 0.60
+
+    # Dynamic obstacle no-go layer can create two nearly equal routes around
+    # the robot. Keep the accepted left/right branch briefly, and switch only
+    # when the new branch is clearly shorter or safer.
+    dynamic_path_side_lock_sec: 12.0
+    dynamic_path_side_lock_lookahead: 3.0
+    dynamic_path_side_lock_deadband: 0.20
+    dynamic_path_side_switch_min_improvement: 1.0
+    dynamic_path_side_switch_min_clearance_gain: 0.35
+    # Soft A* cost for the opposite side while the dynamic branch lock is active.
+    # Keeps near-tie left/right routes from flipping every replan without hard-blocking escape.
+    dynamic_path_side_preference_cost: 0.50
+    dynamic_path_side_preference_distance: 8.0
+
+    # 시뮬레이션 시간 사용 (Ignition Gazebo 필수)
+    use_sim_time: true
