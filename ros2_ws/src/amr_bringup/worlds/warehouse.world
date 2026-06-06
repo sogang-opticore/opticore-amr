@@ -742,5 +742,165 @@
       </link>
     </model>
 
+<!--
+  ============================================================
+  S-08 CCTV — 천장 코너 고정 카메라 4대
+  창고: 60×40m  /  카메라 높이: 6.5m
+  스펙: RGB 640×480, 80° FOV, 15Hz, Gaussian σ=0.007
+  배치: 코너 (비겹침 우선), 실내 45° 방향으로 30° 아래를 향함
+
+  SDF pose 순서: x  y  z  roll  pitch  yaw
+    pitch = -0.524 rad (−30°, 아래 방향)
+    yaw   = 코너별 내부 방향
+
+  추가 위치: warehouse.world 최하단 </world> 태그 바로 위에 삽입
+
+  설치 pose 문서 → docs/cctv_extrinsic.md 참고 (P-10 입력)
+  ============================================================
+-->
+
+<!-- ==================== CCTV CAMERAS ==================== -->
+
+    <!-- SW 코너 (2, 2, 6.5) — NE 방향 yaw=+45° -->
+    <model name="cctv_sw">
+      <static>true</static>
+      <pose>2 2 6.5 0 -0.524 0.785</pose>
+      <link name="link">
+        <visual name="body">
+          <geometry>
+            <box><size>0.08 0.08 0.06</size></box>
+          </geometry>
+          <material><ambient>0.1 0.1 0.1 1</ambient></material>
+        </visual>
+        <sensor name="cctv_sw_camera" type="camera">
+          <topic>/cctv/sw/image</topic>
+          <camera>
+            <horizontal_fov>1.396</horizontal_fov>
+            <image>
+              <width>640</width>
+              <height>480</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip><near>0.1</near><far>50.0</far></clip>
+            <noise>
+              <type>gaussian</type>
+              <mean>0.0</mean>
+              <stddev>0.007</stddev>
+            </noise>
+            <camera_info_topic>/cctv/sw/camera_info</camera_info_topic>
+          </camera>
+          <always_on>true</always_on>
+          <update_rate>15</update_rate>
+          <visualize>false</visualize>
+        </sensor>
+      </link>
+    </model>
+
+    <!-- SE 코너 (58, 2, 6.5) — NW 방향 yaw=+135° -->
+    <model name="cctv_se">
+      <static>true</static>
+      <pose>58 2 6.5 0 -0.524 2.356</pose>
+      <link name="link">
+        <visual name="body">
+          <geometry>
+            <box><size>0.08 0.08 0.06</size></box>
+          </geometry>
+          <material><ambient>0.1 0.1 0.1 1</ambient></material>
+        </visual>
+        <sensor name="cctv_se_camera" type="camera">
+          <topic>/cctv/se/image</topic>
+          <camera>
+            <horizontal_fov>1.396</horizontal_fov>
+            <image>
+              <width>640</width>
+              <height>480</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip><near>0.1</near><far>50.0</far></clip>
+            <noise>
+              <type>gaussian</type>
+              <mean>0.0</mean>
+              <stddev>0.007</stddev>
+            </noise>
+            <camera_info_topic>/cctv/se/camera_info</camera_info_topic>
+          </camera>
+          <always_on>true</always_on>
+          <update_rate>15</update_rate>
+          <visualize>false</visualize>
+        </sensor>
+      </link>
+    </model>
+
+    <!-- NW 코너 (2, 38, 6.5) — SE 방향 yaw=−45° -->
+    <model name="cctv_nw">
+      <static>true</static>
+      <pose>2 38 6.5 0 -0.524 -0.785</pose>
+      <link name="link">
+        <visual name="body">
+          <geometry>
+            <box><size>0.08 0.08 0.06</size></box>
+          </geometry>
+          <material><ambient>0.1 0.1 0.1 1</ambient></material>
+        </visual>
+        <sensor name="cctv_nw_camera" type="camera">
+          <topic>/cctv/nw/image</topic>
+          <camera>
+            <horizontal_fov>1.396</horizontal_fov>
+            <image>
+              <width>640</width>
+              <height>480</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip><near>0.1</near><far>50.0</far></clip>
+            <noise>
+              <type>gaussian</type>
+              <mean>0.0</mean>
+              <stddev>0.007</stddev>
+            </noise>
+            <camera_info_topic>/cctv/nw/camera_info</camera_info_topic>
+          </camera>
+          <always_on>true</always_on>
+          <update_rate>15</update_rate>
+          <visualize>false</visualize>
+        </sensor>
+      </link>
+    </model>
+
+    <!-- NE 코너 (58, 38, 6.5) — SW 방향 yaw=−135° -->
+    <model name="cctv_ne">
+      <static>true</static>
+      <pose>58 38 6.5 0 -0.524 -2.356</pose>
+      <link name="link">
+        <visual name="body">
+          <geometry>
+            <box><size>0.08 0.08 0.06</size></box>
+          </geometry>
+          <material><ambient>0.1 0.1 0.1 1</ambient></material>
+        </visual>
+        <sensor name="cctv_ne_camera" type="camera">
+          <topic>/cctv/ne/image</topic>
+          <camera>
+            <horizontal_fov>1.396</horizontal_fov>
+            <image>
+              <width>640</width>
+              <height>480</height>
+              <format>R8G8B8</format>
+            </image>
+            <clip><near>0.1</near><far>50.0</far></clip>
+            <noise>
+              <type>gaussian</type>
+              <mean>0.0</mean>
+              <stddev>0.007</stddev>
+            </noise>
+            <camera_info_topic>/cctv/ne/camera_info</camera_info_topic>
+          </camera>
+          <always_on>true</always_on>
+          <update_rate>15</update_rate>
+          <visualize>false</visualize>
+        </sensor>
+      </link>
+    </model>
+
+
   </world>
 </sdf>

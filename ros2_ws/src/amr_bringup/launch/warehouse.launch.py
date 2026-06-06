@@ -4,8 +4,10 @@ Bridge stabilized via TimerAction (Gazebo 초기화 대기 후 실행)
 """
 import os
 
+# os.environ['IGN_GAZEBO_RESOURCE_PATH'] = \
+#     '/workspace/ros2_ws/src/amr_bringup/models'
 os.environ['IGN_GAZEBO_RESOURCE_PATH'] = \
-    '/workspace/ros2_ws/src/amr_bringup/models'
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'models')
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
@@ -92,6 +94,16 @@ def generate_launch_description():
                     # Camera (Ign→ROS)
                     '/camera@sensor_msgs/msg/Image[ignition.msgs.Image',
                     '/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
+                    # ── CCTV (Ign→ROS) ──────────────────────────────
+                    '/cctv/sw/image@sensor_msgs/msg/Image[ignition.msgs.Image',
+                    '/cctv/sw/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
+                    '/cctv/se/image@sensor_msgs/msg/Image[ignition.msgs.Image',
+                    '/cctv/se/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
+                    '/cctv/nw/image@sensor_msgs/msg/Image[ignition.msgs.Image',
+                    '/cctv/nw/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
+                    '/cctv/ne/image@sensor_msgs/msg/Image[ignition.msgs.Image',
+                    '/cctv/ne/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
+                    # ground_truth
                     '/ground_truth@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
                 ],
             ),
@@ -165,6 +177,45 @@ def generate_launch_description():
                    [robot_name, '/base_footprint/rgb_camera']],
     )
 
+    
+
+    # arguments 순서: x y z yaw pitch roll parent_frame child_frame
+    # (ROS2 tf2_ros static_transform_publisher 기준)
+    # ros_args로 node name remapping → 4개 동시 기동 시 name 충돌 방지
+
+    cctv_sw_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='cctv_sw_tf',
+        ros_arguments=['--ros-args', '-r', '__node:=cctv_sw_tf'],
+        arguments=['2', '2', '2.8', '0.785', '-0.524', '0', 'map', 'cctv_sw_link'],
+    )
+
+    cctv_se_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='cctv_se_tf',
+        ros_arguments=['--ros-args', '-r', '__node:=cctv_se_tf'],
+        arguments=['58', '2', '2.8', '2.356', '-0.524', '0', 'map', 'cctv_se_link'],
+    )
+
+    cctv_nw_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='cctv_nw_tf',
+        ros_arguments=['--ros-args', '-r', '__node:=cctv_nw_tf'],
+        arguments=['2', '38', '2.8', '-0.785', '-0.524', '0', 'map', 'cctv_nw_link'],
+    )
+
+    cctv_ne_tf = Node(
+        package='tf2_ros',
+        executable='static_transform_publisher',
+        name='cctv_ne_tf',
+        ros_arguments=['--ros-args', '-r', '__node:=cctv_ne_tf'],
+        arguments=['58', '38', '2.8', '-2.356', '-0.524', '0', 'map', 'cctv_ne_link'],
+    )
+
+
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='true'),
         DeclareLaunchArgument('robot_name', default_value='opticore_amr'),
@@ -178,4 +229,8 @@ def generate_launch_description():
         dynamic_obstacle_mover,  # +8s
         lidar_tf,
         camera_tf,
+        cctv_sw_tf,   
+        cctv_se_tf,   
+        cctv_nw_tf,   
+        cctv_ne_tf,   
     ])
