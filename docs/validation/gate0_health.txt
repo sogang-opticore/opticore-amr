@@ -1,0 +1,7 @@
+=== gate0 PASS (v5) Sat Jun  6 15:48:01 UTC 2026 ===
+GPU: warehouse.world holds 309MiB G context (rendering on GPU).
+launch.log EGL/llvmpipe grep: clean (no libEGL/Permission denied/llvmpipe).
+lidar ~7Hz, clock ~160Hz -> RTF ~0.33 (NORMAL per v5, not a fail criterion).
+GPU util 1%, mem 321MiB used.
+--- nvidia-smi process line ---
+|    0   N/A  N/A           95010      G   ...ringup/worlds/warehouse.world        309MiB |
