@@ -110,19 +110,26 @@ def has_static_obstacle_near(
     """map 좌표 점 주변 radius 안에 정적 점유 셀이 있으면 True.
 
     occupied_threshold 이상이면 점유, unknown(-1)은 unknown_as_static이면 정적 취급.
+    중심이 그리드 밖이면 가장 가까운 경계 셀로 클램프해 대조한다.
     DWA occupancy_grid_has_static_obstacle_near와 동일.
     """
     info = grid.info
-    cell = _world_to_cell(info, world_xy[0], world_xy[1])
-    if cell is None:
-        return False
-
     res = float(info.resolution)
-    radius = max(0.0, float(radius))
-    radius_cells = max(0, int(math.ceil(radius / res)))
-    col, row = cell
+    if res <= 0.0:
+        return False
     width = int(info.width)
     height = int(info.height)
+
+    # 중심 셀 — off-grid이면 가장 가까운 경계 셀로 클램프.
+    # (back wall이 map origin과 겹쳐 클러스터 중심이 col<0으로 떨어지는 경계버그 대응.
+    #  클램프해도 반경 내 점유 셀이 없으면 여전히 False=동적이라 진짜 장애물엔 무해.)
+    col = int((world_xy[0] - info.origin.position.x) / res)
+    row = int((world_xy[1] - info.origin.position.y) / res)
+    col = max(0, min(width - 1, col))
+    row = max(0, min(height - 1, row))
+
+    radius = max(0.0, float(radius))
+    radius_cells = max(0, int(math.ceil(radius / res)))
     threshold = max(0, min(100, int(occupied_threshold)))
     data = grid.data
 
