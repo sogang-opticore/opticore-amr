@@ -1,0 +1,7 @@
+=== GATE1 evidence (v5) Sat Jun  6 15:54:15 UTC 2026 ===
+map->odom_filtered at standstill (should be ~0, change <2cm):
+- Translation: [-0.000, 0.000, 0.000]  @ t493.0
+- Translation: [-0.000, 0.000, 0.000]  @ t493.7
+- Translation: [-0.000, 0.000, 0.000]  @ t494.5
+- Translation: [-0.000, 0.000, 0.000]  @ t495.1
+Rotation identity throughout. => standstill lock PASS (this is INITIAL lock; gate3+A still required).
