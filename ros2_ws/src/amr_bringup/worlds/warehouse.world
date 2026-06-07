@@ -764,7 +764,7 @@
     <!-- SW 코너 (2, 2, 2.8) — NE 방향 yaw=+45°, pitch=+60° 아래 향함 -->
     <model name="cctv_sw">
       <static>true</static>
-      <pose>2 2 2.8 0 1.047 0.785</pose>
+      <pose>2 2 2.8 0 0.785 0.785</pose>
       <link name="link">
         <visual name="body">
           <geometry>
@@ -775,7 +775,7 @@
         <sensor name="cctv_sw_camera" type="camera">
           <topic>/cctv/sw/image</topic>
           <camera>
-            <horizontal_fov>1.396</horizontal_fov>
+            <horizontal_fov>1.658</horizontal_fov>
             <image>
               <width>640</width>
               <height>480</height>
@@ -799,7 +799,7 @@
     <!-- SE 코너 (58, 2, 2.8) — NW 방향 yaw=+135°, pitch=+60° 아래 향함 -->
     <model name="cctv_se">
       <static>true</static>
-      <pose>58 2 2.8 0 1.047 2.356</pose>
+      <pose>58 2 2.8 0 0.785 2.356</pose>
       <link name="link">
         <visual name="body">
           <geometry>
@@ -810,7 +810,7 @@
         <sensor name="cctv_se_camera" type="camera">
           <topic>/cctv/se/image</topic>
           <camera>
-            <horizontal_fov>1.396</horizontal_fov>
+            <horizontal_fov>1.658</horizontal_fov>
             <image>
               <width>640</width>
               <height>480</height>
@@ -834,7 +834,7 @@
     <!-- NW 코너 (2, 38, 2.8) — SE 방향 yaw=-45°, pitch=+60° 아래 향함 -->
     <model name="cctv_nw">
       <static>true</static>
-      <pose>2 38 2.8 0 1.047 -0.785</pose>
+      <pose>2 38 2.8 0 0.785 -0.785</pose>
       <link name="link">
         <visual name="body">
           <geometry>
@@ -845,7 +845,7 @@
         <sensor name="cctv_nw_camera" type="camera">
           <topic>/cctv/nw/image</topic>
           <camera>
-            <horizontal_fov>1.396</horizontal_fov>
+            <horizontal_fov>1.658</horizontal_fov>
             <image>
               <width>640</width>
               <height>480</height>
@@ -869,7 +869,7 @@
     <!-- NE 코너 (58, 38, 2.8) — SW 방향 yaw=-135°, pitch=+60° 아래 향함 -->
     <model name="cctv_ne">
       <static>true</static>
-      <pose>58 38 2.8 0 1.047 -2.356</pose>
+      <pose>58 38 2.8 0 0.785 -2.356</pose>
       <link name="link">
         <visual name="body">
           <geometry>
@@ -880,7 +880,7 @@
         <sensor name="cctv_ne_camera" type="camera">
           <topic>/cctv/ne/image</topic>
           <camera>
-            <horizontal_fov>1.396</horizontal_fov>
+            <horizontal_fov>1.658</horizontal_fov>
             <image>
               <width>640</width>
               <height>480</height>
