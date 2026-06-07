@@ -8,6 +8,7 @@ P-3: Detection2DArray → 핀홀 카메라 역투영 → 3D 좌표 (map frame)
 P-4: Kalman Filter 추적 → /detected_obstacles 발행
 """
 
+import time
 import numpy as np
 import rclpy
 from rclpy.node import Node
@@ -166,23 +167,29 @@ class ObjectTrackerNode(Node):
         if self.K is None:
             return
 
+        # TF 프레임당 한 번만 lookup (캐싱)
+        try:
+            tf = self.tf_buffer.lookup_transform(
+                self.target_frame,
+                self.camera_frame,
+                rclpy.time.Time(),
+                timeout=rclpy.duration.Duration(seconds=0.01),
+            )
+        except TransformException:
+            return
+
         # 1. 각 탐지 결과를 3D 좌표로 변환
         measurements = []
         for det in msg.detections:
-            # 지면 교차는 bbox 중심이 아니라 객체가 바닥에 닿는 하단 중앙점을 사용한다.
             u = det.bbox.center.position.x
             v = det.bbox.center.position.y + det.bbox.size_y * 0.5
             bbox = self._bbox_to_xyxy(det.bbox)
-
-            # 핀홀 역투영 (지면 z=0 가정)
-            world_pos = self._pixel_to_world(u, v, msg.header)
+            world_pos = self._pixel_to_world_with_tf(u, v, tf)
             if world_pos is None:
                 continue
-
             class_name = ''
             if det.results:
                 class_name = det.results[0].hypothesis.class_id
-
             measurements.append((world_pos[0], world_pos[1], class_name, bbox))
 
         # 2. Kalman Filter predict
@@ -293,6 +300,39 @@ class ObjectTrackerNode(Node):
 
     # ── P-3: 핀홀 역투영 ───────────────────────────────────────────────────
 
+    def _pixel_to_world_with_tf(self, u: float, v: float, tf) -> tuple | None:
+        """TF를 외부에서 받아 역투영 — 프레임당 한 번만 TF lookup."""
+        fx = self.K[0, 0]; fy = self.K[1, 1]
+        cx = self.K[0, 2]; cy = self.K[1, 2]
+
+        if abs(fx) < 1e-6 or abs(fy) < 1e-6:
+            return None
+
+        ray_camera = np.array([(u - cx) / fx, (v - cy) / fy, 1.0], dtype=float)
+        ray_norm = np.linalg.norm(ray_camera)
+        if ray_norm < 1e-6:
+            return None
+        ray_camera /= ray_norm
+
+        origin = np.array([
+            tf.transform.translation.x,
+            tf.transform.translation.y,
+            tf.transform.translation.z,
+        ], dtype=float)
+
+        rot = self._quat_to_rot_matrix(tf.transform.rotation)
+        ray_world = rot @ ray_camera
+
+        if abs(ray_world[2]) < 1e-6:
+            return None
+
+        t = -origin[2] / ray_world[2]
+        if t < 0:
+            return None
+
+        point = origin + t * ray_world
+        return (float(point[0]), float(point[1]))
+
     def _pixel_to_world(self, u: float, v: float, header) -> tuple | None:
         """
         픽셀 (u, v)을 target_frame 기준 지면(z=0) 좌표로 변환.
@@ -325,7 +365,7 @@ class ObjectTrackerNode(Node):
                 self.target_frame,
                 self.camera_frame,
                 rclpy.time.Time(),
-                timeout=rclpy.duration.Duration(seconds=0.1),
+                timeout=rclpy.duration.Duration(seconds=0.01),
             )
         except TransformException as e:
             self.get_logger().warn(
