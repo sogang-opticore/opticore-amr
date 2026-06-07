@@ -30,6 +30,7 @@ setup(
         'console_scripts': [
             'yolo_detector = amr_perception.yolo_detector:main',
             'object_tracker = amr_perception.object_tracker:main',
+            'fused_tracker = amr_perception.fused_tracker:main',
         ],
     },
 )

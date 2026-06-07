@@ -1,0 +1,34 @@
+fused_tracker:
+  ros__parameters:
+    use_sim_time: true
+    output_topic: /perception/tracked_objects
+    lidar_topic: /lidar
+    robot_detections_topic: /perception/detections
+    cctv_detections_topic: /cctv/detections     # [미확정] P-9 확정 시 갱신
+    camera_info_topic: /camera_info
+    map_topic: /map
+    lidar_frame: lidar_link
+    camera_frame: camera_optical_link
+    cluster_markers_topic: /perception/lidar_clusters
+
+    # ★ 안정화: 트래킹=odom_filtered(EKF, 점프 없음), 출력=map.
+    #   'map'으로 바꾸면 옛 동작(AMCL 점프 시 더블링) 재현 → before/after 비교용.
+    tracking_frame: odom_filtered
+
+    # P-6 클러스터링 (DWA dynamic_track_* 출발값)
+    cluster_distance: 0.35
+    cluster_min_points: 3
+    cluster_max_radius: 0.85
+
+    # P-6 static wall 필터 (DWA dynamic_static_filter_* 출발값)
+    static_filter_enabled: true
+    static_filter_radius: 0.60
+    static_filter_occupied_threshold: 65
+    static_filter_unknown_as_static: true
+
+    # P-7 association / 트랙 수명 / 생성 강화 / 경계 (§11.5 — yaml 노출)
+    max_association_dist: 4.0
+    max_miss_count: 20        # confirmed (10Hz → 2초)
+    tentative_max_miss: 3     # 미confirmed (0.3초)
+    min_track_hits: 3         # confirmed 승격 관측 수
+    map_bounds_margin: 1.0

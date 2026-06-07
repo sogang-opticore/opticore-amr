@@ -247,7 +247,7 @@ dwa_planner:
     # A* 1Hz 재계획 + PP 새 path 시도 시간 확보.
     recovery_cooldown: 3.0     # s, recovery 후 cooldown
     # ----- 안전 -----
-    robot_radius: 0.20             # m, URDF chassis_width 0.40 / 2
+    robot_radius: 0.36             # m, 외접원(chassis 0.60x0.40 반대각 √(0.30²+0.20²)=0.36) — 종방향 주행 코너까지 보호. (이전 0.20=반폭만이라 풋프린트 과소 → 동적장애물 접촉 원인)
     hard_collision_distance: 0.05  # m, 거부 게이트 — 진짜 충돌 직전
     safety_distance: 0.30          # m, 명세 §7 — clearance_score 정규화 기준
     odom_timeout: 0.5              # s, EKF timeout 시 /odom fallback
