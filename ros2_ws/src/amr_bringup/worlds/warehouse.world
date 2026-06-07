@@ -200,11 +200,17 @@
 
     <!-- ==================== LOADING ZONE WEST (Dock-1: Y=33~39, Dock-2: Y=27~33) ==================== -->
     <!-- 바닥 마킹 -->
-    <model name="loading_floor">
-      <static>true</static><pose>5 34 0.005 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><box><size>10 12 0.002</size></box></geometry>
-          <material><ambient>0.15 0.55 0.15 0.9</ambient><diffuse>0.18 0.65 0.18 0.9</diffuse></material>
+    <!-- 서쪽: Dock-1(하차) / Dock-2(적재) -->
+    <model name="dock1_floor">  <!-- 하차 -->
+      <static>true</static><pose>5 37 0.005 0 0 0</pose>
+      <link name="link"><visual name="v"><geometry><box><size>10 6 0.002</size></box></geometry>
+        <material><ambient>0.95 0.55 0.70 0.9</ambient><diffuse>1.0 0.60 0.75 0.9</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="dock2_floor">  <!-- 적재 -->
+      <static>true</static><pose>5 31 0.005 0 0 0</pose>
+      <link name="link"><visual name="v"><geometry><box><size>10 6 0.002</size></box></geometry>
+        <material><ambient>0.15 0.55 0.15 0.9</ambient><diffuse>0.18 0.65 0.18 0.9</diffuse></material>
       </visual></link>
     </model>
     <!-- 후면벽 (서벽, LiDAR 기준, 높이 2.5m) -->
@@ -231,7 +237,7 @@
       <link name="link">
         <collision name="c"><geometry><box><size>0.06 0.8 0.5</size></box></geometry></collision>
         <visual name="v"><geometry><box><size>0.06 0.8 0.5</size></box></geometry>
-          <material><ambient>0.1 0.65 0.1 1</ambient><diffuse>0.1 0.75 0.1 1</diffuse></material>
+          <material><ambient>0.65 0.1 0.1 1</ambient><diffuse>0.75 0.1 0.1 1</diffuse></material>
       </visual></link>
     </model>
     <!-- Dock-2 표지판 -->
@@ -245,19 +251,17 @@
     </model>
 
     <!-- ==================== UNLOADING ZONE EAST (Dock-A: Y=33~39, Dock-B: Y=27~33) ==================== -->
-    <model name="unloading_floor">
-      <static>true</static><pose>55 34 0.005 0 0 0</pose>
-      <link name="link">
-        <visual name="v"><geometry><box><size>10 12 0.002</size></box></geometry>
-          <material><ambient>0.95 0.55 0.70 0.9</ambient><diffuse>1.0 0.60 0.75 0.9</diffuse></material>
+    <!-- 동쪽: Dock-A(하차) / Dock-B(적재) -->
+    <model name="dockA_floor">  <!-- 하차 -->
+      <static>true</static><pose>55 37 0.005 0 0 0</pose>
+      <link name="link"><visual name="v"><geometry><box><size>10 6 0.002</size></box></geometry>
+        <material><ambient>0.95 0.55 0.70 0.9</ambient><diffuse>1.0 0.60 0.75 0.9</diffuse></material>
       </visual></link>
     </model>
-    <model name="dock_east_backwall">
-      <static>true</static><pose>59.0 34 1.25 0 0 0</pose>
-      <link name="link">
-        <collision name="c"><geometry><box><size>2.0 12 2.5</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>2.0 12 2.5</size></box></geometry>
-          <material><ambient>0.35 0.35 0.35 1</ambient><diffuse>0.40 0.40 0.40 1</diffuse></material>
+    <model name="dockB_floor">  <!-- 적재 -->
+      <static>true</static><pose>55 31 0.005 0 0 0</pose>
+      <link name="link"><visual name="v"><geometry><box><size>10 6 0.002</size></box></geometry>
+        <material><ambient>0.15 0.55 0.15 0.9</ambient><diffuse>0.18 0.65 0.18 0.9</diffuse></material>
       </visual></link>
     </model>
     <model name="dock_east_divider">
@@ -281,7 +285,7 @@
       <link name="link">
         <collision name="c"><geometry><box><size>0.06 0.8 0.5</size></box></geometry></collision>
         <visual name="v"><geometry><box><size>0.06 0.8 0.5</size></box></geometry>
-          <material><ambient>0.55 0.1 0.1 1</ambient><diffuse>0.65 0.1 0.1 1</diffuse></material>
+          <material><ambient>0.1 0.55 0.1 1</ambient><diffuse>0.1 0.65 0.1 1</diffuse></material>
       </visual></link>
     </model>
 
@@ -484,6 +488,42 @@
         <collision name="c"><geometry><box><size>0.06 1.4 0.45</size></box></geometry></collision>
         <visual name="v"><geometry><box><size>0.06 1.4 0.45</size></box></geometry>
           <material><ambient>0.28 0.28 0.92 1</ambient><diffuse>0.30 0.30 1.0 1</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- ===== S-9 pinch 복도 (폭 1.5m) ===== -->
+    <!-- 좌: B-C 통로, col1-col2 사이 -->
+    <model name="wall_pinch_L1">
+      <static>true</static><pose>13.625 12.0 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.25 5.0 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.25 5.0 2.5</size></box></geometry>
+          <material><ambient>0.30 0.30 0.32 1</ambient><diffuse>0.38 0.38 0.40 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="wall_pinch_L2">
+      <static>true</static><pose>15.375 12.0 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.25 5.0 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.25 5.0 2.5</size></box></geometry>
+          <material><ambient>0.30 0.30 0.32 1</ambient><diffuse>0.38 0.38 0.40 1</diffuse></material>
+      </visual></link>
+    </model>
+    <!-- 우: A-B 통로, col6-col7 사이 -->
+    <model name="wall_pinch_R1">
+      <static>true</static><pose>48.625 18.0 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.25 5.0 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.25 5.0 2.5</size></box></geometry>
+          <material><ambient>0.30 0.30 0.32 1</ambient><diffuse>0.38 0.38 0.40 1</diffuse></material>
+      </visual></link>
+    </model>
+    <model name="wall_pinch_R2">
+      <static>true</static><pose>50.375 18.0 1.25 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><box><size>0.25 5.0 2.5</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.25 5.0 2.5</size></box></geometry>
+          <material><ambient>0.30 0.30 0.32 1</ambient><diffuse>0.38 0.38 0.40 1</diffuse></material>
       </visual></link>
     </model>
 
