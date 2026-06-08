@@ -239,6 +239,10 @@ def make_robot_nodes(robot_name, spawn_x, spawn_y):
                 name=f'{rn}_ekf_filter_node',
                 output='screen',
                 parameters=[ekf_yaml],
+                remappings=[
+                    ('/odometry/filtered', f'/{rn}/odometry/filtered'),
+                    ('/set_pose',          f'/{rn}/set_pose'),
+                ],
             ),
         ]),
     ]
