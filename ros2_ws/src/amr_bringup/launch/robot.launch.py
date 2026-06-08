@@ -8,7 +8,8 @@ robot_name, spawn_x, spawn_y 를 인자로 받아 독립 인스턴스 구성.
 import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, TimerAction
+from launch.actions import DeclareLaunchArgument, TimerAction, OpaqueFunction, GroupAction
+from launch.actions import PushLaunchConfigurations, PopLaunchConfigurations
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -74,21 +75,31 @@ def generate_launch_description():
             Node(
                 package='ros_gz_bridge',
                 executable='parameter_bridge',
-                namespace=robot_name,
                 name='ros_gz_bridge',
                 output='screen',
                 parameters=[{'use_sim_time': use_sim_time}],
                 arguments=[
                     '/clock@rosgraph_msgs/msg/Clock[ignition.msgs.Clock',
-                    [robot_name, '/cmd_vel@geometry_msgs/msg/Twist]ignition.msgs.Twist'],
-                    [robot_name, '/odom@nav_msgs/msg/Odometry[ignition.msgs.Odometry'],
-                    [robot_name, '/tf_gazebo@tf2_msgs/msg/TFMessage[ignition.msgs.Pose_V'],
-                    [robot_name, '/joint_states@sensor_msgs/msg/JointState[ignition.msgs.Model'],
-                    [robot_name, '/lidar@sensor_msgs/msg/LaserScan[ignition.msgs.LaserScan'],
-                    [robot_name, '/imu_raw@sensor_msgs/msg/Imu[ignition.msgs.IMU'],
-                    [robot_name, '/camera@sensor_msgs/msg/Image[ignition.msgs.Image'],
-                    [robot_name, '/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo'],
-                    [robot_name, '/ground_truth@nav_msgs/msg/Odometry[ignition.msgs.Odometry'],
+                    '/cmd_vel@geometry_msgs/msg/Twist]ignition.msgs.Twist',
+                    '/odom@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
+                    '/tf_gazebo@tf2_msgs/msg/TFMessage[ignition.msgs.Pose_V',
+                    '/joint_states@sensor_msgs/msg/JointState[ignition.msgs.Model',
+                    '/lidar@sensor_msgs/msg/LaserScan[ignition.msgs.LaserScan',
+                    '/imu_raw@sensor_msgs/msg/Imu[ignition.msgs.IMU',
+                    '/camera@sensor_msgs/msg/Image[ignition.msgs.Image',
+                    '/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
+                    '/ground_truth@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
+                ],
+                remappings=[
+                    ('/cmd_vel',      [robot_name, '/cmd_vel']),
+                    ('/odom',         [robot_name, '/odom']),
+                    ('/tf_gazebo',    [robot_name, '/tf_gazebo']),
+                    ('/joint_states', [robot_name, '/joint_states']),
+                    ('/lidar',        [robot_name, '/lidar']),
+                    ('/imu_raw',      [robot_name, '/imu_raw']),
+                    ('/camera',       [robot_name, '/camera']),
+                    ('/camera_info',  [robot_name, '/camera_info']),
+                    ('/ground_truth', [robot_name, '/ground_truth']),
                 ],
             ),
         ],
@@ -123,8 +134,8 @@ def generate_launch_description():
         name='imu_covariance_injector',
         output='screen',
         remappings=[
-            ('/imu_raw', [robot_name, '/imu_raw']),
-            ('/imu',     [robot_name, '/imu']),
+            ('/imu_raw', 'imu_raw'),
+            ('/imu',     'imu'),
         ],
     )
 
@@ -138,37 +149,46 @@ def generate_launch_description():
                 namespace=robot_name,
                 name='odom_covariance_injector',
                 output='screen',
+                parameters=[{'robot_name': robot_name}],
                 remappings=[
-                    ('/odom',          [robot_name, '/odom']),
-                    ('/odom_with_cov', [robot_name, '/odom_with_cov']),
+                    ('/odom',          'odom'),
+                    ('/odom_with_cov', 'odom_with_cov'),
                 ],
             ),
         ],
     )
 
     # ── 7. EKF ──
+    def make_ekf_node(context, *args, **kwargs):
+        import yaml, tempfile
+        rn = context.launch_configurations['robot_name']
+        ekf_base = os.path.join(
+            get_package_share_directory('amr_bringup'), 'config', 'ekf.yaml')
+        with open(ekf_base, 'r') as f:
+            cfg = yaml.safe_load(f)
+        params = cfg.get('ekf_filter_node', {}).get('ros__parameters', {})
+        params['odom_frame']      = f'{rn}/odom_filtered'
+        params['base_link_frame'] = f'{rn}/base_footprint'
+        params['world_frame']     = f'{rn}/odom_filtered'
+        params['odom0']           = f'/{rn}/odom_with_cov'
+        params['imu0']            = f'/{rn}/imu'
+        params['use_sim_time']    = True
+        tmp = tempfile.NamedTemporaryFile(
+            mode='w', suffix='.yaml', delete=False,
+            prefix=f'ekf_{rn}_')
+        yaml.dump({f'{rn}_ekf_filter_node': {'ros__parameters': params}}, tmp)
+        tmp.flush()
+        return [Node(
+            package='robot_localization',
+            executable='ekf_node',
+            name=f'{rn}_ekf_filter_node',
+            output='screen',
+            parameters=[tmp.name],
+        )]
+
     ekf_node = TimerAction(
         period=7.0,
-        actions=[
-            Node(
-                package='robot_localization',
-                executable='ekf_node',
-                namespace=robot_name,
-                name='ekf_filter_node',
-                output='screen',
-                parameters=[
-                    ekf_config,
-                    {
-                        'use_sim_time':    use_sim_time,
-                        'odom_frame':      [robot_name, '/odom_filtered'],
-                        'base_link_frame': [robot_name, '/base_footprint'],
-                        'world_frame':     [robot_name, '/odom_filtered'],
-                        'odom0':           [robot_name, '/odom_with_cov'],
-                        'imu0':            [robot_name, '/imu'],
-                    },
-                ],
-            ),
-        ],
+        actions=[OpaqueFunction(function=make_ekf_node)],
     )
 
     # ── 8. Map Server ──
@@ -197,7 +217,7 @@ def generate_launch_description():
                 'use_sim_time':   use_sim_time,
                 'odom_frame_id':  [robot_name, '/odom_filtered'],
                 'base_frame_id':  [robot_name, '/base_footprint'],
-                'scan_topic':     [robot_name, '/lidar'],
+                'scan_topic':     'lidar',
             },
         ],
     )
@@ -228,14 +248,14 @@ def generate_launch_description():
             astar_params,
             {
                 'use_sim_time':  use_sim_time,
-                'base_frame':    [robot_name, '/base_footprint'],
-                'dwa_status_topic':       [robot_name, '/dwa/status'],
-                'dynamic_layer_topic':    [robot_name, '/dynamic_obstacle_layer'],
+                'base_frame':    'base_footprint',
+                'dwa_status_topic':       'dwa/status',
+                'dynamic_layer_topic':    'dynamic_obstacle_layer',
             },
         ],
         remappings=[
-            ('/goal_pose',    [robot_name, '/goal_pose']),
-            ('/global_path',  [robot_name, '/global_path']),
+            ('goal_pose',    'goal_pose'),
+            ('global_path',  'global_path'),
         ],
     )
 
@@ -251,18 +271,19 @@ def generate_launch_description():
             dwa_params,
             {
                 'use_sim_time':        use_sim_time,
-                'odom_topic':          [robot_name, '/odometry/filtered'],
-                'odom_fallback_topic': [robot_name, '/odom'],
-                'global_path_topic':   [robot_name, '/global_path'],
-                'goal_pose_topic':     [robot_name, '/goal_pose'],
-                'scan_topic':          [robot_name, '/lidar'],
-                'cmd_vel_topic':       [robot_name, '/cmd_vel'],
-                'dynamic_layer_topic': [robot_name, '/dynamic_obstacle_layer'],
+                'odom_topic':          'odometry/filtered',
+                'odom_fallback_topic': 'odom',
+                'global_path_topic':   'global_path',
+                'goal_pose_topic':     'goal_pose',
+                'scan_topic':          'lidar',
+                'cmd_vel_topic':       'cmd_vel',
+                'dynamic_layer_topic': 'dynamic_obstacle_layer',
             },
         ],
     )
 
     return LaunchDescription([
+        PushLaunchConfigurations(),
         DeclareLaunchArgument('robot_name',   default_value='amr1'),
         DeclareLaunchArgument('spawn_x',      default_value='3.0'),
         DeclareLaunchArgument('spawn_y',      default_value='15.0'),
@@ -280,4 +301,5 @@ def generate_launch_description():
         lifecycle_manager,
         astar_node,
         dwa_node,
+            PopLaunchConfigurations(),
     ])
