@@ -468,6 +468,7 @@ class AstarPlanner(Node):
         self.declare_parameter('dynamic_path_side_switch_min_clearance_gain', 0.35)
         self.declare_parameter('dynamic_path_side_preference_cost', 0.50)
         self.declare_parameter('dynamic_path_side_preference_distance', 8.0)
+        self.declare_parameter('base_frame', 'base_footprint')
 
         self.heuristic_type   = self.get_parameter('heuristic').value
         self.allow_diagonal   = self.get_parameter('allow_diagonal').value
@@ -546,6 +547,7 @@ class AstarPlanner(Node):
             'dynamic_path_side_preference_cost').value
         self.dynamic_path_side_preference_distance = self.get_parameter(
             'dynamic_path_side_preference_distance').value
+        self.base_frame = self.get_parameter('base_frame').value
 
         # ── 내부 상태 ──────────────────────────────────────────────
         self.map_data: OccupancyGrid | None = None
@@ -1815,7 +1817,7 @@ class AstarPlanner(Node):
         try:
             tf = self.tf_buffer.lookup_transform(
                 'map',
-                'base_footprint',
+                self.base_frame,
                 rclpy.time.Time(),
                 timeout=rclpy.duration.Duration(seconds=0.1),
             )

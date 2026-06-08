@@ -135,3 +135,4 @@ astar_planner:
 
     # 시뮬레이션 시간 사용 (Ignition Gazebo 필수)
     use_sim_time: true
+    base_frame: base_footprint
