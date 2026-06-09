@@ -283,15 +283,30 @@ def generate_launch_description():
         ),
     ])
 
-    # fused_tracker — 공유 단일 인스턴스
-    fused_tracker_launch = os.path.join(
-        perception_share, 'launch', 'fused_tracker.launch.py')
-    from launch.actions import IncludeLaunchDescription
-    from launch.launch_description_sources import PythonLaunchDescriptionSource
+    # 🔴-3: fused_tracker — 단일 공유 인스턴스(쪼개지 않음). 멀티로봇서 내부
+    # tracking_frame 을 map 으로(→ _output_transform 항등, odom_filtered TF 의존 제거),
+    # 입력은 amr1 네임스페이스로 결선. 출력 /perception/tracked_objects(map) 계약 유지.
+    # 단일로봇 fused_tracker.launch.py(기본 tracking_frame=odom_filtered)는 불변(무회귀).
+    # (4대 동시 융합은 노드의 multi-lidar 구독 확장 필요 → 본 F-1 인프라 범위 밖.)
+    fused_cfg = os.path.join(
+        perception_share, 'config', 'fused_tracker_params.yaml')
     fused_tracker = TimerAction(
         period=50.0,
-        actions=[IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(fused_tracker_launch),
+        actions=[Node(
+            package='amr_perception',
+            executable='fused_tracker',
+            name='fused_tracker',
+            output='screen',
+            parameters=[fused_cfg, {
+                'use_sim_time':           True,
+                'tracking_frame':         'map',
+                'lidar_topic':            '/amr1/lidar',
+                'map_topic':              '/amr1/map',
+                'camera_info_topic':      '/amr1/camera_info',
+                'robot_detections_topic': '/amr1/perception/detections',
+                'lidar_frame':            'amr1/lidar_link',
+                'camera_frame':           'amr1/camera_optical_link',
+            }],
         )],
     )
 

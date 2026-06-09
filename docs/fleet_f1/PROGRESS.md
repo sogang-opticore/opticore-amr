@@ -9,8 +9,8 @@
 | — | EXPLORE + PLAN | ✅ 완료 | PLAN.md 작성·커밋 | 6-subsystem 병렬 맵 + 키스톤 정독 |
 | 1 | EKF /tf multi-robot | ✅ **PASS (4/4)** | GATE-T 4 PASS | 진짜원인=ign 센서/odom 토픽 공유→URDF prefix로 분리 |
 | 2 | initialpose 자동화 | ✅ **PASS** | 원샷 0 수동pub + GATE-T | fleet_localization_init: AMCL active 보장(self-heal)+initialpose |
-| 3 | fused_tracker multi | ⏳ 착수 | no crash/lookup-fail + 발행 + 무회귀 | launch param만(코드 0) |
-| 4 | 4대 독립 goal | ⬜ 대기 | GATE-GOAL4 + COLLISION0 + TOPIC | A*/DWA 절대토픽 remap |
+| 3 | fused_tracker multi | ✅ **PASS** | no crash/lookup-fail + 발행 + 무회귀 | tracking_frame=map + amr1 입력(launch만) |
+| 4 | 4대 독립 goal | ⏳ 착수 | GATE-GOAL4 + COLLISION0 + TOPIC | A*/DWA 절대토픽 remap |
 
 ## 로그
 - **[2026-06-09]** EXPLORE 완료(workflow 6 agents, 369k tok). 키스톤 규명:
@@ -38,6 +38,11 @@
   (수동 pub 0, 수동 activate 0) + GATE-TOPIC PASS(이중prefix 0, odom 19~24Hz).
   ⚠ 빌드 함정: 신규 .py 노드는 src에 `chmod +x` 필요(symlink-install이 +x로 노출).
 - **[2026-06-09]** 다음: 🔴-3 fused_tracker(launch param: tracking_frame=map + amr1 입력).
+- **[2026-06-09]** 🔴-3 PASS: multi_robot.launch.py에서 fused_tracker를 직접 Node로
+  (tracking_frame=map → _output_transform 항등, amr1 입력 결선). 노드/단일로봇 launch
+  무수정(무회귀 by construction). 검증: /perception/tracked_objects 38msgs/8s frame=map
+  트랙2, lookup-fail은 기동 1회 transient뿐, no crash. report_gate_3.md.
+- **[2026-06-09]** 다음: 🔴-4 4대 독립 goal 주행(A*/DWA 절대토픽 remap → bag → GATE).
 
 ## BLOCKED
 - 없음.
