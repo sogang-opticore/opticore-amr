@@ -10,7 +10,11 @@
 | 1 | EKF /tf multi-robot | ✅ **PASS (4/4)** | GATE-T 4 PASS | 진짜원인=ign 센서/odom 토픽 공유→URDF prefix로 분리 |
 | 2 | initialpose 자동화 | ✅ **PASS** | 원샷 0 수동pub + GATE-T | fleet_localization_init: AMCL active 보장(self-heal)+initialpose |
 | 3 | fused_tracker multi | ✅ **PASS** | no crash/lookup-fail + 발행 + 무회귀 | tracking_frame=map + amr1 입력(launch만) |
-| 4 | 4대 독립 goal | ⏳ 착수 | GATE-GOAL4 + COLLISION0 + TOPIC | A*/DWA 절대토픽 remap |
+| 4 | 4대 독립 goal | ✅ **PASS** | GATE-GOAL4 + COLLISION0 + TOPIC | stale exe 재빌드 + DWA 프레임 param + 토픽 remap + goal_tol 0.4 |
+
+## 🎉 F-1 최종 합격 (4 🔴 전부 PASS, run9)
+- GATE-T 4/4 · GATE-TOPIC PASS · GATE-GOAL 4/4(err 0.18~0.49) · GATE-COLLISION 0(closest 1.51m).
+- 4대(amr1~4)가 각자 다른 goal까지 독립 A*/DWA 주행, 단일 글로벌 /tf + prefixed frame 공존, 충돌 0.
 
 ## 로그
 - **[2026-06-09]** EXPLORE 완료(workflow 6 agents, 369k tok). 키스톤 규명:
@@ -43,6 +47,14 @@
   무수정(무회귀 by construction). 검증: /perception/tracked_objects 38msgs/8s frame=map
   트랙2, lookup-fail은 기동 1회 transient뿐, no crash. report_gate_3.md.
 - **[2026-06-09]** 다음: 🔴-4 4대 독립 goal 주행(A*/DWA 절대토픽 remap → bag → GATE).
+- **[2026-06-09]** 🔴-4 디버깅 다단계: (1) **stale astar_planner 실행파일**(ament_cmake
+  PROGRAMS 복사 설치, amr_navigation 미재빌드) → base_frame 옛버전 → 재빌드로 해결.
+  (2) DWA LOCAL/GLOBAL/ROBOT_FRAME 클래스 상수 → **파라미터화**(무회귀). (3) A*/DWA 절대
+  토픽 per-robot remap. (4) goal_tolerance 0.2→0.4 launch override(공유 yaml 불변).
+  (5) amr3 (12,6)→(8,4)(spawn 코앞 정적 post map(1,6) 우회 + amr4 분리). 추가로 /dev/shm
+  FastRTPS stale 정리·clean_restart에 ros2 launch 부모 종료 보강.
+- **[2026-06-09]** 🔴-4 **PASS (run9)**: GATE-GOAL 4/4(err≤0.49) + GATE-COLLISION 0(closest
+  1.51m) + GATE-TOPIC PASS. report_gate_4.md. **→ F-1 4 🔴 전부 완료.**
 
 ## BLOCKED
 - 없음.
