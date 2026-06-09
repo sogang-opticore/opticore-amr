@@ -167,7 +167,7 @@ class DeadlockManager(Node):
             f'deadlock_manager up — robots={self.order} '
             f'default_prio={self.default_prio} '
             f'(T={self.t_stuck} R={self.r_prox} D={self.d_retreat}) '
-            f'[🔴-1 골격: 탐지/해소 미활성]')
+            f'[🔴-1+2+3: 우선순위·탐지·해소 활성]')
 
     # ====== 콜백 ======
     def _on_odom(self, name, msg):
