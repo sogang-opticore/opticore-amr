@@ -24,4 +24,15 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
+# Python 노드 설치 (amr_slam 패턴). ament_cmake → 복사설치이므로 .py 수정 후 colcon build 필수.
+install(PROGRAMS
+  src/deadlock_manager.py
+  src/priority_publisher.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY config launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
 ament_package()
