@@ -265,6 +265,24 @@ def generate_launch_description():
                     TimerAction(period=delay, actions=[action])
                 )
 
+    # 🔴-2: fleet localization 초기화 — map_server+amcl active 보장(self-heal) +
+    # per-robot initialpose 자동 발행. 마지막 스폰(amr4 +30s) 이후 기동.
+    robots_param = [f"{r['name']}:{r['x']}:{r['y']}" for r in ROBOTS]
+    loc_init = TimerAction(period=40.0, actions=[
+        Node(
+            package='amr_slam',
+            executable='fleet_localization_init.py',
+            name='fleet_localization_init',
+            output='screen',
+            parameters=[{
+                'use_sim_time': True,
+                'robots': robots_param,
+                'map_origin_x': 3.0,
+                'map_origin_y': 15.0,
+            }],
+        ),
+    ])
+
     # fused_tracker — 공유 단일 인스턴스
     fused_tracker_launch = os.path.join(
         perception_share, 'launch', 'fused_tracker.launch.py')
@@ -277,4 +295,4 @@ def generate_launch_description():
         )],
     )
 
-    return LaunchDescription(all_actions + [fused_tracker])
+    return LaunchDescription(all_actions + [loc_init, fused_tracker])

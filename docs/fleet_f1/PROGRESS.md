@@ -8,8 +8,8 @@
 |---|---|---|---|---|
 | — | EXPLORE + PLAN | ✅ 완료 | PLAN.md 작성·커밋 | 6-subsystem 병렬 맵 + 키스톤 정독 |
 | 1 | EKF /tf multi-robot | ✅ **PASS (4/4)** | GATE-T 4 PASS | 진짜원인=ign 센서/odom 토픽 공유→URDF prefix로 분리 |
-| 2 | initialpose 자동화 | ⏳ 착수 | 원샷 0 수동pub + GATE-T | map=(x−3,y−15,0) 단일소스 + AMCL active 보장 |
-| 3 | fused_tracker multi | ⬜ 대기 | no crash/lookup-fail + 발행 + 무회귀 | launch param만(코드 0) |
+| 2 | initialpose 자동화 | ✅ **PASS** | 원샷 0 수동pub + GATE-T | fleet_localization_init: AMCL active 보장(self-heal)+initialpose |
+| 3 | fused_tracker multi | ⏳ 착수 | no crash/lookup-fail + 발행 + 무회귀 | launch param만(코드 0) |
 | 4 | 4대 독립 goal | ⬜ 대기 | GATE-GOAL4 + COLLISION0 + TOPIC | A*/DWA 절대토픽 remap |
 
 ## 로그
@@ -30,6 +30,14 @@
   URDF `prefix` 인자 + per-robot xacro + per-robot 브리지로 데이터 크로스토크 차단.
   → **GATE-T PASS (4/4)** (수동 initialpose + amr4 수동 lifecycle activate). report_gate_t.md.
 - **[2026-06-09]** 다음: 🔴-2 initialpose 자동화 + AMCL active 보장(원샷 신뢰성).
+- **[2026-06-09]** 🔴-2 PASS: `amr_slam/fleet_localization_init.py` 신규 노드 —
+  per-robot map_server+amcl을 직접 lifecycle 전이(configure→activate, 재시도)로 active
+  보장(amr4 lifecycle 타임아웃 self-heal) + initialpose 자동 발행(map=(x−3,y−15,0),
+  단일소스). multi_robot.launch.py에 +40s TimerAction으로 1개 추가.
+  **원샷 검증**: warehouse 8s → loc_init DONE 36s(all_ready=True) → GATE-T **4/4**
+  (수동 pub 0, 수동 activate 0) + GATE-TOPIC PASS(이중prefix 0, odom 19~24Hz).
+  ⚠ 빌드 함정: 신규 .py 노드는 src에 `chmod +x` 필요(symlink-install이 +x로 노출).
+- **[2026-06-09]** 다음: 🔴-3 fused_tracker(launch param: tracking_frame=map + amr1 입력).
 
 ## BLOCKED
 - 없음.

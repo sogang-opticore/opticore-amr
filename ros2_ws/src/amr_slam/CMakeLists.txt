@@ -16,7 +16,8 @@ endif()
 
 install(PROGRAMS
   src/odom_covariance_injector.py
-  src/imu_covariance_injector.py 
+  src/imu_covariance_injector.py
+  src/fleet_localization_init.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
