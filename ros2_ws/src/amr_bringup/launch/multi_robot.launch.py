@@ -27,7 +27,9 @@ def make_robot_nodes(robot_name, spawn_x, spawn_y):
     nav_pkg     = get_package_share_directory('amr_navigation')
 
     urdf_file        = os.path.join(pkg_dir, 'urdf', 'amr_robot.urdf.xacro')
-    robot_description = xacro.process_file(urdf_file).toxml()
+    # F-1: per-robot prefix → ign 센서/odom 토픽이 로봇별로 갈림(데이터 크로스토크 차단).
+    robot_description = xacro.process_file(
+        urdf_file, mappings={'prefix': f'{robot_name}/'}).toxml()
     map_yaml         = os.path.join(pkg_dir, 'maps', 'warehouse_map.yaml')
     amcl_config      = os.path.join(slam_pkg, 'config', 'amcl_params.yaml')
     astar_params     = os.path.join(nav_pkg, 'config', 'astar_params.yaml')
@@ -189,30 +191,21 @@ def make_robot_nodes(robot_name, spawn_x, spawn_y):
                 package='ros_gz_bridge',
                 executable='parameter_bridge',
                 name='ros_gz_bridge',
+                namespace=rn,
                 output='screen',
                 parameters=[{'use_sim_time': True}],
+                # ign 토픽이 URDF prefix 로 이미 per-robot(/amrN/...). 동일이름 ROS
+                # 토픽으로 직통 브리지 → remap 불필요. (/clock 만 글로벌 공유.)
                 arguments=[
                     '/clock@rosgraph_msgs/msg/Clock[ignition.msgs.Clock',
-                    '/cmd_vel@geometry_msgs/msg/Twist]ignition.msgs.Twist',
-                    '/odom@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
-                    '/tf_gazebo@tf2_msgs/msg/TFMessage[ignition.msgs.Pose_V',
-                    '/joint_states@sensor_msgs/msg/JointState[ignition.msgs.Model',
-                    '/lidar@sensor_msgs/msg/LaserScan[ignition.msgs.LaserScan',
-                    '/imu_raw@sensor_msgs/msg/Imu[ignition.msgs.IMU',
-                    '/camera@sensor_msgs/msg/Image[ignition.msgs.Image',
-                    '/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
-                    '/ground_truth@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
-                ],
-                remappings=[
-                    ('/cmd_vel',      f'/{rn}/cmd_vel'),
-                    ('/odom',         f'/{rn}/odom'),
-                    ('/tf_gazebo',    f'/{rn}/tf_gazebo'),
-                    ('/joint_states', f'/{rn}/joint_states'),
-                    ('/lidar',        f'/{rn}/lidar'),
-                    ('/imu_raw',      f'/{rn}/imu_raw'),
-                    ('/camera',       f'/{rn}/camera'),
-                    ('/camera_info',  f'/{rn}/camera_info'),
-                    ('/ground_truth', f'/{rn}/ground_truth'),
+                    f'/{rn}/cmd_vel@geometry_msgs/msg/Twist]ignition.msgs.Twist',
+                    f'/{rn}/odom@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
+                    f'/{rn}/joint_states@sensor_msgs/msg/JointState[ignition.msgs.Model',
+                    f'/{rn}/lidar@sensor_msgs/msg/LaserScan[ignition.msgs.LaserScan',
+                    f'/{rn}/imu_raw@sensor_msgs/msg/Imu[ignition.msgs.IMU',
+                    f'/{rn}/camera@sensor_msgs/msg/Image[ignition.msgs.Image',
+                    f'/{rn}/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
+                    f'/{rn}/ground_truth@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
                 ],
             ),
         ]),

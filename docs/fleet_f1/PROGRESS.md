@@ -7,8 +7,8 @@
 | 🔴 | 항목 | 상태 | DONE 기준 | 비고 |
 |---|---|---|---|---|
 | — | EXPLORE + PLAN | ✅ 완료 | PLAN.md 작성·커밋 | 6-subsystem 병렬 맵 + 키스톤 정독 |
-| 1 | EKF /tf multi-robot | ⏳ 착수 | GATE-T 4 PASS | 진짜 원인=AMCL initialpose(0,0) 공유 |
-| 2 | initialpose 자동화 | ⬜ 대기 | 원샷 0 수동pub + GATE-T | map=(x−3,y−15,0) 단일소스 |
+| 1 | EKF /tf multi-robot | ✅ **PASS (4/4)** | GATE-T 4 PASS | 진짜원인=ign 센서/odom 토픽 공유→URDF prefix로 분리 |
+| 2 | initialpose 자동화 | ⏳ 착수 | 원샷 0 수동pub + GATE-T | map=(x−3,y−15,0) 단일소스 + AMCL active 보장 |
 | 3 | fused_tracker multi | ⬜ 대기 | no crash/lookup-fail + 발행 + 무회귀 | launch param만(코드 0) |
 | 4 | 4대 독립 goal | ⬜ 대기 | GATE-GOAL4 + COLLISION0 + TOPIC | A*/DWA 절대토픽 remap |
 
@@ -19,6 +19,17 @@
   - 🔴-4 = A* 절대토픽 하드코딩 → namespace 무효. 절대 remap 필요.
   - 검증 재사용: `dwa_dyn/analyze_refix.py`의 SAT overlap + db3 직접 파싱.
 - **[2026-06-09]** PLAN.md 작성. 다음: 🔴-1 빌드→런치→수동 initialpose→GATE-T.
+- **[2026-06-09]** 🔴-1 진행 중 환경 함정 3개 규명·해결:
+  1. 활성 워크스페이스는 `/workspace/ros2_ws`(install 별도 트리). repo의 ros2_ws에
+     빌드하면 `ros2 launch`가 못 찾음 → `/workspace/ros2_ws`에서 빌드해야.
+  2. `pkill -f "...robot_state_publisher..."`를 bash -c 인라인으로 돌리면 그 패턴이
+     호출 셸 argv에 들어가 self-kill → 스크립트 파일(`clean_restart.sh`)로 실행.
+  3. `clean_restart`가 `ros2 launch` 부모를 안 죽여 두 월드 겹침("jump back in time")
+     → clean_restart에 `ros2 launch` 패턴 추가(강화판).
+- **[2026-06-09]** 🔴-1 키스톤 진짜 원인 = **ign 센서/odom 토픽 공유**(URDF 고정 topic).
+  URDF `prefix` 인자 + per-robot xacro + per-robot 브리지로 데이터 크로스토크 차단.
+  → **GATE-T PASS (4/4)** (수동 initialpose + amr4 수동 lifecycle activate). report_gate_t.md.
+- **[2026-06-09]** 다음: 🔴-2 initialpose 자동화 + AMCL active 보장(원샷 신뢰성).
 
 ## BLOCKED
 - 없음.
