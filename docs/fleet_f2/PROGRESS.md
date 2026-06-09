@@ -4,8 +4,15 @@
 
 ## 현재 위치
 - **[완료] EXPLORE** — 6-subsystem 병렬 정독(launch/nav-goal/world/package/f1-harness/odom-tf) + `warehouse.world` 직접 파싱 + `dynamic_obstacle_mover.py` 정독.
-- **[완료] PLAN** — `docs/fleet_f2/PLAN.md` 작성·커밋(사람 비동기 리뷰 대기). 복도좌표·T/R/D·후진점 방법 포함.
-- **[대기] 🔴-1 ~ 🔴-4** — PLAN §4 순서대로. **사람이 §1 좌표 / §3 T/R/D 승인하면 CODE 진입.**
+- **[완료] PLAN** — `docs/fleet_f2/PLAN.md` 커밋(`9b1a596`). 복도좌표·T/R/D·후진점 방법 포함. **사람 승인: 복도 = N-S X=35.5 게이트 ✓**.
+- **[완료] 🔴-1** — `amr_fleet` deadlock_manager 골격 + priority_publisher 주입 커밋(`3eaa572`). 빌드 OK, 인터페이스 게이트 PASS(아래). FSM 전부 NORMAL(탐지/해소 미활성).
+- **[대기·사람] §3 T/R/D 승인** → **[다음] 🔴-2 탐지**(시나리오 검증 필요 → §1 좌표 승인됨, T/R/D 승인 대기). 무인 진행 약속대로 시나리오 검증 직전에서 정지.
+
+## 🔴-1 인터페이스 게이트 (PASS)
+- 기본(미수신): `/fleet/deadlock_status` `prio_source=default`, amr1=4/amr2=3/amr3=2/amr4=1(낮은 id 높은우선), FSM NORMAL.
+- 주입(`priority_publisher.py -p priorities:="[1,4,2,3]"`): 매니저 로그 `수신·반영: {amr1:1,amr2:4,amr3:2,amr4:3}`, status `prio_source=injected` amr1=1.
+- 빌드: `colcon build --packages-select amr_fleet` (active ws `/workspace/ros2_ws`). 노드 standalone 동작(시뮬 불요).
+- ※ 환경: ROS 노드 실행은 Bash 샌드박스 해제 필요(DDS). 인라인 node-path pkill = 셸 self-kill 주의.
 
 ## 게이트 현황 (정량 — PASS만 진짜 완료)
 | 게이트 | 🔴 | 상태 | 근거 |
