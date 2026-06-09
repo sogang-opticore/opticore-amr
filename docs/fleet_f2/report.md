@@ -1,8 +1,8 @@
 # F-2 Fleet 무인 런 — 리포트 (아침 요약)
 
-**결론: 매니저(우선순위 교착 해소) = 구현·검증 완료. 단, 현 맵은 *창발적* 영구 교착을
-강제할 수 없음(개방 그리드 = A* 우회). → end-to-end 창발 demo 는 S-9 2존맵 대기.
-매니저 핵심(탐지+우선순위 양보)은 유닛테스트 + 실 sim controlled demo + 음성테스트로 입증.**
+**결론: 매니저(우선순위 교착 해소) = 구현·검증 완료(유닛 23/23 + 실 sim controlled demo +
+음성테스트 + F-1 무회귀 PASS). 단, 현 맵은 *창발적* 영구 교착을 강제할 수 없음(개방 그리드 =
+A* 우회) → end-to-end 창발 교착 demo 는 단일병목 맵(S-9 2존) 필요. 사람 결정 3안.**
 
 브랜치 `feature/fleet-f2-deadlock`. dev/f1-cc/spawn 미접촉, PR 미생성, install/ 미커밋.
 
@@ -14,7 +14,7 @@
 | GATE-DETECT(negative) | sim | **PASS** | amr1 단독+person_3, status 122샘플 오발동 **0** |
 | GATE-SHARED (controlled) | sim | **PASS** | 두 로봇 같은 점 경합 → 탐지+저우선(amr2) 양보 HOLD→RETREAT→RESUMING, 고우선(amr1) 자원획득 |
 | GATE-BASELINE (창발 교착) | sim | **N/A (맵 한계)** | 3회 모두 reroute, closest approach 2.66~2.76m — 영구 교착 불성립([[BLOCKED.md]]) |
-| F-1 회귀 4게이트 | sim | (별도 런) | enable_deadlock_manager 기본 그래프 = 추가만, 무회귀 by construction |
+| F-1 회귀(매니저 ON) | sim | **PASS** | GATE-GOAL 4/4(err 0.09~0.47) · COLLISION 0(1214샘플) · TOPIC(odom 22.5~22.8Hz) · 매니저 false-trigger **0** |
 
 ## 핵심 기술 결론
 1. **순수 goal_pose 액추에이터로 해소** — HOLD(현pose)/RETREAT(지나온경로 D뒤)/RESUME(mission goal).

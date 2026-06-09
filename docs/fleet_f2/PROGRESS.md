@@ -12,8 +12,8 @@
 - [완료] EXPLORE · PLAN(`9b1a596`).
 - [완료] 🔴-1 우선순위 주입(`3eaa572`, sim PASS).
 - [완료] 🔴-2 탐지 + 🔴-3 해소 FSM(`62c1435`, **유닛테스트 23/23 PASS**).
-- [완료] 검증: 음성 sim(오발동 0) · controlled demo sim(탐지+양보+자원획득) · 유닛.
-- [진행] F-1 회귀 런(매니저 ON으로 F-1 4게이트 재확인).
+- [완료] 검증: 음성 sim(오발동 0) · controlled demo sim(탐지+양보+자원획득) · 유닛 · F-1 무회귀.
+- [완료] 🔴-4 F-1 회귀(매니저 ON → F-1 4대 독립주행 PASS, false-trigger 0).
 - [대기·사람] 창발 교착 demo 방법 결정(맵 한계 → S-9 권장).
 
 ## 게이트 결과 (정량)
@@ -25,7 +25,7 @@
 | GATE-SHARED | sim | **PASS** (탐지 89샘플 · 패자 amr2 HOLD/RETREAT/RESUMING · 승자 amr1 자원 0.94m) |
 | GATE-COLLISION(shared) | sim | **PASS** (overlap 0, closest 0.68m) |
 | GATE-BASELINE(창발) | sim | **N/A 맵한계** (3회 reroute, closest ≥2.66m, 교착 불성립) |
-| F-1 회귀 | sim | (런 중 — bmmssysn4) |
+| F-1 회귀(매니저 ON) | sim | **PASS** (GATE-GOAL 4/4 · COLLISION 0 · TOPIC ok · false-trigger 0) |
 
 ## 핵심 결론
 1. 순수 goal_pose 액추에이터(HOLD/RETREAT/RESUME) → DWA/A* 무수정 = F-1 무회귀 by construction.
