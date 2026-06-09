@@ -56,11 +56,18 @@ class RobotState:
         self.mission_goal = None      # (x, y, yaw) — NORMAL 일 때 캐싱
         self.reached = False
         self.dwa_status = ''          # latest /amrN/dwa/status
-        # 🔴-2/🔴-3 작업용 필드 (현재 미사용 스텁)
+        # 탐지(🔴-2)
         self.stuck = False
         self.blocked_by = None
+        # 해소 FSM(🔴-3)
+        self.hold_goal = None         # HOLD 시 고정 정지점 (x,y,yaw)
+        self.retreat_goal = None      # RETREAT 목표점 (x,y)
         self.hold_since = None
-        self.flip_count = 0
+        self.retreat_since = None
+        self.resume_since = None
+        self.flip_count = 0           # HOLD↔RETREAT 진동 횟수 (livelock 가드)
+        self.livelock = False
+        self.last_pub_t = 0.0         # goal 재발행 throttle
 
 
 class DeadlockManager(Node):
@@ -118,6 +125,7 @@ class DeadlockManager(Node):
         self.default_prio = {name: (self.n - idx)
                              for idx, name in enumerate(self.order)}
         self.injected_prio = {}   # name -> int (/fleet/priorities 수신 시)
+        self.pairs = []           # 현재 탐지된 교착쌍 [{'stuck':i,'by':j}] (관측/게이트용)
 
         # ---- QoS ----
         latched = QoSProfile(reliability=ReliabilityPolicy.RELIABLE,
@@ -230,14 +238,182 @@ class DeadlockManager(Node):
         if rs.mission_goal is not None:
             rs.reached = self._dist(rs.pose, rs.mission_goal) <= self.goal_tol
 
+    # ====== 탐지 (🔴-2) ======
+    def _win_disp(self, rs, win):
+        """pose_hist 의 최근 win 초 구간 bounding-box 변위(m). 데이터 부족 시 None."""
+        if not rs.pose_hist:
+            return None
+        t_last = rs.pose_hist[-1][0]
+        seg = [(x, y) for (t, x, y, _yaw) in rs.pose_hist if t_last - t <= win]
+        span = t_last - rs.pose_hist[0][0]
+        if len(seg) < 2 or span < win * 0.8:
+            return None     # 윈도를 못 채움(이력 부족)
+        xs = [p[0] for p in seg]; ys = [p[1] for p in seg]
+        return math.hypot(max(xs) - min(xs), max(ys) - min(ys))
+
+    def _is_stuck(self, rs):
+        """mission goal 보유·미도달인데 t_stuck 동안 변위<eps_move → 정지."""
+        if rs.mission_goal is None or rs.reached or rs.pose is None:
+            return False
+        d = self._win_disp(rs, self.t_stuck)
+        return d is not None and d < self.eps_move
+
+    def _blocker(self, name):
+        """name 의 진행방향(yaw) 전방 R 내·측방 L_gate 내 가장 가까운 '다른 AMR'. 없으면 None.
+        pedestrian/forklift 는 odometry/TF 가 없어 self.robots 에 없음 → 구조적으로 제외."""
+        rs = self.robots[name]
+        if rs.pose is None:
+            return None
+        x, y, yaw = rs.pose
+        c, s = math.cos(yaw), math.sin(yaw)
+        best, best_f = None, 1e9
+        for other in self.order:
+            if other == name:
+                continue
+            op = self.robots[other].pose
+            if op is None:
+                continue
+            dx, dy = op[0] - x, op[1] - y
+            fwd = dx * c + dy * s          # 진행방향 성분
+            lat = -dx * s + dy * c         # 측방 성분
+            if 0.0 < fwd < self.r_prox and abs(lat) < self.l_gate and fwd < best_f:
+                best, best_f = other, fwd
+        return best
+
+    def _detect(self):
+        """교착쌍 갱신. 🔴-2: 관측만(self.pairs/상태 플래그). FSM 전이·goal 조작 없음."""
+        pairs = []
+        for name in self.order:
+            rs = self.robots[name]
+            stuck = self._is_stuck(rs)
+            blocker = self._blocker(name) if stuck else None
+            if stuck and blocker and (not rs.stuck or rs.blocked_by != blocker):
+                self.get_logger().info(
+                    f'교착 탐지: {name} stuck · 전방 AMR {blocker} '
+                    f'(prio {name}={self.prio(name)} vs {blocker}={self.prio(blocker)} '
+                    f'→ 양보: {name if not self.higher(name, blocker) else blocker})')
+            rs.stuck = stuck
+            rs.blocked_by = blocker
+            if stuck and blocker:
+                pairs.append({'stuck': name, 'by': blocker})
+        self.pairs = pairs
+
+    # ====== 해소 FSM (🔴-3) ======
+    def _pub_goal(self, name, x, y, yaw, force=False):
+        """/amrN/goal_pose 발행(0.5s throttle). HOLD/RETREAT/RESUMING 에서만 호출."""
+        rs = self.robots[name]
+        now = self._now()
+        if not force and (now - rs.last_pub_t) < 0.5:
+            return
+        rs.last_pub_t = now
+        m = PoseStamped()
+        m.header.frame_id = self.map_frame
+        m.header.stamp = self.get_clock().now().to_msg()
+        m.pose.position.x = float(x)
+        m.pose.position.y = float(y)
+        m.pose.orientation.z = math.sin(yaw / 2.0)
+        m.pose.orientation.w = math.cos(yaw / 2.0)
+        self.goal_pubs[name].publish(m)
+
+    def _retreat_point(self, rs):
+        """지나온 pose 이력서 arc-length D 뒤 점(이미 통과 → clear). 이력 부족 시 heading 반대 기하."""
+        hist = rs.pose_hist
+        acc = 0.0
+        for k in range(len(hist) - 1, 0, -1):
+            _, x, y, _yaw = hist[k]
+            _, px, py, _pyaw = hist[k - 1]
+            acc += math.hypot(x - px, y - py)
+            if acc >= self.d_retreat:
+                return (px, py)
+        x, y, yaw = rs.pose
+        return (x - self.d_retreat * math.cos(yaw),
+                y - self.d_retreat * math.sin(yaw))
+
+    def _is_loser(self, rs):
+        """stuck + 전방 AMR + 그 AMR 보다 저우선 → 양보 대상."""
+        return bool(rs.stuck and rs.blocked_by
+                    and not self.higher(rs.name, rs.blocked_by))
+
+    def _enter_hold(self, rs):
+        rs.fsm = FSM.HOLD
+        rs.hold_goal = rs.pose
+        rs.hold_since = self._now()
+        rs.last_pub_t = 0.0
+        self.get_logger().info(f'{rs.name}: NORMAL→HOLD (양보, {rs.blocked_by} 우선)')
+
+    def _enter_retreat(self, rs):
+        rs.flip_count += 1
+        if rs.flip_count > self.livelock_max:
+            rs.livelock = True
+            rs.fsm = FSM.HOLD
+            self.get_logger().warn(
+                f'{rs.name}: LIVELOCK (flip>{self.livelock_max}) — HOLD 동결')
+            return
+        rs.fsm = FSM.RETREAT
+        rs.retreat_goal = self._retreat_point(rs)
+        rs.retreat_since = self._now()
+        rs.last_pub_t = 0.0
+        self.get_logger().info(
+            f'{rs.name}: HOLD→RETREAT map({rs.retreat_goal[0]:.1f},'
+            f'{rs.retreat_goal[1]:.1f}) flip={rs.flip_count}')
+
+    def _enter_resuming(self, rs):
+        rs.fsm = FSM.RESUMING
+        rs.resume_since = self._now()
+        rs.last_pub_t = 0.0
+        self.get_logger().info(f'{rs.name}: →RESUMING (mission goal 복원)')
+
+    def _to_normal(self, rs):
+        rs.fsm = FSM.NORMAL
+        rs.hold_since = rs.retreat_since = rs.resume_since = None
+
+    def _resolve(self):
+        """패자만 FSM 구동(HOLD→RETREAT→RESUMING). 승자는 무개입(자동 재진행)."""
+        for name in self.order:
+            rs = self.robots[name]
+            if rs.livelock:
+                if rs.hold_goal:
+                    self._pub_goal(name, rs.hold_goal[0], rs.hold_goal[1], rs.hold_goal[2])
+                continue
+
+            if rs.fsm == FSM.NORMAL:
+                if self._is_loser(rs):
+                    self._enter_hold(rs)
+
+            elif rs.fsm == FSM.HOLD:
+                if rs.blocked_by is None:                       # 막힘 해소
+                    self._enter_resuming(rs)
+                elif self._now() - rs.hold_since > self.x_hold:  # 대기 초과 → 후진
+                    self._enter_retreat(rs)
+                else:
+                    g = rs.hold_goal
+                    self._pub_goal(name, g[0], g[1], g[2])
+
+            elif rs.fsm == FSM.RETREAT:
+                g = rs.retreat_goal
+                reached = (rs.pose is not None and
+                           math.hypot(rs.pose[0] - g[0], rs.pose[1] - g[1]) < self.goal_tol)
+                if reached or rs.blocked_by is None or \
+                        self._now() - rs.retreat_since > self.retreat_timeout:
+                    self._enter_resuming(rs)
+                else:
+                    self._pub_goal(name, g[0], g[1], rs.pose[2] if rs.pose else 0.0)
+
+            elif rs.fsm == FSM.RESUMING:
+                mg = rs.mission_goal
+                if mg is None or rs.reached or not rs.stuck:     # 복귀/이동 시작 → NORMAL
+                    self._to_normal(rs)
+                elif self._now() - rs.resume_since > self.x_hold and self._is_loser(rs):
+                    self._enter_hold(rs)                         # 재교착 → 새 사이클
+                else:
+                    self._pub_goal(name, mg[0], mg[1], mg[2])
+
     # ====== 컨트롤 루프 ======
     def _control_tick(self):
         for name in self.order:
             self._update_pose(name)
-        # TODO 🔴-2: 교착 탐지 — stuck_i(윈도 변위<eps_move & goal 미도달)
-        #            AND blocked_by(i)=j(전방 R 내 다른 AMR) → 양보 후보.
-        # TODO 🔴-3: 우선순위 비교 → 저우선 i 의 FSM HOLD→RETREAT→RESUMING goal 발행.
-        # 🔴-1 골격: 미활성 — 전부 NORMAL 유지, goal 미조작(F-1 무회귀).
+        self._detect()
+        self._resolve()
 
     # ====== 관측 (/fleet/deadlock_status) ======
     def _publish_status(self):
@@ -251,6 +427,8 @@ class DeadlockManager(Node):
                 'blocked_by': rs.blocked_by,
                 'reached': rs.reached,
                 'has_goal': rs.mission_goal is not None,
+                'livelock': rs.livelock,
+                'flip': rs.flip_count,
                 'pose': [round(c, 3) for c in rs.pose] if rs.pose else None,
             }
         msg = String()
@@ -258,7 +436,7 @@ class DeadlockManager(Node):
             't': round(self._now(), 2),
             'prio_source': 'injected' if self.injected_prio else 'default',
             'robots': robots,
-            'pairs': [],   # 🔴-2 에서 탐지쌍으로 채움
+            'pairs': self.pairs,   # [{'stuck':i,'by':j}] — 🔴-2 탐지쌍
         })
         self.status_pub.publish(msg)
 
