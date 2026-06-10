@@ -130,8 +130,10 @@ def make_robot_nodes(robot_name, spawn_x, spawn_y):
             parameters=[{'use_sim_time': True, 'autostart': True,
                          'node_names': ['map_server', 'amcl']}],
         ),
-        # A*
-        Node(
+    ]
+    timed = [
+        # A* — lifecycle_manager amcl active 대기 후 기동 (+20s)
+        TimerAction(period=20.0, actions=[Node(
             package='amr_navigation',
             executable='astar_planner',
             namespace=rn,
@@ -144,16 +146,14 @@ def make_robot_nodes(robot_name, spawn_x, spawn_y):
                 'dwa_status_topic':    'dwa/status',
                 'dynamic_layer_topic': 'dynamic_obstacle_layer',
             }],
-            # A* 노드가 /map /goal_pose /global_path 를 절대경로로 하드코딩 →
-            # namespace 로 안 갈림. 절대→per-robot 명시 remap. (map 'frame'은 공유 유지.)
             remappings=[
                 ('/map',         f'/{rn}/map'),
                 ('/goal_pose',   f'/{rn}/goal_pose'),
                 ('/global_path', f'/{rn}/global_path'),
             ],
-        ),
-        # DWA
-        Node(
+        )]),
+        # DWA — lifecycle_manager amcl active 대기 후 기동 (+20s)
+        TimerAction(period=20.0, actions=[Node(
             package='amr_navigation',
             executable='dwa_node.py',
             namespace=rn,
@@ -173,22 +173,15 @@ def make_robot_nodes(robot_name, spawn_x, spawn_y):
                 'local_frame':         f'{rn}/odom_filtered',
                 'global_frame':        'map',
                 'robot_frame':         f'{rn}/base_footprint',
-                # F-1 데모: goal latch 를 0.4m 로(공유 yaml 0.20 은 단일로봇 도킹 정밀용
-                # → 무회귀 위해 launch override 만). ARRIVAL_TOL(0.6)보다 작아 안정 도착.
                 'goal_tolerance':      0.4,
             }],
-            # DWA 출력 /dwa/status·/dwa/trajectories·/dwa/best_trajectory 가 절대경로
-            # 하드코딩 → per-robot remap(4대 크로스토크/이름충돌 방지). /dwa/status 는
-            # A* 가 /amrN/dwa/status 로 구독하므로 정합 필수.
             remappings=[
                 ('/dwa/status',          f'/{rn}/dwa/status'),
                 ('/dwa/trajectories',    f'/{rn}/dwa/trajectories'),
                 ('/dwa/best_trajectory', f'/{rn}/dwa/best_trajectory'),
             ],
-        ),
-    ]
+        )]),
 
-    timed = [
         # Spawn +3s
         TimerAction(period=3.0, actions=[
             Node(
