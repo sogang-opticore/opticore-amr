@@ -1912,6 +1912,13 @@ class DwaPlannerNode(Node):
     def __init__(self) -> None:
         super().__init__("dwa_planner")
 
+        # F-1: 멀티로봇 프레임 파라미터화. 기본은 클래스 상수(단일로봇 무회귀),
+        # 멀티로봇 launch 에서 amrN/odom_filtered·amrN/base_footprint 로 오버라이드.
+        # (RHS self.X 는 인스턴스 속성 설정 전이라 클래스 상수를 읽는다.)
+        self.LOCAL_FRAME  = self.declare_parameter("local_frame",  self.LOCAL_FRAME).value
+        self.GLOBAL_FRAME = self.declare_parameter("global_frame", self.GLOBAL_FRAME).value
+        self.ROBOT_FRAME  = self.declare_parameter("robot_frame",  self.ROBOT_FRAME).value
+
         # ── 파라미터 선언 (기존과 완전 동일) ──────────────────────────
         self.declare_parameter("v_max", 1.5)
         self.declare_parameter("v_min", -1.0)

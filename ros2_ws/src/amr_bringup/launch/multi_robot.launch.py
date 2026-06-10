@@ -27,7 +27,9 @@ def make_robot_nodes(robot_name, spawn_x, spawn_y):
     nav_pkg     = get_package_share_directory('amr_navigation')
 
     urdf_file        = os.path.join(pkg_dir, 'urdf', 'amr_robot.urdf.xacro')
-    robot_description = xacro.process_file(urdf_file).toxml()
+    # F-1: per-robot prefix → ign 센서/odom 토픽이 로봇별로 갈림(데이터 크로스토크 차단).
+    robot_description = xacro.process_file(
+        urdf_file, mappings={'prefix': f'{robot_name}/'}).toxml()
     map_yaml         = os.path.join(pkg_dir, 'maps', 'warehouse_map.yaml')
     amcl_config      = os.path.join(slam_pkg, 'config', 'amcl_params.yaml')
     astar_params     = os.path.join(nav_pkg, 'config', 'astar_params.yaml')
@@ -128,8 +130,10 @@ def make_robot_nodes(robot_name, spawn_x, spawn_y):
             parameters=[{'use_sim_time': True, 'autostart': True,
                          'node_names': ['map_server', 'amcl']}],
         ),
-        # A*
-        Node(
+    ]
+    timed = [
+        # A* — lifecycle_manager amcl active 대기 후 기동 (+20s)
+        TimerAction(period=20.0, actions=[Node(
             package='amr_navigation',
             executable='astar_planner',
             namespace=rn,
@@ -143,12 +147,13 @@ def make_robot_nodes(robot_name, spawn_x, spawn_y):
                 'dynamic_layer_topic': 'dynamic_obstacle_layer',
             }],
             remappings=[
-                ('goal_pose',   'goal_pose'),
-                ('global_path', 'global_path'),
+                ('/map',         f'/{rn}/map'),
+                ('/goal_pose',   f'/{rn}/goal_pose'),
+                ('/global_path', f'/{rn}/global_path'),
             ],
-        ),
-        # DWA
-        Node(
+        )]),
+        # DWA — lifecycle_manager amcl active 대기 후 기동 (+20s)
+        TimerAction(period=20.0, actions=[Node(
             package='amr_navigation',
             executable='dwa_node.py',
             namespace=rn,
@@ -163,12 +168,20 @@ def make_robot_nodes(robot_name, spawn_x, spawn_y):
                 'goal_pose_topic':     'goal_pose',
                 'scan_topic':          'lidar',
                 'cmd_vel_topic':       'cmd_vel',
+                'map_topic':           'map',
                 'dynamic_layer_topic': 'dynamic_obstacle_layer',
+                'local_frame':         f'{rn}/odom_filtered',
+                'global_frame':        'map',
+                'robot_frame':         f'{rn}/base_footprint',
+                'goal_tolerance':      0.4,
             }],
-        ),
-    ]
+            remappings=[
+                ('/dwa/status',          f'/{rn}/dwa/status'),
+                ('/dwa/trajectories',    f'/{rn}/dwa/trajectories'),
+                ('/dwa/best_trajectory', f'/{rn}/dwa/best_trajectory'),
+            ],
+        )]),
 
-    timed = [
         # Spawn +3s
         TimerAction(period=3.0, actions=[
             Node(
@@ -189,30 +202,21 @@ def make_robot_nodes(robot_name, spawn_x, spawn_y):
                 package='ros_gz_bridge',
                 executable='parameter_bridge',
                 name='ros_gz_bridge',
+                namespace=rn,
                 output='screen',
                 parameters=[{'use_sim_time': True}],
+                # ign 토픽이 URDF prefix 로 이미 per-robot(/amrN/...). 동일이름 ROS
+                # 토픽으로 직통 브리지 → remap 불필요. (/clock 만 글로벌 공유.)
                 arguments=[
                     '/clock@rosgraph_msgs/msg/Clock[ignition.msgs.Clock',
-                    '/cmd_vel@geometry_msgs/msg/Twist]ignition.msgs.Twist',
-                    '/odom@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
-                    '/tf_gazebo@tf2_msgs/msg/TFMessage[ignition.msgs.Pose_V',
-                    '/joint_states@sensor_msgs/msg/JointState[ignition.msgs.Model',
-                    '/lidar@sensor_msgs/msg/LaserScan[ignition.msgs.LaserScan',
-                    '/imu_raw@sensor_msgs/msg/Imu[ignition.msgs.IMU',
-                    '/camera@sensor_msgs/msg/Image[ignition.msgs.Image',
-                    '/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
-                    '/ground_truth@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
-                ],
-                remappings=[
-                    ('/cmd_vel',      f'/{rn}/cmd_vel'),
-                    ('/odom',         f'/{rn}/odom'),
-                    ('/tf_gazebo',    f'/{rn}/tf_gazebo'),
-                    ('/joint_states', f'/{rn}/joint_states'),
-                    ('/lidar',        f'/{rn}/lidar'),
-                    ('/imu_raw',      f'/{rn}/imu_raw'),
-                    ('/camera',       f'/{rn}/camera'),
-                    ('/camera_info',  f'/{rn}/camera_info'),
-                    ('/ground_truth', f'/{rn}/ground_truth'),
+                    f'/{rn}/cmd_vel@geometry_msgs/msg/Twist]ignition.msgs.Twist',
+                    f'/{rn}/odom@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
+                    f'/{rn}/joint_states@sensor_msgs/msg/JointState[ignition.msgs.Model',
+                    f'/{rn}/lidar@sensor_msgs/msg/LaserScan[ignition.msgs.LaserScan',
+                    f'/{rn}/imu_raw@sensor_msgs/msg/Imu[ignition.msgs.IMU',
+                    f'/{rn}/camera@sensor_msgs/msg/Image[ignition.msgs.Image',
+                    f'/{rn}/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
+                    f'/{rn}/ground_truth@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
                 ],
             ),
         ]),
@@ -272,16 +276,49 @@ def generate_launch_description():
                     TimerAction(period=delay, actions=[action])
                 )
 
-    # fused_tracker — 공유 단일 인스턴스
-    fused_tracker_launch = os.path.join(
-        perception_share, 'launch', 'fused_tracker.launch.py')
-    from launch.actions import IncludeLaunchDescription
-    from launch.launch_description_sources import PythonLaunchDescriptionSource
+    # 🔴-2: fleet localization 초기화 — map_server+amcl active 보장(self-heal) +
+    # per-robot initialpose 자동 발행. 마지막 스폰(amr4 +30s) 이후 기동.
+    robots_param = [f"{r['name']}:{r['x']}:{r['y']}" for r in ROBOTS]
+    loc_init = TimerAction(period=40.0, actions=[
+        Node(
+            package='amr_slam',
+            executable='fleet_localization_init.py',
+            name='fleet_localization_init',
+            output='screen',
+            parameters=[{
+                'use_sim_time': True,
+                'robots': robots_param,
+                'map_origin_x': 3.0,
+                'map_origin_y': 15.0,
+            }],
+        ),
+    ])
+
+    # 🔴-3: fused_tracker — 단일 공유 인스턴스(쪼개지 않음). 멀티로봇서 내부
+    # tracking_frame 을 map 으로(→ _output_transform 항등, odom_filtered TF 의존 제거),
+    # 입력은 amr1 네임스페이스로 결선. 출력 /perception/tracked_objects(map) 계약 유지.
+    # 단일로봇 fused_tracker.launch.py(기본 tracking_frame=odom_filtered)는 불변(무회귀).
+    # (4대 동시 융합은 노드의 multi-lidar 구독 확장 필요 → 본 F-1 인프라 범위 밖.)
+    fused_cfg = os.path.join(
+        perception_share, 'config', 'fused_tracker_params.yaml')
     fused_tracker = TimerAction(
         period=50.0,
-        actions=[IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(fused_tracker_launch),
+        actions=[Node(
+            package='amr_perception',
+            executable='fused_tracker',
+            name='fused_tracker',
+            output='screen',
+            parameters=[fused_cfg, {
+                'use_sim_time':           True,
+                'tracking_frame':         'map',
+                'lidar_topic':            '/amr1/lidar',
+                'map_topic':              '/amr1/map',
+                'camera_info_topic':      '/amr1/camera_info',
+                'robot_detections_topic': '/amr1/perception/detections',
+                'lidar_frame':            'amr1/lidar_link',
+                'camera_frame':           'amr1/camera_optical_link',
+            }],
         )],
     )
 
-    return LaunchDescription(all_actions + [fused_tracker])
+    return LaunchDescription(all_actions + [loc_init, fused_tracker])
