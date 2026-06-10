@@ -94,15 +94,15 @@ def generate_launch_description():
                     # Camera (Ign→ROS)
                     '/camera@sensor_msgs/msg/Image[ignition.msgs.Image',
                     '/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
-                    # ── CCTV (Ign→ROS) ──────────────────────────────
-                    '/cctv/sw/image@sensor_msgs/msg/Image[ignition.msgs.Image',
-                    '/cctv/sw/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
-                    '/cctv/se/image@sensor_msgs/msg/Image[ignition.msgs.Image',
-                    '/cctv/se/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
-                    '/cctv/nw/image@sensor_msgs/msg/Image[ignition.msgs.Image',
-                    '/cctv/nw/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
-                    '/cctv/ne/image@sensor_msgs/msg/Image[ignition.msgs.Image',
-                    '/cctv/ne/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
+                    # CCTV 복도 감시 (Ign→ROS)
+                    '/cctv/corridor_1s/image@sensor_msgs/msg/Image[ignition.msgs.Image',
+                    '/cctv/corridor_1s/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
+                    '/cctv/corridor_1n/image@sensor_msgs/msg/Image[ignition.msgs.Image',
+                    '/cctv/corridor_1n/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
+                    '/cctv/corridor_2s/image@sensor_msgs/msg/Image[ignition.msgs.Image',
+                    '/cctv/corridor_2s/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
+                    '/cctv/corridor_2n/image@sensor_msgs/msg/Image[ignition.msgs.Image',
+                    '/cctv/corridor_2n/camera_info@sensor_msgs/msg/CameraInfo[ignition.msgs.CameraInfo',
                     # ground_truth
                     '/ground_truth@nav_msgs/msg/Odometry[ignition.msgs.Odometry',
                 ],
@@ -145,18 +145,18 @@ def generate_launch_description():
     )
 
     # ── 6. Dynamic obstacle mover (EKF 안정화 후) 
-    dynamic_obstacle_mover = TimerAction(
-         period=8.0,
-         actions=[
-             Node(
-                 package='amr_bringup',
-                 executable='dynamic_obstacle_mover.py',
-                 name='dynamic_obstacle_mover',
-                 output='screen',
-                 parameters=[{'use_sim_time': use_sim_time}],
-             ),
-         ],
-     )
+    # dynamic_obstacle_mover = TimerAction(
+    #      period=8.0,
+    #      actions=[
+    #          Node(
+    #              package='amr_bringup',
+    #              executable='dynamic_obstacle_mover.py',
+    #              name='dynamic_obstacle_mover',
+    #              output='screen',
+    #              parameters=[{'use_sim_time': use_sim_time}],
+    #          ),
+    #      ],
+    #  )
 
     lidar_tf = Node(
         package='tf2_ros',
@@ -179,40 +179,42 @@ def generate_launch_description():
 
     
 
-    # arguments 순서: x y z yaw pitch roll parent_frame child_frame
-    # (ROS2 tf2_ros static_transform_publisher 기준)
-    # ros_args로 node name remapping → 4개 동시 기동 시 name 충돌 방지
-
-    cctv_sw_tf = Node(
+    # ─────────────────────────────────────────────────────────
+    # [B] static TF 4개 — camera_tf 아래에 추가
+    #     수직 하향: pitch=+1.5708 (90°), yaw=0
+    #     tf2_ros 인수 순서: x y z yaw pitch roll parent child
+    # ─────────────────────────────────────────────────────────
+    
+    cctv_corridor_1s_tf = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
-        name='cctv_sw_tf',
-        ros_arguments=['--ros-args', '-r', '__node:=cctv_sw_tf'],
-        arguments=['2', '2', '2.8', '0.785', '-0.524', '0', 'map', 'cctv_sw_link'],
+        name='cctv_corridor_1s_tf',
+        ros_arguments=['--ros-args', '-r', '__node:=cctv_corridor_1s_tf'],
+        arguments=['14.5', '9.5', '4.49', '0', '1.5708', '0', 'map', 'cctv_corridor_1s_link'],
     )
-
-    cctv_se_tf = Node(
+    
+    cctv_corridor_1n_tf = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
-        name='cctv_se_tf',
-        ros_arguments=['--ros-args', '-r', '__node:=cctv_se_tf'],
-        arguments=['58', '2', '2.8', '2.356', '-0.524', '0', 'map', 'cctv_se_link'],
+        name='cctv_corridor_1n_tf',
+        ros_arguments=['--ros-args', '-r', '__node:=cctv_corridor_1n_tf'],
+        arguments=['14.5', '14.5', '4.49', '0', '1.5708', '0', 'map', 'cctv_corridor_1n_link'],
     )
-
-    cctv_nw_tf = Node(
+    
+    cctv_corridor_2s_tf = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
-        name='cctv_nw_tf',
-        ros_arguments=['--ros-args', '-r', '__node:=cctv_nw_tf'],
-        arguments=['2', '38', '2.8', '-0.785', '-0.524', '0', 'map', 'cctv_nw_link'],
+        name='cctv_corridor_2s_tf',
+        ros_arguments=['--ros-args', '-r', '__node:=cctv_corridor_2s_tf'],
+        arguments=['49.5', '15.5', '4.49', '0', '1.5708', '0', 'map', 'cctv_corridor_2s_link'],
     )
-
-    cctv_ne_tf = Node(
+    
+    cctv_corridor_2n_tf = Node(
         package='tf2_ros',
         executable='static_transform_publisher',
-        name='cctv_ne_tf',
-        ros_arguments=['--ros-args', '-r', '__node:=cctv_ne_tf'],
-        arguments=['58', '38', '2.8', '-2.356', '-0.524', '0', 'map', 'cctv_ne_link'],
+        name='cctv_corridor_2n_tf',
+        ros_arguments=['--ros-args', '-r', '__node:=cctv_corridor_2n_tf'],
+        arguments=['49.5', '20.5', '4.49', '0', '1.5708', '0', 'map', 'cctv_corridor_2n_link'],
     )
 
 
@@ -226,11 +228,11 @@ def generate_launch_description():
         odom_cov_node,
         ekf_node,        # +7s
         imu_injector,
-        dynamic_obstacle_mover,  # +8s
+        # dynamic_obstacle_mover,  # +8s
         lidar_tf,
         camera_tf,
-        cctv_sw_tf,   
-        cctv_se_tf,   
-        cctv_nw_tf,   
-        cctv_ne_tf,   
+        cctv_corridor_1s_tf, 
+        cctv_corridor_1n_tf,  
+        cctv_corridor_2s_tf,   
+        cctv_corridor_2n_tf,    
     ])

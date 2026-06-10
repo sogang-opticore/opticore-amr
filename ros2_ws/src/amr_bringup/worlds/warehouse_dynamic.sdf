@@ -1,0 +1,49 @@
+    <!-- ==================== DYNAMIC OBSTACLES ==================== -->
+    <!-- 초기 스폰 위치만 설정 — 이동 경로는 dynamic_obstacle_mover.py 담당 -->
+    <include>
+      <uri>model://standing_person</uri>
+      <name>person_1</name>
+      <pose>14.0 18.0 0.0 0 0 0</pose>
+    </include>
+
+    <!-- person_2: Row A 남쪽 면 옆 (동적, 1m 왕복) -->
+    <include>
+      <uri>model://standing_person</uri>
+      <name>person_2</name>
+      <pose>32.0 20.0 0.0 0 0 0</pose>
+    </include>
+
+    <!-- person_3: Row B 남쪽 면 옆 (동적, 1m 왕복) -->
+    <include>
+      <uri>model://standing_person</uri>
+      <name>person_3</name>
+      <pose>25.0 14.0 0.0 0 0 0</pose>
+    </include>
+
+    <!-- person_s1: 트럭 뒤 occlusion (정적) -->
+    <include>
+      <uri>model://standing_person</uri>
+      <name>person_s1</name>
+      <pose>12.0 34.0 0.0 0 0 0</pose>
+    </include>
+
+    <!-- person_s2: forklift y=30 선상 (정적) -->
+    <include>
+      <uri>model://standing_person</uri>
+      <name>person_s2</name>
+      <pose>40.0 30.0 0.0 0 0 0</pose>
+    </include>
+
+    <!-- person_s3: Row C 북쪽 면 옆 (정적) -->
+    <include>
+      <uri>model://standing_person</uri>
+      <name>person_s3</name>
+      <pose>18.0 10.0 0.0 0 0 0</pose>
+    </include>
+
+    <include>
+      <uri>model://pickup</uri>
+      <name>forklift_1</name>
+      <pose>10.0 30.0 0.0 0 0 1.5708</pose>
+    </include>  
+

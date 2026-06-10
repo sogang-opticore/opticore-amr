@@ -118,34 +118,34 @@
 
     <!-- ==================== WALLS (60×40m) ==================== -->
     <model name="wall_south">
-      <static>true</static><pose>30 0 2.25 0 0 0</pose>
+      <static>true</static><pose>30 0 1.5 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><box><size>60 0.2 4.5</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>60 0.2 4.5</size></box></geometry>
+        <collision name="c"><geometry><box><size>60 0.2 3.0</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>60 0.2 3.0</size></box></geometry>
           <material><ambient>0.58 0.55 0.48 1</ambient><diffuse>0.60 0.57 0.50 1</diffuse></material>
       </visual></link>
     </model>
     <model name="wall_north">
-      <static>true</static><pose>30 40 2.25 0 0 0</pose>
+      <static>true</static><pose>30 40 1.5 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><box><size>60 0.2 4.5</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>60 0.2 4.5</size></box></geometry>
+        <collision name="c"><geometry><box><size>60 0.2 3.0</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>60 0.2 3.0</size></box></geometry>
           <material><ambient>0.58 0.55 0.48 1</ambient><diffuse>0.60 0.57 0.50 1</diffuse></material>
       </visual></link>
     </model>
     <model name="wall_west">
-      <static>true</static><pose>0 20 2.25 0 0 0</pose>
+      <static>true</static><pose>0 20 1.5 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><box><size>0.2 40 4.5</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>0.2 40 4.5</size></box></geometry>
+        <collision name="c"><geometry><box><size>0.2 40 3.0</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 40 3.0</size></box></geometry>
           <material><ambient>0.58 0.55 0.48 1</ambient><diffuse>0.60 0.57 0.50 1</diffuse></material>
       </visual></link>
     </model>
     <model name="wall_east">
-      <static>true</static><pose>60 20 2.25 0 0 0</pose>
+      <static>true</static><pose>60 20 1.5 0 0 0</pose>
       <link name="link">
-        <collision name="c"><geometry><box><size>0.2 40 4.5</size></box></geometry></collision>
-        <visual name="v"><geometry><box><size>0.2 40 4.5</size></box></geometry>
+        <collision name="c"><geometry><box><size>0.2 40 3.0</size></box></geometry></collision>
+        <visual name="v"><geometry><box><size>0.2 40 3.0</size></box></geometry>
           <material><ambient>0.58 0.55 0.48 1</ambient><diffuse>0.60 0.57 0.50 1</diffuse></material>
       </visual></link>
     </model>
@@ -685,14 +685,14 @@
 
 
     <!-- ==================== CEILING (60m × 40m) ==================== -->
-    <!--  벽 높이 4.5m에 맞춰 천장 슬래브 Z=4.6 (두께 0.2m)            -->
+    <!--  벽 높이 3.0m에 맞춰 천장 슬래브 Z=3.1 (두께 0.2m)            -->
     <!--  collision 없음 — LiDAR 간섭 방지, AMR 동작에 영향 없음        -->
     <!--  X방향 3패널 + 중앙 조명 슬롯으로 분할                         -->
 
     <!-- 서측 패널 (X=0~27) -->
     <model name="ceiling_west">
       <static>true</static>
-      <pose>13.5 20 4.6 0 0 0</pose>
+      <pose>13.5 20 3.1 0 0 0</pose>
       <link name="link">
         <visual name="v">
           <geometry><box><size>27 40 0.2</size></box></geometry>
@@ -707,7 +707,7 @@
     <!-- 동측 패널 (X=33~60) -->
     <model name="ceiling_east">
       <static>true</static>
-      <pose>46.5 20 4.6 0 0 0</pose>
+      <pose>46.5 20 3.1 0 0 0</pose>
       <link name="link">
         <visual name="v">
           <geometry><box><size>27 40 0.2</size></box></geometry>
@@ -722,7 +722,7 @@
     <!-- 중앙 조명 슬롯 (X=27~33) — 약간 어두운 색으로 조명 홈 표현 -->
     <model name="ceiling_light_slot">
       <static>true</static>
-      <pose>30 20 4.6 0 0 0</pose>
+      <pose>30 20 3.1 0 0 0</pose>
       <link name="link">
         <visual name="v">
           <geometry><box><size>6 40 0.2</size></box></geometry>
@@ -736,15 +736,15 @@
 
   <!-- ==================== CCTV CAMERAS (S-08 복도 감시) ====================
        위치: 복도 ① (B-C, wx=14.5) / 복도 ② (A-B, wx=49.5)
-       z=4.49m(천장 4.5m 직하), pitch=1.1345 rad(수직서 25° 기울여 입구 방향), 입구서 Y축 4m 후퇴
+       z=2.99m (천장 3.0m 한계), pitch=+1.5708 rad (수직 하향 90°)
        FOV=95° (1.658 rad), 640×480, 15Hz
        topic: /cctv/{corridor_1s|corridor_1n|corridor_2s|corridor_2n}/image
   ============================================================ -->
 
-    <!-- ① 복도 ① 남쪽 입구 감시 — 입구(Y=9.5)서 남쪽 4m 후퇴, 입구쪽(+Y) 25° 틸트 -->
+    <!-- ① 복도 ① 남쪽 입구 (14.5, 9.5, 2.99) -->
     <model name="cctv_corridor_1s">
       <static>true</static>
-      <pose>14.5 5.5 4.49 0 1.1345 1.5708</pose>
+      <pose>14.5 9.5 2.99 0 1.5708 0</pose>
       <link name="link">
         <visual name="body">
           <geometry><box><size>0.08 0.08 0.06</size></box></geometry>
@@ -774,10 +774,10 @@
       </link>
     </model>
 
-    <!-- ② 복도 ① 북쪽 입구 감시 — 입구(Y=14.5)서 북쪽 4m 후퇴, 입구쪽(-Y) 25° 틸트 -->
+    <!-- ② 복도 ① 북쪽 입구 (14.5, 14.5, 2.99) -->
     <model name="cctv_corridor_1n">
       <static>true</static>
-      <pose>14.5 18.5 4.49 0 1.1345 -1.5708</pose>
+      <pose>14.5 14.5 2.99 0 1.5708 0</pose>
       <link name="link">
         <visual name="body">
           <geometry><box><size>0.08 0.08 0.06</size></box></geometry>
@@ -807,10 +807,10 @@
       </link>
     </model>
 
-    <!-- ③ 복도 ② 남쪽 입구 감시 — 입구(Y=15.5)서 남쪽 4m 후퇴, 입구쪽(+Y) 25° 틸트 -->
+    <!-- ③ 복도 ② 남쪽 입구 (49.5, 15.5, 2.99) -->
     <model name="cctv_corridor_2s">
       <static>true</static>
-      <pose>49.5 11.5 4.49 0 1.1345 1.5708</pose>
+      <pose>49.5 15.5 2.99 0 1.5708 0</pose>
       <link name="link">
         <visual name="body">
           <geometry><box><size>0.08 0.08 0.06</size></box></geometry>
@@ -840,10 +840,10 @@
       </link>
     </model>
 
-    <!-- ④ 복도 ② 북쪽 입구 감시 — 입구(Y=20.5)서 북쪽 4m 후퇴, 입구쪽(-Y) 25° 틸트 -->
+    <!-- ④ 복도 ② 북쪽 입구 (49.5, 20.5, 2.99) -->
     <model name="cctv_corridor_2n">
       <static>true</static>
-      <pose>49.5 24.5 4.49 0 1.1345 -1.5708</pose>
+      <pose>49.5 20.5 2.99 0 1.5708 0</pose>
       <link name="link">
         <visual name="body">
           <geometry><box><size>0.08 0.08 0.06</size></box></geometry>
