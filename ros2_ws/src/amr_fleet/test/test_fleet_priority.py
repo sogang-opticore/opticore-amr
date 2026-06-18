@@ -217,3 +217,21 @@ def test_H5_cycle_break_deterministic():
     p2 = fp.layer_priorities(ids, baseline, edges)
     assert p1 == p2                     # 결정론 (사전식 최대 edge (3,1) 드롭)
     assert p1[1] > p1[2] and p1[2] > p1[3]
+
+
+# ---------------------------------------------------------------------------
+# H6 — 미국지화(pose=None) 로봇: 예측서 제외 but baseline(full N)엔 포함
+#   (부분 국지화 시 absent 로봇에 0 을 쏘는 버그 방지)
+# ---------------------------------------------------------------------------
+def test_H6_unlocalized_robot_kept_in_baseline():
+    robots = [
+        {'id': 1, 'pose': (0.0, 0.0, 0.0), 'path': [(0, 0), (10, 0)], 'speed': 1.0},
+        {'id': 2, 'pose': (5.0, -5.0, 0.0), 'path': [(5, -5), (5, 5)], 'speed': 1.0},
+        {'id': 3, 'pose': None, 'path': [], 'speed': None},   # TF 아직 없음
+    ]
+    res = fp.compute_priorities(robots, [], {})
+    rr = [c for c in res.conflicts if c.kind == 'robot-robot']
+    assert len(rr) == 1 and (rr[0].a, rr[0].b) == (1, 2)      # amr3 는 충돌서 제외
+    assert not any(3 in (c.a, c.b) for c in res.conflicts)
+    assert fp.to_array(res.priorities, 3) == [3, 2, 1]        # amr3=1 (baseline, 0 아님)
+    assert res.priorities[3] == 1

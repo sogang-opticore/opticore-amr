@@ -316,8 +316,15 @@ def compute_priorities(robots: List[dict], obstacles: Optional[List[dict]] = Non
     espeed: Dict[int, float] = {}
     pose_xy: Dict[int, XY] = {}
     for r in robs:
+        pose = r.get('pose')
+        if pose is None:                 # 미국지화(TF 없음) → baseline 엔 포함, 예측서만 제외
+            pose_xy[r['id']] = None
+            traj[r['id']] = None
+            fwd[r['id']] = []
+            espeed[r['id']] = cruise
+            continue
         ex = _eff_speed(r.get('speed'), cruise, seps)
-        px = (float(r['pose'][0]), float(r['pose'][1]))
+        px = (float(pose[0]), float(pose[1]))
         path = [(float(q[0]), float(q[1])) for q in (r.get('path') or [])]
         _start, forward = _snap_to_path(px, path)
         traj[r['id']] = sample_trajectory(px, path, ex, horizon, dt)
@@ -333,6 +340,8 @@ def compute_priorities(robots: List[dict], obstacles: Optional[List[dict]] = Non
         for jj in range(ii + 1, n):
             a = ids[ii]          # a < b (정렬됨)
             b = ids[jj]
+            if pose_xy[a] is None or pose_xy[b] is None:
+                continue         # 미국지화 로봇은 예측 불가 → baseline 만
             # handoff 게이트: 이미 가까운 쌍은 F-2 반응존 → 손대지 않음
             if math.hypot(pose_xy[a][0] - pose_xy[b][0],
                           pose_xy[a][1] - pose_xy[b][1]) < handoff:
@@ -377,6 +386,8 @@ def compute_priorities(robots: List[dict], obstacles: Optional[List[dict]] = Non
     # ---- robot-obstacle (로봇 무조건 양보; 배열 비강제) ----
     obs = list(obstacles or [])
     for r in robs:
+        if pose_xy[r['id']] is None:
+            continue
         sa = traj[r['id']]
         for oidx, ob in enumerate(obs):
             ox = float(ob['x'])

@@ -193,13 +193,13 @@ class F3PriorityNode(Node):
             if pose is not None:
                 robot_poses[name] = pose
 
+        # 전 로봇을 코어에 전달(미국지화는 pose=None) → baseline 은 항상 full N=[N..1],
+        # 예측은 국지화된 로봇끼리만. (부분 국지화 시 absent 로봇에 0 발행하는 버그 방지.)
         robots = []
         for name in self.order:
-            if name not in robot_poses:
-                continue
             robots.append({
                 'id': self.id_of[name],
-                'pose': robot_poses[name],
+                'pose': robot_poses.get(name),   # None if TF 아직 없음
                 'path': self.paths.get(name, []),
                 'speed': self.speeds.get(name),
                 'priority': None,            # 외부 우선순위 소스 미사용 → 기본 baseline
@@ -208,9 +208,8 @@ class F3PriorityNode(Node):
         obstacles = self._build_obstacles(robot_poses)
         result = fp.compute_priorities(robots, obstacles, self.core_params)
 
-        # /fleet/priorities — 항상 전체 배열, 변할 때만 발행
-        array = fp.to_array(result.priorities, self.n,
-                            default=0) if robots else None
+        # /fleet/priorities — 항상 전체 배열, 변할 때만 발행. 국지화 0대면 발행 안 함.
+        array = fp.to_array(result.priorities, self.n) if robot_poses else None
         if array is not None and array != self.last_array:
             self.last_array = array
             msg = Int32MultiArray()
