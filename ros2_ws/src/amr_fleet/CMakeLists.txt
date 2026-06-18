@@ -22,6 +22,12 @@ if(BUILD_TESTING)
   # a copyright and license is added to all source files
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
+
+  # F-3: GATE-F3-LOGIC — fleet_priority 순수코어 단위테스트 (sim 불필요·결정론)
+  find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(test_fleet_priority test/test_fleet_priority.py
+    TIMEOUT 120
+  )
 endif()
 
 # Python 노드 설치 (amr_slam 패턴). ament_cmake → 복사설치이므로 .py 수정 후 colcon build 필수.
