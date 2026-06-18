@@ -2,6 +2,8 @@
 
 브랜치 `feature/fleet-f3-priority`. dev/f2-deadlock/f1-cc/spawn 미접촉, PR 미생성, install/ 미커밋.
 F-2 노드(deadlock_manager/priority_publisher)·amr_msgs·perception·maps·world·env.sh **불가침 유지**.
+> **로컬 6커밋 완료**(8d09264→cc80a54). **원격 push 는 무인환경 git 자격증명 부재로 보류** →
+> HU 가 `git push -u origin feature/fleet-f3-priority` 1회 실행(브랜치만; dev merge/PR 금지 §0).
 
 ## TL;DR (아침 30초 요약)
 - **★ GATE-F3-LOGIC PASS — 키스톤 달성.** `fleet_priority` 순수코어 단위테스트 **pytest 13/13**
