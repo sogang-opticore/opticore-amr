@@ -34,6 +34,8 @@ endif()
 install(PROGRAMS
   src/deadlock_manager.py
   src/priority_publisher.py
+  src/f3_priority_node.py
+  src/fleet_priority.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
