@@ -204,7 +204,7 @@ class DeadlockManager(Node):
         return self.injected_prio.get(name, self.default_prio[name])
 
     def higher(self, a, b):
-        """a 가 b 보다 우선이면 True (값 큼; 동률이면 낮은 id)."""
+        """Return True if a outranks b (larger value; lower id on tie)."""
         pa, pb = self.prio(a), self.prio(b)
         if pa != pb:
             return pa > pb
@@ -248,19 +248,23 @@ class DeadlockManager(Node):
         span = t_last - rs.pose_hist[0][0]
         if len(seg) < 2 or span < win * 0.8:
             return None     # 윈도를 못 채움(이력 부족)
-        xs = [p[0] for p in seg]; ys = [p[1] for p in seg]
+        xs = [p[0] for p in seg]
+        ys = [p[1] for p in seg]
         return math.hypot(max(xs) - min(xs), max(ys) - min(ys))
 
     def _is_stuck(self, rs):
-        """mission goal 보유·미도달인데 t_stuck 동안 변위<eps_move → 정지."""
+        """Mission goal 보유·미도달인데 t_stuck 동안 변위<eps_move → 정지."""
         if rs.mission_goal is None or rs.reached or rs.pose is None:
             return False
         d = self._win_disp(rs, self.t_stuck)
         return d is not None and d < self.eps_move
 
     def _blocker(self, name):
-        """name 의 진행방향(yaw) 전방 R 내·측방 L_gate 내 가장 가까운 '다른 AMR'. 없으면 None.
-        pedestrian/forklift 는 odometry/TF 가 없어 self.robots 에 없음 → 구조적으로 제외."""
+        """
+        Name 의 진행방향(yaw) 전방 R 내·측방 L_gate 내 가장 가까운 '다른 AMR'. 없으면 None.
+
+        pedestrian/forklift 는 odometry/TF 가 없어 self.robots 에 없음 → 구조적으로 제외.
+        """
         rs = self.robots[name]
         if rs.pose is None:
             return None
@@ -330,7 +334,7 @@ class DeadlockManager(Node):
                 y - self.d_retreat * math.sin(yaw))
 
     def _is_loser(self, rs):
-        """stuck + 전방 AMR + 그 AMR 보다 저우선 → 양보 대상."""
+        """Stuck + 전방 AMR + 그 AMR 보다 저우선 → 양보 대상."""
         return bool(rs.stuck and rs.blocked_by
                     and not self.higher(rs.name, rs.blocked_by))
 
