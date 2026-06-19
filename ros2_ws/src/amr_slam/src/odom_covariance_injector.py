@@ -7,24 +7,27 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 class OdomCovarianceInjector(Node):
     def __init__(self):
         super().__init__('odom_covariance_injector')
-
-        qos = QoSProfile(                                    # 추가
-            reliability=ReliabilityPolicy.BEST_EFFORT,       # 추가
-            history=HistoryPolicy.KEEP_LAST,                 # 추가
-            depth=10                                         # 추가
-        )   
-
+        self.declare_parameter('robot_name', '')
+        self.robot_name = self.get_parameter('robot_name').value
+        qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10
+        )
         self.sub = self.create_subscription(
             Odometry, '/odom', self.callback, qos)
         self.pub = self.create_publisher(
             Odometry, '/odom_with_cov', qos)
 
     def callback(self, msg):
-        msg.pose.covariance[0]  = 0.05   # x
-        msg.pose.covariance[7]  = 0.05   # y
-        msg.pose.covariance[35] = 0.1    # yaw
-        msg.twist.covariance[0]  = 0.1   # vx
-        msg.twist.covariance[35] = 0.2   # vyaw
+        msg.pose.covariance[0]  = 0.05
+        msg.pose.covariance[7]  = 0.05
+        msg.pose.covariance[35] = 0.1
+        msg.twist.covariance[0]  = 0.1
+        msg.twist.covariance[35] = 0.2
+        if self.robot_name:
+            msg.header.frame_id = f'{self.robot_name}/odom'
+            msg.child_frame_id  = f'{self.robot_name}/base_footprint'
         self.pub.publish(msg)
 
 def main():
