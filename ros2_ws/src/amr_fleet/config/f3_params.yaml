@@ -1,0 +1,23 @@
+# F-3 proactive priority — 정책 파라미터 (CLAUDE.md §8.4).
+# 노드 이름 f3_priority_node 기준. robots / use_sim_time 은 launch 에서 주입.
+f3_priority_node:
+  ros__parameters:
+    # 예측 지평
+    horizon_sec: 6.0
+    horizon_dt: 0.5
+    # 충돌 반경
+    robot_conflict_radius_m: 1.5
+    obstacle_conflict_radius_m: 2.0
+    # 투영 속도(멈춤 시)
+    cruise_speed_mps: 0.8
+    stopped_speed_eps: 0.05
+    # 결정 정책
+    arrival_tie_epsilon_sec: 1.0
+    handoff_distance_m: 2.0       # < 이 거리 쌍은 F-2 영역(손 안 댐)
+    priority_dominant: true       # false 면 right_of_way 우선
+    # 노드 운영
+    publish_rate_hz: 5.0
+    self_filter_radius_m: 0.8     # 로봇 근방 트랙은 장애물로 안 봄(self-tracking 방지)
+    map_frame: map
+    base_frame_suffix: base_footprint
+    tracked_objects_topic: /perception/tracked_objects

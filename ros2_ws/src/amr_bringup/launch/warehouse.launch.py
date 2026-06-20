@@ -10,6 +10,7 @@ os.environ['IGN_GAZEBO_RESOURCE_PATH'] = \
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, ExecuteProcess, TimerAction
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
@@ -35,12 +36,16 @@ def generate_launch_description():
                 name='dynamic_obstacle_mover',
                 output='screen',
                 parameters=[{'use_sim_time': use_sim_time}],
+                # F-2: dynamic_obstacles:=false 면 보행자/지게차 비활성(교착 prepos 드라이브 청정화).
+                # 기본 true = F-1 무회귀. 음성 테스트는 true(person_3 필요).
+                condition=IfCondition(LaunchConfiguration('dynamic_obstacles')),
             ),
         ],
     )
 
     return LaunchDescription([
         DeclareLaunchArgument('use_sim_time', default_value='true'),
+        DeclareLaunchArgument('dynamic_obstacles', default_value='true'),
         ign_gazebo,
         dynamic_obstacle_mover,
     ])
