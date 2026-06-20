@@ -4,7 +4,7 @@
 cctv_detector:
   ros__parameters:
     use_sim_time: true
-    camera_names: ["corridor_1n", "corridor_1s"]   # 데모=좌핀치. 우핀치 추가 시 2n/2s
+    camera_names: ["corridor_1n"]   # 데모=좌핀치 person 은 1n 전담. 1s 제외: (1)person 까지 ~13m>10m far-clip 못봄 (2)로봇 start(14.5,5)가 1s(14.5,5.5) 직하라 로봇 이동 시 1s 가 로봇을 foreground 로 오검(자기차단). 우핀치 추가 시 2n/2s.   # 데모=좌핀치. 우핀치 추가 시 2n/2s
     image_topic_template: "/cctv/{cam}/image"
     detections_topic: "/cctv/detections"
     detector_type: "bgsub"          # EXPLORE 락: YOLO는 person_1을 bird 오분류 → bgsub
@@ -23,12 +23,16 @@ cctv_nogo_overlay:
     detections_topic: "/cctv/detections"
     map_topic: "/map"                       # 데모: /amr1/map (launch override)
     layer_topic: "/dynamic_obstacle_layer"  # 데모: /amr1/dynamic_obstacle_layer (launch override)
-    camera_names: ["corridor_1n", "corridor_1s"]
+    camera_names: ["corridor_1n"]   # 데모=좌핀치 person 은 1n 전담. 1s 제외: (1)person 까지 ~13m>10m far-clip 못봄 (2)로봇 start(14.5,5)가 1s(14.5,5.5) 직하라 로봇 이동 시 1s 가 로봇을 foreground 로 오검(자기차단). 우핀치 추가 시 2n/2s.
     default_intrinsics: [293.244, 293.244, 320.0, 240.0]  # camera_info 실측 K
     use_camera_info: true
     map_offset_x: -2.96             # 실측 world→map (map = world + offset)
     map_offset_y: -15.12
     nogo_radius_m: 0.9              # 1.5m 복도 막되 인접갭 안 번지게 (게이트서 튜닝)
+    max_range_m: 10.0              # 카메라 far-clip 밖 투영 거부(프레임 가장자리 원거리 오검 차단)
+    robot_exclusion_enabled: true  # 카메라가 우회 중인 로봇 자신을 사람으로 오검 방지
+    robot_pose_topic: "/amr1/amcl_pose"
+    robot_exclusion_radius_m: 1.5
     occupied_value: 100            # >=65 점유
     publish_rate_hz: 5.0
     decay_timeout_sec: 1.5         # 미검출 점 만료 → 재개방

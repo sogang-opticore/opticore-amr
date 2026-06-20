@@ -22,6 +22,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPo
 from nav_msgs.msg import OccupancyGrid
 from sensor_msgs.msg import CameraInfo
 from vision_msgs.msg import Detection2DArray
+from geometry_msgs.msg import PoseWithCovarianceStamped
 
 from amr_perception.cctv_projection import (
     project_pixel_to_ground, world_to_map, map_to_cell)
@@ -50,12 +51,18 @@ class CctvNogoOverlay(Node):
         self.declare_parameter('map_offset_x', -2.96)
         self.declare_parameter('map_offset_y', -15.12)
         self.declare_parameter('nogo_radius_m', 0.9)
+        self.declare_parameter('max_range_m', 10.0)   # 카메라 far-clip(10m) 밖 투영 거부(프레임 가장자리 노이즈/원거리 오검 차단)
         self.declare_parameter('occupied_value', 100)
         self.declare_parameter('publish_rate_hz', 5.0)
         self.declare_parameter('decay_timeout_sec', 1.5)
         self.declare_parameter('min_persist_count', 3)
         self.declare_parameter('cluster_radius_m', 1.0)
         self.declare_parameter('clear_hold_sec', 1.2)
+        # 로봇 자기차단: 카메라가 (코너 밖으로 우회 중인) 로봇 자신을 사람으로 오검하지 않도록
+        # 로봇 pose 근처 검출을 버린다. CCTV 데모의 핵심 가정(로봇 LiDAR 사각 사람)과 무관한 노이즈 차단.
+        self.declare_parameter('robot_exclusion_enabled', True)
+        self.declare_parameter('robot_pose_topic', '/amr1/amcl_pose')
+        self.declare_parameter('robot_exclusion_radius_m', 1.5)
         # 카메라별 pose override (기본은 DEFAULT_POSES)
         for cam, pose in DEFAULT_POSES.items():
             self.declare_parameter(f'pose_{cam}', pose)
@@ -69,12 +76,17 @@ class CctvNogoOverlay(Node):
         self.off_x = float(self.get_parameter('map_offset_x').value)
         self.off_y = float(self.get_parameter('map_offset_y').value)
         self.radius = float(self.get_parameter('nogo_radius_m').value)
+        self.max_range = float(self.get_parameter('max_range_m').value)
         self.value = int(self.get_parameter('occupied_value').value)
         rate = float(self.get_parameter('publish_rate_hz').value)
         self.decay = float(self.get_parameter('decay_timeout_sec').value)
         self.min_persist = int(self.get_parameter('min_persist_count').value)
         self.cluster_r = float(self.get_parameter('cluster_radius_m').value)
         self.clear_hold = max(1, int(self.get_parameter('clear_hold_sec').value * rate))
+        self.robot_excl = bool(self.get_parameter('robot_exclusion_enabled').value)
+        robot_pose_topic = self.get_parameter('robot_pose_topic').value
+        self.robot_excl_r2 = float(self.get_parameter('robot_exclusion_radius_m').value) ** 2
+        self.robot_world = None  # (wx, wy)
 
         self.poses = {}
         for cam in self.cams:
@@ -110,6 +122,10 @@ class CctvNogoOverlay(Node):
                     CameraInfo, f'/cctv/{cam}/camera_info',
                     lambda m, c=cam: self._on_cinfo(m, c), sub_qos)
 
+        if self.robot_excl:
+            self.create_subscription(
+                PoseWithCovarianceStamped, robot_pose_topic, self._on_robot, sub_qos)
+
         self.layer_pub = self.create_publisher(OccupancyGrid, layer_topic, layer_qos)
         self.timer = self.create_timer(1.0 / max(0.5, rate), self._publish)
         self.get_logger().info(
@@ -125,10 +141,15 @@ class CctvNogoOverlay(Node):
             f'origin=({msg.info.origin.position.x:.2f},{msg.info.origin.position.y:.2f})',
             once=True)
 
+    def _on_robot(self, msg: PoseWithCovarianceStamped):
+        # amcl_pose 는 map 프레임 → world = map - map_offset (map = world + map_offset).
+        self.robot_world = (msg.pose.pose.position.x - self.off_x,
+                            msg.pose.pose.position.y - self.off_y)
+
     def _on_cinfo(self, msg: CameraInfo, cam: str):
-        k = msg.k
-        if k and k[0] > 0.0:
-            self.K[cam] = (k[0], k[4], k[2], k[5])
+        k = msg.k  # float64[9] (numpy array) — bool 평가 금지(ambiguous)
+        if len(k) >= 9 and float(k[0]) > 0.0:
+            self.K[cam] = (float(k[0]), float(k[4]), float(k[2]), float(k[5]))
 
     def _on_det(self, msg: Detection2DArray):
         cam = msg.header.frame_id
@@ -145,6 +166,16 @@ class CctvNogoOverlay(Node):
             world = project_pixel_to_ground(foot_u, foot_v, pose, K)
             if world is None:
                 continue
+            # far-clip 범위 게이트: 카메라(높이 포함)~바닥점 3D 거리가 max_range 초과면 거부.
+            # 프레임 가장자리(거의 수평 ray)서 작은 검출이 먼 곳으로 투영되는 오검 차단.
+            dist = math.sqrt((world[0] - pose[0]) ** 2 + (world[1] - pose[1]) ** 2 + pose[2] ** 2)
+            if dist > self.max_range:
+                continue
+            # 로봇 자기차단: 로봇 pose 근처 검출은 로봇 자신일 가능성 → 버림.
+            if self.robot_excl and self.robot_world is not None:
+                if ((world[0] - self.robot_world[0]) ** 2 +
+                        (world[1] - self.robot_world[1]) ** 2) <= self.robot_excl_r2:
+                    continue
             self.points.append((t, world[0], world[1]))
 
     # ---- publish ----
