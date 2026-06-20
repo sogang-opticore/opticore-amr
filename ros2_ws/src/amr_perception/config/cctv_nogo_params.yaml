@@ -1,0 +1,46 @@
+# CCTV no-go 오버레이 (path B) 파라미터 — EXPLORE 실측 반영(PLAN §1).
+# topic(layer_topic/map_topic) 는 launch 에서 네임스페이스에 맞게 override.
+
+cctv_detector:
+  ros__parameters:
+    use_sim_time: true
+    camera_names: ["corridor_1n"]   # 데모=좌핀치 person 은 1n 전담. 1s 제외: (1)person 까지 ~13m>10m far-clip 못봄 (2)로봇 start(14.5,5)가 1s(14.5,5.5) 직하라 로봇 이동 시 1s 가 로봇을 foreground 로 오검(자기차단). 우핀치 추가 시 2n/2s.   # 데모=좌핀치. 우핀치 추가 시 2n/2s
+    image_topic_template: "/cctv/{cam}/image"
+    detections_topic: "/cctv/detections"
+    detector_type: "bgsub"          # EXPLORE 락: YOLO는 person_1을 bird 오분류 → bgsub
+    warmup_frames: 15               # 빈 복도 배경 평균 후 고정
+    diff_threshold: 30              # grayscale abs-diff 임계 (실측 person blob 명확)
+    min_area: 60.0                  # 실측 person blob area~282 → 노이즈 컷
+    max_area: 50000.0
+    morph_open: 3
+    morph_dilate: 5
+    publish_debug: true             # /cctv/{cam}/debug (Foxglove 머니샷)
+    debug_topic_template: "/cctv/{cam}/debug"
+
+cctv_nogo_overlay:
+  ros__parameters:
+    use_sim_time: true
+    detections_topic: "/cctv/detections"
+    map_topic: "/map"                       # 데모: /amr1/map (launch override)
+    layer_topic: "/dynamic_obstacle_layer"  # 데모: /amr1/dynamic_obstacle_layer (launch override)
+    camera_names: ["corridor_1n"]   # 데모=좌핀치 person 은 1n 전담. 1s 제외: (1)person 까지 ~13m>10m far-clip 못봄 (2)로봇 start(14.5,5)가 1s(14.5,5.5) 직하라 로봇 이동 시 1s 가 로봇을 foreground 로 오검(자기차단). 우핀치 추가 시 2n/2s.
+    default_intrinsics: [293.244, 293.244, 320.0, 240.0]  # camera_info 실측 K
+    use_camera_info: true
+    map_offset_x: -2.96             # 실측 world→map (map = world + offset)
+    map_offset_y: -15.12
+    nogo_radius_m: 0.9              # 1.5m 복도 막되 인접갭 안 번지게 (게이트서 튜닝)
+    max_range_m: 10.0              # 카메라 far-clip 밖 투영 거부(프레임 가장자리 원거리 오검 차단)
+    robot_exclusion_enabled: true  # 카메라가 우회 중인 로봇 자신을 사람으로 오검 방지
+    robot_pose_topic: "/amr1/amcl_pose"
+    robot_exclusion_radius_m: 1.5
+    occupied_value: 100            # >=65 점유
+    publish_rate_hz: 5.0
+    decay_timeout_sec: 1.5         # 미검출 점 만료 → 재개방
+    min_persist_count: 3           # 활성 클러스터 최소 누적 검출수 (false-positive 컷)
+    cluster_radius_m: 1.0
+    clear_hold_sec: 1.2            # 소멸 후 clear grid 발행 지속(그 뒤 침묵, DWA 공존)
+    # 카메라 extrinsics(world pose [x,y,z,roll,pitch,yaw]) — 기본은 노드 DEFAULT_POSES, 필요시 override
+    pose_corridor_1n: [14.5, 18.5, 4.49, 0.0, 1.1345, -1.5708]
+    pose_corridor_1s: [14.5, 5.5, 4.49, 0.0, 1.1345, 1.5708]
+    pose_corridor_2n: [49.5, 24.5, 4.49, 0.0, 1.1345, -1.5708]
+    pose_corridor_2s: [49.5, 11.5, 4.49, 0.0, 1.1345, 1.5708]
