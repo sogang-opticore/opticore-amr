@@ -31,6 +31,8 @@ setup(
             'yolo_detector = amr_perception.yolo_detector:main',
             'object_tracker = amr_perception.object_tracker:main',
             'fused_tracker = amr_perception.fused_tracker:main',
+            'cctv_detector = amr_perception.cctv_detector:main',
+            'cctv_nogo_overlay = amr_perception.cctv_nogo_overlay:main',
         ],
     },
 )

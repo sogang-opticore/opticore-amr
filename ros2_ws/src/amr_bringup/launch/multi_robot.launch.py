@@ -9,14 +9,24 @@ import tempfile
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, TimerAction, OpaqueFunction
+from launch.conditions import IfCondition
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 import xacro
 
+def _robot(name, dx, dy):
+    # F-2: 시나리오 spawn override(env var) — 미설정 시 F-1 기본좌표 = 무회귀.
+    # 같은 ROBOTS 가 spawn create 와 loc_init initialpose 둘 다 먹이므로 단일 소스 유지.
+    return {'name': name,
+            'x': os.environ.get(f'{name.upper()}_SPAWN_X', dx),
+            'y': os.environ.get(f'{name.upper()}_SPAWN_Y', dy)}
+
+
 ROBOTS = [
-    {'name': 'amr1', 'x': '3.0', 'y': '13.0'},
-    {'name': 'amr2', 'x': '3.0', 'y': '17.0'},
-    {'name': 'amr3', 'x': '3.0', 'y': '21.0'},
-    {'name': 'amr4', 'x': '3.0', 'y': '25.0'},
+    _robot('amr1', '3.0', '13.0'),
+    _robot('amr2', '3.0', '17.0'),
+    _robot('amr3', '3.0', '21.0'),
+    _robot('amr4', '3.0', '25.0'),
 ]
 
 
@@ -321,4 +331,34 @@ def generate_launch_description():
         )],
     )
 
-    return LaunchDescription(all_actions + [loc_init, fused_tracker])
+    # F-2: fleet deadlock manager — 좁은 복도 정면 교착 우선순위 해소(저우선 HOLD/RETREAT/RESUME).
+    # 전역 싱글톤(loc_init/fused_tracker 패턴). 액추에이터 = goal_pose 조작만 → DWA/A* 무수정 = F-1 무회귀.
+    # enable_deadlock_manager:=false 로 비활성(베이스라인 / F-1 회귀 = 동일 그래프).
+    # period 55s: amr4 스택(~+40s)·loc_init(+40s)·fused_tracker(+50s) 이후 기동.
+    deadlock_manager = TimerAction(period=55.0, actions=[
+        Node(
+            package='amr_fleet',
+            executable='deadlock_manager.py',
+            name='deadlock_manager',
+            output='screen',
+            condition=IfCondition(LaunchConfiguration('enable_deadlock_manager')),
+            parameters=[{
+                'use_sim_time':      True,
+                'robots':            robots_param,
+                't_stuck':           4.0,
+                'eps_move':          0.10,
+                'r_proximity':       2.0,
+                'l_gate':            0.7,
+                'goal_tol':          0.4,
+                'x_hold':            6.0,
+                'd_retreat':         4.0,
+                'retreat_timeout':   20.0,
+                'resume_clear_dist': 0.8,
+                'livelock_max_n':    3,
+            }],
+        ),
+    ])
+
+    return LaunchDescription(
+        [DeclareLaunchArgument('enable_deadlock_manager', default_value='true')]
+        + all_actions + [loc_init, fused_tracker, deadlock_manager])
