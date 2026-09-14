@@ -1,0 +1,7 @@
+curvature_accel_limit: 1.0
+heading_slowdown: 1.2
+path_error_slowdown: 0.8
+clearance_stop: 0.12
+clearance_slow: 0.75
+recovery_turn_rate: 0.7
+

@@ -1,0 +1,25 @@
+# Known Limitations
+
+- `lite_rule_baseline`은 기존 ROS rule-based hybrid local planner와 동일하지 않다. Pure Pursuit, 경로 오차 보정, 속도 상한, clearance 감속, 단순 recovery만 포함한다.
+- 물리는 평면 kinematic differential-drive이며 wheel slip, 관성, actuator delay, 접촉력은 없다.
+- 로봇은 0.36 m 원이고 장애물은 축 정렬 직사각형 또는 원이다.
+- LiDAR noise, dropout, latency, mount offset은 적용하지 않았다.
+- A*는 정적 지도만 사용한다. 동적 장애물 때문에 전역 재계획하지 않는다.
+- 동적 장애물은 scripted constant velocity/stop 패턴이며 사람 행동 모델이 아니다.
+- Safety Shield rollout은 동적 장애물 미래 위치를 정교하게 예측하지 않는다. 정면 접근 `D1`에서 정지한 로봇으로 장애물이 계속 접근하면 충돌할 수 있다.
+- 후진이 없어 막다른 공간이나 정면 봉쇄 회복이 제한된다.
+- PPO는 외부 검증 라이브러리가 아닌 최소 PyTorch 구현이다. 별도 알고리즘 일치 검증이 필요하다.
+- PPO smoke는 256 timestep으로 수렴 평가가 아니다. 100,000 timestep full 학습도 수행했지만 목표 도달 대신 낮은 속도와 큰 단방향 각속도로 작은 원을 도는 reward-hacking 정책에 수렴했다.
+- BC smoke는 teacher 6 episode와 2 epoch만 사용한다. 일반화나 통계적 유의성을 주장할 수 없다.
+- DAgger-lite는 위험 상태 4 episode를 한 번 재수집한 초기 결과다. Open-loop 오차는 악화됐지만 closed-loop는 개선되어 데이터 가중치 연구가 필요하다.
+- 기본 전체 평가는 시나리오 8개 × seed 2개로 모델·shield 조합당 16 episode뿐이다.
+- `S7` no-path는 기본 정량 평가 목록에 포함하지 않았으며 별도 failure-path 테스트 성격이다.
+- 현재 angular oscillation 지표는 각속도 부호 반전을 센다. 한 방향 연속 선회는 별도 failure로 분류하지 못해 `TIMEOUT`으로 기록된다.
+- Reward-v2부터는 총 회전량이 4π를 넘는 episode를 `CIRCLING`으로 분류하지만, 임계값 이전의 큰 곡선 주행은 여전히 timeout으로 남을 수 있다.
+- 공유-encoder BC warm-start PPO의 best checkpoint는 timestep 0이므로 순수 RL 성과가 아니다. 이후 stable PPO는 51,200 timestep best에서 실제 개선됐지만 final 100,000 timestep은 성공률 50%로 다시 저하되어 checkpoint 선택 의존성이 남아 있다.
+- Stable PPO best는 전체 16 episode 평가에서 Shield OFF 87.5%, ON 75% 성공했다. 평가 seed 수가 작아 일반화 결론에는 부족하다.
+- 동적 미래 예측과 회피 후보를 추가한 Shield도 `D1` 정면 접근 충돌을 막지 못한다. 전진 전용 action, 짧은 horizon, 상대 장애물의 비협조적 motion이 함께 작용한다.
+- frame-stack ablation(1-frame 대 4-frame)은 구현하지 않았다.
+- BC warm-start PPO, SAC/TD3, constrained RL, 병렬 environment는 구현하지 않았다.
+- 영상 encoder 의존성을 추가하지 않아 MP4 대신 실행 가능한 데모와 최종-frame PNG를 제공한다.
+- Gazebo, ROS2 adapter, 기존 warehouse PGM, 실제 AMR 전이는 검증하지 않았다.

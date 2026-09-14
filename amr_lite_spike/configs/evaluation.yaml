@@ -1,0 +1,5 @@
+seed: 1000
+episodes_per_scenario: 2
+scenarios: [S0, S1, S2, S3, S4, S5, D0, D1]
+max_steps: 360
+shield_modes: [false, true]
