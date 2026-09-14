@@ -28,3 +28,46 @@ def test_approaching_obstacle_is_predicted():
                                         1.0, 0.0, WarehouseMap(), [obstacle], True, 0.0)
     assert result.unsafe_without_shield
     assert result.mode in {"CLAMP", "STOP"}
+
+
+def test_predictive_shield_estimates_velocity_from_observed_positions():
+    config = load_config("env", {
+        "shield_strategy": "predictive",
+        "shield_tracker_alpha": 1.0,
+    })
+    shield = SafetyShield(config)
+    obstacle = DynamicObstacle(4.0, 2.0, -1.0, 0.0)
+    state = RobotState(1.0, 2.0, 0.0, 0.5, 0.0)
+
+    first = shield.apply(state, 1.0, 0.0, WarehouseMap(), [obstacle], True, 0.0)
+    obstacle.x -= 0.05
+    second = shield.apply(
+        RobotState(1.025, 2.0, 0.0, 0.5, 0.0),
+        1.0, 0.0, WarehouseMap(), [obstacle], True, 0.05,
+    )
+
+    assert first.tracking_speed_error == 1.0
+    assert second.tracking_speed_error < 1e-9
+    assert second.risk_source == "DYNAMIC_CPA"
+    assert second.predicted_ttc < config["shield_dynamic_horizon"]
+
+
+def test_predictive_shield_uses_escape_candidate_for_head_on_risk():
+    config = load_config("env", {
+        "shield_strategy": "predictive",
+        "shield_tracker_alpha": 1.0,
+    })
+    shield = SafetyShield(config)
+    obstacle = DynamicObstacle(3.0, 2.0, -1.0, 0.0)
+    state = RobotState(1.0, 2.0, 0.0, 0.5, 0.0)
+    shield.apply(state, 1.0, 0.0, WarehouseMap(), [obstacle], True, 0.0)
+    obstacle.x -= 0.05
+
+    result = shield.apply(
+        RobotState(1.025, 2.0, 0.0, 0.5, 0.0),
+        1.0, 0.0, WarehouseMap(), [obstacle], True, 0.05,
+    )
+
+    assert result.unsafe_without_shield
+    assert result.action_type in {"EVADE", "REVERSE"}
+    assert result.action_type != "STOP"

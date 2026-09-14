@@ -123,6 +123,24 @@ def _summary_group(values: list[dict], bootstrap_resamples: int, bootstrap_seed:
         "shield_clamp_ratio": sum(int(item["shield_clamp"]) for item in values) / total_steps,
         "shield_stop_ratio": sum(int(item["shield_stop"]) for item in values) / total_steps,
         "unsafe_without_shield_per_episode": statistics.mean(int(item["unsafe_without_shield"]) for item in values),
+        "shield_slow_per_episode": statistics.mean(int(item.get("shield_slow", 0)) for item in values),
+        "shield_evade_per_episode": statistics.mean(int(item.get("shield_evade", 0)) for item in values),
+        "shield_reverse_per_episode": statistics.mean(int(item.get("shield_reverse", 0)) for item in values),
+        "shield_false_positive_per_episode": statistics.mean(
+            int(item.get("shield_false_positive", 0)) for item in values
+        ),
+        "shield_false_negative_per_episode": statistics.mean(
+            int(item.get("shield_false_negative", 0)) for item in values
+        ),
+        "shield_actual_false_negative_per_episode": statistics.mean(
+            int(item.get("shield_actual_false_negative", 0)) for item in values
+        ),
+        "shield_ineffective_intervention_per_episode": statistics.mean(
+            int(item.get("shield_ineffective_intervention", 0)) for item in values
+        ),
+        "tracking_speed_error_mean": statistics.mean(
+            float(item.get("tracking_speed_error_mean", 0.0)) for item in values
+        ),
         "max_shield_sustained_time": max(float(item["shield_sustained_time"]) for item in values),
         "mean_inference_ms": statistics.mean(float(item["inference_ms"]) for item in values),
         "mean_simulation_steps_per_second": statistics.mean(

@@ -65,6 +65,7 @@ def evaluate(policies: dict[str, Any], output_dir: str | Path | None = None,
                         "checkpoint_sha256": getattr(policy, "checkpoint_sha256", ""),
                         "evaluation_split": cfg.get("split", "unspecified"),
                         "scenario_instance_id": info.get("scenario_instance_id", ""),
+                        "shield_strategy": local_config.get("shield_strategy", "legacy"),
                         "shield_enabled": bool(shield_enabled), "success": int(info.get("success", False)),
                         "collision": int(info.get("collision", False)), "terminated": int(terminated),
                         "truncated": int(truncated), "failure_type": info.get("failure_type", "ENVIRONMENT_ERROR"),
@@ -80,8 +81,31 @@ def evaluate(policies: dict[str, Any], output_dir: str | Path | None = None,
                         "action_smoothness": float(np.mean(np.sum(diffs * diffs, axis=1))),
                         "shield_pass": info["shield_counts"]["PASS"], "shield_clamp": info["shield_counts"]["CLAMP"],
                         "shield_stop": info["shield_counts"]["STOP"], "shield_interventions": interventions,
+                        "shield_slow": info.get("shield_action_counts", {}).get("SLOW", 0),
+                        "shield_evade": info.get("shield_action_counts", {}).get("EVADE", 0),
+                        "shield_reverse": info.get("shield_action_counts", {}).get("REVERSE", 0),
                         "unsafe_without_shield": int(info.get("unsafe_without_shield", 0)),
                         "shield_sustained_time": float(info.get("shield_sustained_time", 0.0)),
+                        "shield_false_positive": int(info.get("shield_false_positive", 0)),
+                        "shield_false_negative": int(info.get("shield_false_negative", 0)),
+                        "shield_actual_false_negative": int(
+                            info.get("shield_actual_false_negative", 0)
+                        ),
+                        "shield_ineffective_intervention": int(
+                            info.get("shield_ineffective_intervention", 0)
+                        ),
+                        "tracking_speed_error_mean": float(
+                            info.get("tracking_speed_error_mean", 0.0)
+                        ),
+                        "tracking_speed_error_max": float(
+                            info.get("tracking_speed_error_max", 0.0)
+                        ),
+                        "minimum_predicted_ttc": float(
+                            info.get("minimum_predicted_ttc", float("inf"))
+                        ),
+                        "shield_risk_counts": json.dumps(
+                            info.get("shield_risk_counts", {}), sort_keys=True
+                        ),
                         "safety_cost": safety_cost,
                         "inference_ms": 1000.0 * inference_seconds / max(1, len(actions)),
                         "simulation_steps_per_second": len(actions) / wall,
