@@ -62,12 +62,18 @@ def _run_git(*args: str) -> str:
 
 
 def git_snapshot() -> dict:
-    status = _run_git("status", "--porcelain", "--untracked-files=normal", "--", "amr_lite_spike")
+    repository_status = _run_git("status", "--porcelain", "--untracked-files=normal")
+    scope_status = _run_git(
+        "status", "--porcelain", "--untracked-files=normal", "--", "amr_lite_spike"
+    )
     return {
         "commit": _run_git("rev-parse", "HEAD"),
         "branch": _run_git("branch", "--show-current"),
-        "dirty": bool(status),
-        "status": status.splitlines(),
+        "dirty": bool(repository_status),
+        "status": repository_status.splitlines(),
+        "scope": "amr_lite_spike",
+        "scope_dirty": bool(scope_status),
+        "scope_status": scope_status.splitlines(),
     }
 
 
