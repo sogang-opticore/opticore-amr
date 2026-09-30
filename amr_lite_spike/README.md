@@ -185,6 +185,9 @@ artifacts/ppo_stable/      안정화 PPO final/best 평가와 데모
 
 측정 결과와 해석은 [docs/RESULTS.md](docs/RESULTS.md), 설계 결정은 [docs/DECISIONS.md](docs/DECISIONS.md), 한계는 [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md)를 참고한다. M1 재현성 재평가 결과는 [docs/M1_RESULTS.md](docs/M1_RESULTS.md)에 별도로 정리했다.
 
+현재 코드의 실행 가능 여부와 M1 산출물을 단계별로 확인할 때는
+[실행·검증 런북](docs/RUNBOOK.md)을 따른다.
+
 ## M1 재현 가능한 기준선
 
 다음 명령은 Stable PPO를 학습 seed 5개로 반복하고, 분리된 selection/test
