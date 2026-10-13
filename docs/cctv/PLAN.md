@@ -1,5 +1,9 @@
 # PLAN — CCTV No-Go Overlay (Path B) · `feature/cctv-nogo-overlay`
 
+> **보관 문서 (2026-10-13)** — `feature/cctv-nogo-overlay` 작업 당시(2026-06-20)의 설계 기록이다. 원래 저장소 루트에 있던 것을 `docs/cctv/`로 옮겼다.
+> 이후 핀치가 1.40 m에서 2.0 m로 바뀌었고(76eb8a3, 96bced0), A\* clearance가 조정되었다(c459871). 현재 상태는 [`BLOCKED.md`](BLOCKED.md) 상단 갱신 노트를 참고한다.
+> 본문의 `/workspace/validation/cctv/...` 스크립트와 `validation/cctv/single_robot.launch.py`는 저장소에 없다.
+
 CCTV perception → 바닥투영 → no-go 셀을 **`/dynamic_obstacle_layer`(OccupancyGrid)** 에 발행.
 A\* 가 이미 이 레이어를 plan grid 에 합성 → **amr_perception 만 수정**, amr_navigation 불변.
 데모: 로봇 LiDAR 사각(코너 너머) 좌핀치 복도 안 person_1 을 CCTV 가 보고 미리 no-go → A\* 가 진입 전 우회.

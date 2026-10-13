@@ -1,5 +1,12 @@
 # BLOCKED — GATE-C4 (리루트 헤드라인) · `feature/cctv-nogo-overlay`
 
+> **상태 갱신 (2026-10-13, `dev` 기준)** — 2026-06-20 `feature/cctv-nogo-overlay` 작업 당시 기록이다(원래 저장소 루트에 있던 파일을 `docs/cctv/`로 옮김).
+> - 이 문서가 지목한 원인(좌핀치 1.40 m + A\* clearance 1.25/1.05)에 대해 이후 조치가 있었다. 핀치를 2.0 m로 확장했고(76eb8a3, 96bced0), `astar_params.yaml`의 clearance를 낮췄다(c459871: `preferred_clearance` 1.25→0.50, `wall_avoid_clearance` 1.05→0.55, `smoothing_min_clearance` 0.90→0.45).
+> - **그러나 C4 재검증 결과는 저장소에 기록되지 않았다.** 상태는 *원인 조치, 재검증 미완료*다.
+> - **재검증 전 주의 ①**: 4대 launch와 검증용 단일로봇 launch(`make_robot_nodes` 사용)는 A\*를 네임스페이스(`/amrN/astar_planner`) 아래에서 띄운다. 이 경우 `astar_params.yaml`이 적용되지 않고 코드 기본값(1.25/1.05/0.90)으로 돈다. 즉 c459871의 조치가 실제 런에는 반영되지 않았을 수 있다. `ros2 param get /amr1/astar_planner preferred_clearance`로 확인한다([`../server-run-prescription.md`](../server-run-prescription.md) §4.1).
+> - **재검증 전 주의 ②**: no-go 디스크(`nogo_radius_m` 0.9, 1.5 m 복도 기준 값)는 inflation 없이 칠해진다. 2.0 m 핀치에서는 사람 동쪽에 2~3셀 틈이 남아, 오버레이가 켜져 있어도 A\*가 핀치를 지나가는 경로를 낼 가능성이 있다(추정). `nogo_radius_m` 1.1 이상을 검토한다.
+> - 재현 스크립트(`validation/cctv/...`)는 저장소 밖에 있다.
+
 **2026-06-20.** CCTV no-go 오버레이(P-9+P-10)는 완성·검증됨(C0–C3,C5,C6 PASS). **GATE-C4(오버레이 ON→A\*가 좌핀치 회피 / OFF→좌핀치 사용, 그 delta)만 시연 불가** — 원인은 **amr_perception 밖(amr_navigation A\* clearance 설정)**. §6.6 규칙대로 강행하지 않고 보고.
 
 ## 증상

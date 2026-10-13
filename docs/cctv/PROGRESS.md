@@ -1,5 +1,8 @@
 # PROGRESS — CCTV No-Go Overlay (Path B) · `feature/cctv-nogo-overlay`
 
+> **상태 갱신 (2026-10-13)** — 2026-06-20 기록. 원래 저장소 루트에 있던 것을 `docs/cctv/`로 옮겼다. `feature/cctv-nogo-overlay`는 integration 머지(cdf27c6) → PR #27로 `dev`에 들어갔다. C4 상태는 [`BLOCKED.md`](BLOCKED.md) 상단을 참고한다.
+> 본문의 `RTF ≈ 0.3–0.5`, `GPU 렌더 정상` 기록은 서버 성능 진단([`../server-run-prescription.md`](../server-run-prescription.md))의 근거로 쓰였다.
+
 ## Morning Summary (2026-06-20)
 
 ### 빌드
