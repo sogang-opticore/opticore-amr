@@ -1,20 +1,6 @@
-# amr_gazebo
+# amr_gazebo (자리표시자)
 
-Gazebo 시뮬레이션 패키지
-
-## 설명
-- 물류센터 Gazebo 월드 파일
-- AMR 스폰 런치 파일
-- 센서 플러그인 설정 (LiDAR, Camera, IMU)
-- 환경 모델 (선반, 컨베이어 등)
-
-## 구조 (예정)
-```
-amr_gazebo/
-├── worlds/
-│   └── warehouse.world
-├── models/
-├── launch/
-├── config/
-└── package.xml
-```
+> **이 디렉터리는 패키지가 아니다** (`package.xml` 없음, 빌드 대상 아님).
+> 초기 계획(2026-03)의 자리표시자로 남아 있다. 월드·모델·시뮬레이션 launch는 실제로 [`amr_bringup`](../amr_bringup)에 있다 (`worlds/warehouse.world`, `models/`, `launch/warehouse.launch.py`).
+>
+> 별도 패키지로 분리할지, 이 디렉터리를 삭제할지는 팀 결정 사항이다.

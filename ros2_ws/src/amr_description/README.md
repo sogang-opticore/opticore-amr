@@ -1,21 +1,6 @@
-# amr_description
+# amr_description (자리표시자)
 
-AMR URDF/Xacro 모델 패키지
-
-## 설명
-- 로봇 URDF/Xacro 모델 정의
-- 센서 마운트 (LiDAR, Camera, IMU)
-- Gazebo 플러그인 설정
-- RViz 시각화 설정
-
-## 구조 (예정)
-```
-amr_description/
-├── urdf/
-│   ├── amr.urdf.xacro
-│   └── sensors/
-├── meshes/
-├── rviz/
-├── launch/
-└── package.xml
-```
+> **이 디렉터리는 패키지가 아니다** (`package.xml` 없음, 빌드 대상 아님).
+> 초기 계획(2026-03)의 자리표시자로 남아 있다. 로봇 URDF/Xacro는 실제로 [`amr_bringup/urdf/amr_robot.urdf.xacro`](../amr_bringup/urdf/amr_robot.urdf.xacro)에 있다.
+>
+> 별도 description 패키지로 분리할지, 이 디렉터리를 삭제할지는 팀 결정 사항이다.
