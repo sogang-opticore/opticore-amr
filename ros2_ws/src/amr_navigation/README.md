@@ -9,6 +9,10 @@
 > 양쪽 노드 작성 전에 합의해야 한다. 변경 절차는 §11 참고.
 >
 > **상태**: 잠정 합의 (2026-05-15) — A\*은 Python으로 확정, 토픽명·타입은 잠정. 양쪽 구현 진행하며 보강.
+>
+> **2026-10-13 문서 정합화**: §2 QoS 표기와 §4 파라미터 표를 현재 코드·yaml에 맞췄고, 멀티로봇 주의 사항을 §4.7에 추가했다. 토픽 계약 자체는 바뀌지 않았다.
+> **파라미터 값의 기준은 `config/*.yaml`**이고 이 문서의 표는 요약이다. 단, 네임스페이스로 띄우면 yaml이 적용되지 않는 문제가 있다(§4.7).
+> 서버 성능·주행 문제 진단은 [`docs/server-run-prescription.md`](../../../docs/server-run-prescription.md)에 있다.
 
 ---
 
@@ -33,7 +37,7 @@
 
 | 노드 | 파일 | 언어 | 담당자 | 책임 |
 |---|---|---|---|---|
-| `astar_planner` | `amr_navigation/astar_node.py` (예정) | **Python** ✅ (확정 2026-05-15) | HU(메인) · SW(휴리스틱 분담) | 전역 경로 계획 — 정적 맵 기반 |
+| `astar_planner` | `amr_navigation/astar_node.py` (설치명 `astar_planner`) | **Python** ✅ (확정 2026-05-15) | HU(메인) · SW(휴리스틱 분담) | 전역 경로 계획 — 정적 맵 기반 |
 | `dwa_planner` | `amr_navigation/dwa_node.py` | Python | **SW(메인)** | 지역 경로 계획 + 속도 명령 발행 |
 
 **원칙**:
@@ -54,10 +58,10 @@
 | 토픽 | 타입 | 발행 주체 | 구독자 | QoS | 비고 |
 |---|---|---|---|---|---|
 | `/goal_pose` | `geometry_msgs/PoseStamped` | RViz2 / BT / 사용자 | **A\***, DWA | Reliable, depth 1 | frame_id = `map`. DWA는 새 goal edge 확인용으로만 구독하며 반복 goal은 dedup |
-| `/map` | `nav_msgs/OccupancyGrid` | slam_toolbox | **A\***, DWA | Reliable, depth 1, **TRANSIENT_LOCAL** | frame_id = `map`, latched. DWA는 동적 장애물 판정에서 static wall LiDAR 점을 제외하는 데 사용 |
-| `/dynamic_obstacle_layer` | `nav_msgs/OccupancyGrid` | DWA | **A\*** | Reliable, depth 1, **TRANSIENT_LOCAL** | LiDAR로 관찰한 동적 장애물을 임시 점유 영역으로 표시하는 overlay. A\*는 `/map` inflation 위에 합성해 우회 경로를 만든다 |
+| `/map` | `nav_msgs/OccupancyGrid` | map_server (`amr_bringup/maps/warehouse_map.yaml`). 매핑 시에는 slam_toolbox | **A\***, DWA | Reliable, depth 1, **TRANSIENT_LOCAL** | frame_id = `map`, latched. DWA는 동적 장애물 판정에서 static wall LiDAR 점을 제외하는 데 사용 |
+| `/dynamic_obstacle_layer` | `nav_msgs/OccupancyGrid` | DWA | **A\*** | Reliable, depth 1, VOLATILE | LiDAR로 관찰한 동적 장애물을 임시 점유 영역으로 표시하는 overlay. A\*는 `/map` inflation 위에 합성해 우회 경로를 만든다 |
 | `/dwa/status` | `std_msgs/String` | DWA | **A\*** | Reliable, depth 10 | 경로 재계획 이벤트 입력 (`EMERGENCY`/`PATH_LOST`/`RECOVERY_DONE` 등) |
-| `/global_path` | `nav_msgs/Path` | A\* | **DWA** | Reliable, depth 1, **TRANSIENT_LOCAL** | frame_id = `map`, latched |
+| `/global_path` | `nav_msgs/Path` | A\* | **DWA** | Reliable, depth 10, VOLATILE (latched 아님) | frame_id = `map`. 늦게 뜬 구독자는 다음 재계획 발행부터 받는다 |
 | `/odometry/filtered` | `nav_msgs/Odometry` | EKF (robot_localization) | DWA (1순위) | Reliable | frame_id = `odom_filtered` |
 | `/odom` | `nav_msgs/Odometry` | DiffDrive plugin | DWA (fallback, timeout > 0.5s) | Reliable | frame_id = `odom` |
 | `/lidar` | `sensor_msgs/LaserScan` | ros_gz_bridge | DWA | **BEST_EFFORT**, depth 10 | frame_id = `lidar_link`, ~10Hz |
@@ -67,12 +71,12 @@
 
 | 토픽 | 타입 | 발행 주체 | 주기 | QoS | 용도 |
 |---|---|---|---|---|---|
-| `/global_path` | `nav_msgs/Path` | **A\*** | goal 입력 시 1회 + 1Hz 주기 재계획 + DWA 상태 이벤트 시 | Reliable, depth 1, TRANSIENT_LOCAL | DWA가 추종할 전역 경로 |
+| `/global_path` | `nav_msgs/Path` | **A\*** | goal 입력 시 1회 + 1Hz 주기 재계획 + DWA 상태 이벤트 시 | Reliable, depth 10, VOLATILE | DWA가 추종할 전역 경로 |
 | `/cmd_vel` | `geometry_msgs/Twist` | **DWA 단독** ★ | 20 Hz (control_rate) | Reliable, depth 10 | Ignition DiffDrive 입력 |
 | `/dwa/trajectories` | `visualization_msgs/MarkerArray` | DWA | 5 Hz | Reliable | 후보 trajectory 시각화 (Foxglove) |
 | `/dwa/best_trajectory` | `visualization_msgs/Marker` | DWA | 5 Hz | Reliable | 선택된 trajectory 강조 |
-| `/dwa/status` | `std_msgs/String` | DWA | 1 Hz + edge 이벤트 | Reliable | 상태 문자열 — 상세는 §3.3 (`NORMAL`/`ALIGN`/`REJOIN`/`AVOIDING_DYNAMIC`/`DYNAMIC_BLOCKED`/`INSIDE_DYNAMIC_ZONE`/`RECOVERY`/`EMERGENCY`/`PATH_LOST`/`REACHED` 등) |
-| `/dynamic_obstacle_layer` | `nav_msgs/OccupancyGrid` | DWA | 0.5 s 기본, 변경/해제 시 | Reliable, depth 1, TRANSIENT_LOCAL | A\*가 static map에 overlay하는 임시 no-go layer |
+| `/dwa/status` | `std_msgs/String` | DWA | 제어 틱마다(최대 `control_rate` 20 Hz) | Reliable | 상태 문자열 — 상세는 §3.3 (`NORMAL`/`ALIGN`/`REJOIN`/`AVOIDING_DYNAMIC`/`DYNAMIC_BLOCKED`/`INSIDE_DYNAMIC_ZONE`/`RECOVERY`/`EMERGENCY`/`PATH_LOST`/`REACHED` 등) |
+| `/dynamic_obstacle_layer` | `nav_msgs/OccupancyGrid` | DWA | `dynamic_layer_publish_period` 1.0 s, 활성 중에만 (빈 레이어는 발행하지 않음) | Reliable, depth 1, VOLATILE | A\*가 static map에 overlay하는 임시 no-go layer |
 
 > ★ **`/cmd_vel`은 DWA만 발행한다.** A\*은 경로만 만들고 운동 명령은 만들지 않는다. 이중 발행자가 생기면 Twist가 충돌하므로 절대 금지.
 
@@ -196,7 +200,7 @@ angular:
 **규칙 요약**:
 1. 모든 stamp는 **ROS2 시뮬레이션 시간** (`use_sim_time: true`). wall clock 금지.
 2. `nav_msgs/Path`의 `header.stamp`와 `poses[*].header.stamp`는 **동일 값**으로 채운다 (개별 점에 시간 정보 부여 안 함).
-3. DWA의 `sensor_timeout = 0.1s` 는 **odom/imu state 입력에만** 적용. `/global_path`는 stamp 무관(latched).
+3. DWA의 `sensor_timeout = 0.1s` 는 **odom/imu state 입력에만** 적용. `/global_path`는 stamp 무관(VOLATILE, latched 아님).
 4. DWA의 `odom_timeout = 0.5s` 초과 시 fallback 또는 정지.
 
 ---
@@ -207,11 +211,11 @@ angular:
 
 | 파라미터 | 값 | 출처 |
 |---|---|---|
-| `v_max` | **2.0 m/s** | 명세 "최대 속도 2.0 m/s" |
+| `v_max` | **1.5 m/s** (yaml 임시값) | 명세는 "최대 속도 2.0 m/s". 팀 합의 전까지 1.5 사용 |
 | `v_min` | -1.0 m/s | 후진 제한 (운영 정책) |
 | `w_max` | **1.5 rad/s** | 명세 "최대 회전 속도 1.5 rad/s" |
 | `a_max` | **1.0 m/s²** | 명세 "최대 가속도 1.0 m/s²" |
-| `v_brake_a_max` | 3.0 m/s² | goal/장애물 앞 감속 반응을 빠르게 하는 감속 전용 상한. **TODO 시뮬레이션 튜닝** |
+| `v_brake_a_max` | 5.0 m/s² | goal/장애물 앞 감속 반응을 빠르게 하는 감속 전용 상한. **TODO 시뮬레이션 튜닝** |
 | `alpha_max` | 1.5 rad/s² | 명세 미명시 — **TODO 시뮬레이션 측정 후 갱신** |
 
 > ⚠ `alpha_max`는 명세에 없음. 임시값 사용. `cmd_vel` 스텝 응답으로 측정 후 확정.
@@ -220,9 +224,9 @@ angular:
 
 | 파라미터 | 기본값 | 비고 |
 |---|---|---|
-| `sample_v_n` | 11 | 선속도 샘플 수 |
-| `sample_w_n` | 21 | 각속도 샘플 수 (총 11×21 = 231 후보) |
-| `predict_horizon` | 0.5 s | trajectory 예측 시간 |
+| `sample_v_n` | 11 | 선속도 샘플 수 (14차 Pure Pursuit 전환 이후 미사용) |
+| `sample_w_n` | 21 | 각속도 샘플 수 (14차 이후 미사용) |
+| `predict_horizon` | 0.5 s | 14차 이후: 최종 명령의 충돌 검사 적분 시간 (코드 기본값 1.0) |
 | `dt` | 0.1 s | 적분 step |
 | `control_rate` | 20.0 Hz | 제어 주기 |
 
@@ -346,16 +350,18 @@ angular:
 
 | 파라미터 | 기본값 | 비고 |
 |---|---|---|
-| `weight_heading` | 0.8 | goal 방향 정렬도 |
-| `weight_clearance` | 0.4 | 장애물 여유 거리 |
-| `weight_velocity` | 0.2 | 빠른 속도 선호 |
+| `weight_heading` | 0.3 | goal 방향 정렬도 |
+| `weight_path_tangent` | 2.0 | path 접선 정렬 |
+| `weight_clearance` | 1.2 | 장애물 여유 거리 |
+| `weight_velocity` | 0.3 | 빠른 속도 선호 |
 
-> 좁은 통로(< 1.5 m)에서는 `weight_clearance`를 0.6으로 상향 권장.
+> 14차(2026-05-25) Pure Pursuit 전환 이후 가중치 합산 평가는 쓰지 않는다. 키는 `declare_parameter` 호환을 위해 남아 있다(`dwa_params.yaml` 주석).
 
 ### 4.5 DWA — 안전
 
 | 파라미터 | 기본값 | 비고 |
 |---|---|---|
+| `robot_radius` | 0.36 m | 외접원 반경(섀시 0.60×0.40). 코드 기본값은 0.20이라 yaml이 적용되지 않으면 풋프린트를 과소평가한다(§4.7) |
 | `safety_distance` | 0.30 m | 명세 §7 안전거리 |
 | `near_wall_creep_speed` | 0.12 m/s | 전방이 열린 측면 벽 근접 상황에서 v=0 고착 방지. **TODO 미확정, RunPod 튜닝 필요** |
 | `near_wall_creep_min_clearance` | 0.60 m | creep을 허용할 최소 arc clearance. 이보다 벽에 붙으면 전진 대신 STOPPED/RECOVERY로 넘김 |
@@ -372,14 +378,14 @@ angular:
 |---|---|---|
 | `heuristic` | `"octile"` | `manhattan` / `euclidean` / `octile` (heuristics.py 등록됨) |
 | `allow_diagonal` | `true` | 8-connected |
-| `inflation_radius` | 0.50 m | 로봇 반경 0.20 m + DWA 정지 여유 0.30 m |
-| `preferred_clearance` | 1.25 m | 이 거리 안쪽 free 셀에 비용을 부여해 벽 경계 path를 피함. **TODO 미확정, RunPod 튜닝 필요** |
+| `inflation_radius` | 0.50 m | 도입 당시 근거: 로봇 반경 0.20 m + DWA 정지 여유 0.30 m (현재 DWA `robot_radius`는 0.36 m) |
+| `preferred_clearance` | 0.50 m | 이 거리 안쪽 free 셀에 비용을 부여해 벽 경계 path를 피함. 2 m 핀치를 쓰게 하려고 1.25 → 0.50으로 낮춤(c459871). 코드 기본값은 1.25 |
 | `clearance_cost_weight` | 9.0 | clearance 비용 가중치. 0이면 shortest path 우선 |
-| `wall_avoid_clearance` | 1.05 m | inflation 경계 바로 바깥 후보를 강하게 밀어내는 barrier 기준 clearance |
+| `wall_avoid_clearance` | 0.55 m (코드 기본값 1.05) | inflation 경계 바로 바깥 후보를 강하게 밀어내는 barrier 기준 clearance |
 | `wall_avoid_cost_weight` | 3.0 | wall-avoid barrier 비용 가중치 |
 | `wall_avoid_min_margin` | 0.05 m | barrier 분모 최소 margin. inflation 경계에 붙은 cell 비용 폭주 방지용 clamp |
 | `smoothing` | `"catmull_rom"` | `none` / `catmull_rom` / `bezier` |
-| `smoothing_min_clearance` | 0.90 m | Catmull-Rom 스무딩 segment가 유지해야 하는 최소 clearance. 미달 시 raw A* path 유지 |
+| `smoothing_min_clearance` | 0.45 m (코드 기본값 0.90) | Catmull-Rom 스무딩 segment가 유지해야 하는 최소 clearance. 미달 시 raw A* path 유지 |
 | `replan_period` | 1.0 s | 0이면 goal 입력 시에만 1회, > 0이면 주기적 재계획 |
 | `dwa_status_topic` | `"/dwa/status"` | A\*가 이벤트 재계획 판단에 쓰는 DWA 상태 토픽 |
 | `status_replan_cooldown` | 2.0 s | 상태 이벤트 재계획 최소 간격 |
@@ -405,6 +411,17 @@ angular:
 | `path_switch_clearance_skip_distance` | 1.0 m | 현재 위치 바로 주변의 공통 벽 근접 구간을 제외하고 앞쪽 clearance를 비교 |
 | `path_switch_safety_clearance_loss` | 0.20 m | 안정 주행 중 새 후보가 이만큼 더 벽에 가까우면 기존 path 유지 후보로 본다 |
 | `path_switch_safety_max_length_sacrifice` | 1.20 m | 더 안전한 기존 path를 유지하기 위해 감수할 수 있는 후보 대비 최대 길이 손해 |
+
+### 4.7 멀티로봇(네임스페이스) 운용 시 주의
+
+- `multi_robot.launch.py`는 A\*·DWA를 `namespace=amrN`으로 띄운다. 토픽·프레임은 launch 인라인 파라미터와 remap으로 로봇별로 바꾼다. 예: `/amrN/global_path`, `base_frame: amrN/base_footprint`, DWA `goal_tolerance: 0.4`.
+- ⚠ **파라미터 파일의 최상위 키가 노드 이름(`dwa_planner:`, `astar_planner:`)이라 네임스페이스 노드(`/amrN/dwa_planner`)와 매칭되지 않는다.**
+  - 그래서 4대 구동에서는 yaml이 통째로 무시되고 코드 기본값으로 돈다.
+  - 값이 달라지는 항목: `robot_radius` 0.20, `predict_horizon` 1.0, `preferred_clearance` 1.25, `wall_avoid_clearance` 1.05, `smoothing_min_clearance` 0.90.
+  - 키를 `/**/dwa_planner:` 형태로 바꾸면 네임스페이스와 관계없이 적용된다.
+  - 적용 여부는 `ros2 param get /amr1/dwa_planner robot_radius`로 확인한다.
+  - 상세: [`docs/server-run-prescription.md`](../../../docs/server-run-prescription.md) §4.1.
+- `/dynamic_obstacle_layer_markers`는 절대 토픽이라 4대의 DWA가 같은 토픽에 발행한다. 마커가 서로를 지운다.
 
 ---
 
@@ -459,21 +476,32 @@ amr_navigation/
 │   └── astar_planner.hpp       # placeholder (C++ 미채택)
 ├── amr_navigation/             # Python 패키지 (★ 실제 구현 영역)
 │   ├── __init__.py
-│   ├── dwa_node.py             # ✅ DWA 노드 (Week 1 골격 완료)
-│   ├── heuristics.py           # ✅ A* 휴리스틱·비용함수 (Week 1)
-│   └── astar_node.py           # 🟡 A* 노드 (Week 2, HU 작성 예정)
+│   ├── astar_node.py           # A* 전역 계획 노드 (설치 실행 파일명 astar_planner)
+│   ├── dwa_node.py             # DWA/Pure Pursuit 지역 주행 노드
+│   ├── heuristics.py           # A* 휴리스틱·비용함수 (ROS 비의존)
+│   ├── frontier_explorer.py    # frontier 기반 자율 탐색 (매핑용)
+│   ├── waypoint_sequence.py    # 여러 goal 순차 발행 도구
+│   └── lag_diag.py             # 센서/TF stamp lag 진단 도구
 ├── launch/
-│   └── dwa_only.launch.py      # DWA 단독 검증용
+│   ├── astar_dwa.launch.py     # A* + DWA (단일로봇, 네임스페이스 없음)
+│   ├── nav_full.launch.py      # localization + A* + DWA (단일로봇)
+│   ├── astar_only.launch.py, dwa_only.launch.py, explore.launch.py
 ├── config/
-│   ├── dwa_params.yaml         # DWA 파라미터 외부화
-│   └── astar_params.yaml       # 🟡 A* 파라미터 (HU 작성 예정)
+│   ├── dwa_params.yaml
+│   └── astar_params.yaml
 └── test/
-    └── test_heuristics.py      # 단위 테스트 (21건 통과)
+    ├── test_heuristics.py, test_astar_clearance.py, test_astar_replan.py
+    └── test_dwa.py, test_frontier_explorer.py
 ```
 
 ---
 
 ## 8. 빌드 & 실행
+
+> 2026-10-13: 아래는 2026-05 기준 패키지 단독 검증 명령이다.
+> - 빌드 경로·방식은 [`docs/environment-setup.md`](../../../docs/environment-setup.md) §4–5를 따른다(`/workspace/ros2_ws`, symlink-install 없이 빌드 권장).
+> - 4대 실행은 [`docs/multi-robot-runbook.md`](../../../docs/multi-robot-runbook.md)를 따른다.
+> - `warehouse.launch.py`는 더 이상 로봇을 스폰하지 않는다. 그래서 아래 '통합 검증' 예시는 로봇 bringup을 따로 띄워야 동작한다.
 
 ```bash
 # 빌드
@@ -538,7 +566,7 @@ ros2 topic pub --once /global_path nav_msgs/msg/Path \
 - [ ] `/global_path` 너무 길 때 (> 500 points) DWA의 lookahead 정책
 - [ ] A\* 실패(경로 못 찾음) 시 발행 형식: 빈 Path? 별도 status 토픽?
 - [ ] `alpha_max` 실측값 (시뮬레이션 step response 측정 후 갱신)
-- [ ] A\* 사용 맵 소스: SLAM의 `/map` (동적) vs 미리 저장된 `warehouse_map.yaml` (정적)
+- [x] A\* 사용 맵 소스: 저장된 `warehouse_map.yaml`을 map_server로 발행 (멀티로봇은 로봇별 `/amrN/map`)
 
 ---
 
@@ -557,6 +585,7 @@ ros2 topic pub --once /global_path nav_msgs/msg/Path \
 
 | 일자 | 변경 | 작성자 | 리뷰 |
 |---|---|---|---|
+| 2026-10-13 | 문서 정합화(토픽 계약 변경 없음): §2 QoS 표기(`/global_path`·`/dynamic_obstacle_layer` = VOLATILE), §4 파라미터 표를 yaml 값에 동기화, §4.7 멀티로봇 네임스페이스·yaml 미적용 주의 추가, §7 디렉터리 갱신, §10 맵 소스 확정 표시 | Claude (문서) | — |
 | 2026-06-02 | dynamic no-go 경계에 닿기만 해도 `DYNAMIC_BLOCKED` 회전 루프가 생기는 문제를 줄이기 위해 reentry/inside 판정을 경계 거리 대신 중심 침투 위험도(`risk`) 기준으로 변경했다. soft risk는 감속과 target 조정만 수행하고, hard risk일 때만 회전 차단한다. `REJOIN` 중 path heading 차이가 클수록 추가 회전 명령을 주는 boost도 추가했다 | Codex | py_compile 통과. RunPod 단위/주행 테스트 필요 |
 | 2026-06-01 | dynamic no-go에 얕게 걸친 `target_clear=-0.02m` 상황에서 정지 대기만 반복하던 문제를 줄이기 위해 shallow reentry는 통과/감속하고, 반복되거나 깊게 관통하면 전진 대신 회전 탈출로 전환하도록 수정했다. 접근 동적 장애물의 후진 속도도 closing speed에 비례해 최대 0.45m/s까지 올라가도록 보강했다 | Codex | RunPod 주행 검증 필요 |
 | 2026-06-01 | dynamic no-go 경계 근처에서 `target_clear`가 양수인데도 `DYNAMIC_BLOCKED`로 영구 대기하던 문제를 수정했다. 경계 근처는 soft reentry로 감속/동적 layer-aware lookahead 조정하고, 실제 no-go 내부를 관통할 때만 hard block한다 | Codex | RunPod 주행 검증 필요 |
