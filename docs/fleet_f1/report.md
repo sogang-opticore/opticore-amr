@@ -1,5 +1,9 @@
 # F-1 Fleet 무인 런 — 최종 리포트 (아침 요약)
 
+> **상태 갱신 (2026-10-13)** — 이 문서는 무인 런 당시(2026-06-09) 기록이다. 이후 `feature/fleet-f1-cc`는 PR #22 → PR #24로 `dev`에 머지되었다. 본문의 "PR 미생성" 같은 브랜치 상태 문구는 당시 기준이다.
+> 게이트 증거(bag, `gate_*.py`, `clean_restart.sh`, `run_full.sh`)는 서버의 `/workspace/validation/fleet_f1/`에만 있고 저장소에는 없다.
+> 서버 구동 성능·주행 문제는 [`../server-run-prescription.md`](../server-run-prescription.md) 참고.
+
 **결론: F-1 인프라 + 4대 독립 goal 주행 = 완료. 4 🔴 전부 게이트 PASS.**
 브랜치 `feature/fleet-f1-cc`. dev/spawn 브랜치 미접촉, PR 미생성, install/ 미커밋.
 

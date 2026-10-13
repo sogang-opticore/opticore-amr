@@ -1,4 +1,8 @@
 # feature/astar-planner 브랜치 개요
+
+> **보관 문서 (2026-10-13)** — 2026-05-16 시점의 `feature/astar-planner` 브랜치 개요다. 이후 DWA 구현, inflation 0.30 → 0.50, clearance 비용·스무딩·goal snap 보강, 동적 장애물 레이어 합성, `/global_path` QoS(VOLATILE, depth 10), 로봇 pose 조회 프레임(`map`) 등이 바뀌어 본문의 상당 부분이 현재 코드와 다르다.
+> 현재 계약과 파라미터는 [`ros2_ws/src/amr_navigation/README.md`](../ros2_ws/src/amr_navigation/README.md)와 `config/astar_params.yaml`을 기준으로 한다. 본문의 `/workspace/ros2_ws` 경로와 `astar_only.launch.py` 사용법도 당시 기준이다.
+
 > 작성: HU | 날짜: 2026-05-16 | 대상: Control Tower, 팀 내부, 보충 인력
 
 ---

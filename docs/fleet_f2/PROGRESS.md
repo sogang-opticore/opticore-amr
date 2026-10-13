@@ -1,5 +1,9 @@
 # F-2 Fleet 무인 런 — PROGRESS (아침 대시보드)
 
+> **상태 갱신 (2026-10-13)** — 2026-06 무인 런 기록. `feature/fleet-f2-deadlock`은 이후 PR #25 → integration 머지(406b0d0) → PR #27로 `dev`에 들어갔다. 본문의 "PR 미생성"은 당시 기준이다.
+> 유닛테스트 `f2_unit_test.py`(23/23)와 게이트 스크립트는 `/workspace/validation/fleet_f2/`에만 있어, 저장소에는 `deadlock_manager` 테스트가 없다.
+> 2026-10 코드 리뷰에서 확인된 `deadlock_manager` 문제(livelock 동결이 해제되지 않음, 의도된 정지를 stuck으로 판정, 관리 중 새 goal 유실)는 [`../server-run-prescription.md`](../server-run-prescription.md) 참고.
+
 브랜치 `feature/fleet-f2-deadlock`. dev/f1-cc/spawn 미접촉, PR 미생성, install/ 미커밋.
 
 ## TL;DR (아침 30초 요약)

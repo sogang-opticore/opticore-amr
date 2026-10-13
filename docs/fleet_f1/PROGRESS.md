@@ -1,5 +1,7 @@
 # F-1 Fleet — PROGRESS (아침 대시보드)
 
+> **상태 갱신 (2026-10-13)** — 2026-06-09 무인 런 기록. `feature/fleet-f1-cc`는 이후 PR #22 → PR #24로 `dev`에 머지되었다. 검증 하네스(`/workspace/validation/fleet_f1/`)는 저장소 밖에 있다.
+
 > 한 줄 요약을 위에서부터 시간순. 캐노니컬 PLAN/PROGRESS는 여기 + repo `docs/fleet_f1/`(커밋).
 > 게이트 PASS는 **bag/TF 정량으로만** 판정. "노드 떴다"는 PASS 아님.
 

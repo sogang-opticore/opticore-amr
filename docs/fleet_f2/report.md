@@ -1,5 +1,8 @@
 # F-2 Fleet 무인 런 — 리포트 (아침 요약)
 
+> **상태 갱신 (2026-10-13)** — 2026-06 무인 런 기록. `feature/fleet-f2-deadlock`은 이후 PR #25 → integration 머지(406b0d0) → PR #27로 `dev`에 들어갔다. 재현 명령의 스크립트(`/workspace/validation/fleet_f2/`)는 저장소에 없다.
+> 2026-10 코드 리뷰에서 확인된 `deadlock_manager` 문제는 [`../server-run-prescription.md`](../server-run-prescription.md) 참고.
+
 **결론: 매니저(우선순위 교착 해소) = 구현·검증 완료(유닛 23/23 + 실 sim controlled demo +
 음성테스트 + F-1 무회귀 PASS). 단, 현 맵은 *창발적* 영구 교착을 강제할 수 없음(개방 그리드 =
 A* 우회) → end-to-end 창발 교착 demo 는 단일병목 맵(S-9 2존) 필요. 사람 결정 3안.**

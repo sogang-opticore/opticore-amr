@@ -1,5 +1,8 @@
 # F-3 Fleet 무인 런 — PROGRESS (아침 대시보드)
 
+> **상태 갱신 (2026-10-13)** — 2026-06 무인 런 기록. `feature/fleet-f3-priority`는 이후 PR #26 → integration 머지(406b0d0) → PR #27로 `dev`에 들어갔다. 본문의 "원격 push 보류 / dev rebase 후 PR"은 해소되었다. 단위테스트는 13개(`ros2_ws/src/amr_fleet/test/test_fleet_priority.py`)다.
+> 2026-10 코드 리뷰: `f3_priority_node`는 `/amrN/global_path`를 `TRANSIENT_LOCAL`로 구독하지만 A*는 `VOLATILE`로 발행한다. QoS가 호환되지 않아 실제 런에서는 경로가 수신되지 않고 로봇이 정지 상태로 투영된다. 자세한 내용은 [`../server-run-prescription.md`](../server-run-prescription.md) 참고.
+
 브랜치 `feature/fleet-f3-priority`. dev/f2-deadlock/f1-cc/spawn 미접촉, PR 미생성, install/ 미커밋.
 F-2 노드(deadlock_manager/priority_publisher)·amr_msgs·perception·maps·world·env.sh **불가침 유지**.
 > **로컬 6커밋 완료**(8d09264→cc80a54). **원격 push 는 무인환경 git 자격증명 부재로 보류** →
